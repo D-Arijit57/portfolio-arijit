@@ -1,0 +1,6 @@
+{
+  "name": "VS Code Portfolio",
+  "description": "A frontend portfolio designed exactly like VS Code, featuring an explorer, terminal, split editor, and command palette.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

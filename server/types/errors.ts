@@ -18,3 +18,9 @@ export class NotFoundError extends AppError {
 export class BadGatewayError extends AppError {
   readonly statusCode = 502;
 }
+
+// A WorkspaceTree invariant was violated (VFS_DESIGN.md §5/§6) — a data/generation
+// bug, not a client input problem. Not the client's fault, so it is not a 4xx.
+export class WorkspaceIntegrityError extends AppError {
+  readonly statusCode = 500;
+}

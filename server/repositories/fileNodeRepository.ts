@@ -16,6 +16,17 @@ export interface FileNodeRepository {
 
   getFolderById(id: string): Promise<VirtualFolder | undefined>;
 
+  /**
+   * Persists an edit to an existing file's content (VFS_DESIGN.md §3.1) — the
+   * only way a single file's content changes outside of reconcileGeneratedSubtree's
+   * namespace-level replace. Mutates `content` only; `id`, `name`, `path`, `type`
+   * are immutable through this method. Throws NotFoundError if `id` is absent or
+   * resolves to a folder; throws WorkspaceIntegrityError if the candidate tree
+   * fails validation. Does not check `isReadonly` — that is FileSystemService's
+   * business-policy responsibility, not this method's.
+   */
+  updateFileContent(id: string, content: string): Promise<VirtualFile>;
+
   listChildren(folderId: string): Promise<readonly VirtualNode[] | undefined>;
 
   /** Basic name/path substring match over the reconciled tree — not the Phase 3 Search Engine. */

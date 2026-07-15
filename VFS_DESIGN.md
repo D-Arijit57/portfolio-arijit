@@ -3,7 +3,9 @@
 ## Status
 **Frozen as of 2026-07-15** (revised same day, post stress-test). This document is the canonical domain-model specification for the Virtual File System. It does not replace `BACKEND_BOOTSTRAP.md` — that remains canonical for milestone sequencing and frontend integration mechanics. This document is the entities, invariants, and lifecycle ownership Sprint 2 (`BACKEND_BOOTSTRAP.md` Milestone 2) implements against.
 
-**Revision note**: a stress-test walkthrough (300 files + generated GitHub/LeetCode folders + search + playground history) surfaced two architectural contradictions and two missing lifecycle decisions in the first draft of this document. All four are resolved below. See §10 for the point-by-point consistency verification.
+**Revision note (2026-07-15)**: a stress-test walkthrough (300 files + generated GitHub/LeetCode folders + search + playground history) surfaced two architectural contradictions and two missing lifecycle decisions in the first draft of this document. All four are resolved below. See §10 for the point-by-point consistency verification.
+
+**Revision note (2026-07-16)**: Sprint 2C (`BACKEND_BOOTSTRAP.md` Milestone 2, Phase 2 endpoints) surfaced a gap: no repository method existed to persist an edit to an existing file's content — `reconcileGeneratedSubtree` is explicitly scoped away from static content. Added `FileNodeRepository.updateFileContent(id, content)` (§3, §3.1) and the corresponding `FileSystemService` write responsibilities (§4.1) to close the gap before `PUT /api/fs/file/:id` was implemented. §6 (Error Cases) and §7.2 (Ownership) were updated to reflect the new method; no other entity, invariant, or lifecycle decision in this document changed. Re-frozen as of 2026-07-16.
 
 No code is defined here. Interface and method descriptions are contracts to implement against, not implementations.
 
@@ -78,11 +80,39 @@ Responsibility: hides the data source from everything above it, **and owns the r
 | `listChildren(folderId)` | 2 | Backs Terminal `ls`/`cd` resolution |
 | `searchFiles(query)` | 3 | Backs the Search Engine. Operates over the same reconciled source `getRootTree()` reads from — generated content is searchable with no special-casing, because by this layer there is no distinction left to special-case. |
 | `reconcileGeneratedSubtree(namespace, nodes)` | 3 | The **only** way generated content enters or leaves the tree. See §7. |
+| `updateFileContent(id, content)` | 2 | Persists an edit to an existing file's `content`. The only way a single file's content changes outside of `reconcileGeneratedSubtree`'s namespace-level replace. Backs `PUT /api/fs/file/:id`. See §3.1. |
 
 Rules that hold regardless of phase:
 - The repository never imports HTTP-framework types and never throws HTTP-flavored errors — only domain errors (§6).
 - The repository has **no knowledge of what GitHub or LeetCode are** — `reconcileGeneratedSubtree` accepts an already-shaped, already-namespaced set of `VirtualFile`/`VirtualFolder` nodes and a namespace label; it does not know or care where they came from.
 - Swapping the underlying source (flat seed file → database → anything else) never requires a change to `FileSystemService` or the route layer.
+- `updateFileContent` and `reconcileGeneratedSubtree` are the tree's only two mutators. Both follow the same atomic pattern: build a candidate tree, validate it wholesale via `validateWorkspaceTree`, and commit only on success — a failed candidate leaves `root`/`index` completely untouched.
+
+### 3.1 `updateFileContent(id, content)` — Contract Detail
+
+Signature: `updateFileContent(id: string, content: string): Promise<VirtualFile>`.
+
+Scope, deliberately minimal: mutates `content` only. Does not accept `name`, `path`, `type`, or `id` changes — consistent with §2's id-immutability guarantee and with `BACKEND_BOOTSTRAP.md`'s framing of `PUT /api/fs/file/:id` as "saves updates to a file's content."
+
+**Responsibilities:**
+- Locate the node by `id`.
+- Confirm it resolves to a file, not absent and not a folder — mirrors `getFileById`'s existing absent-or-folder → "not found" convention.
+- Rebuild the path from root to that file with `content` replaced. Every `VirtualFile`/`VirtualFolder` field is `readonly` (§1.1/§1.2), so this is a recursive "replace node along path" reconstruction — every ancestor folder from root down to the file is rebuilt, not just a direct child of root (unlike `reconcileGeneratedSubtree`, which only ever replaces a namespace folder that is a direct child of root).
+- Validate the candidate tree; commit only on success; return the updated `VirtualFile`.
+
+**Validation:** re-runs `validateWorkspaceTree` on the full candidate tree before commit, same precedent as `reconcileGeneratedSubtree` — no narrower/parallel validation path is introduced. Because only `content` changes, §5.1–§5.4 (id, name, path, type) are trivially preserved; §5.5 (content always a string) is guaranteed by the method's own signature.
+
+**Atomicity:** identical pattern to `reconcileGeneratedSubtree` (§7.1) — build the candidate tree, validate it, and only then swap `root` and rebuild `index`. A validation failure leaves `root`/`index` completely untouched; no partial write is possible.
+
+**Readonly behavior:** this method does **not** inspect `isReadonly`. Per §5.9/§6, readonly-rejection is `FileSystemService`'s business-policy responsibility, not a structural tree invariant — encoding it here would duplicate policy logic across two layers. Called directly, this method will overwrite a readonly file's content; the service is what prevents that from happening over HTTP.
+
+**Error behavior:**
+- `id` absent, or resolves to a folder → throws `NotFoundError` directly. This method is self-contained and correct in isolation — it does not rely on a caller (i.e., the service) having pre-checked existence.
+- Candidate tree fails `validateWorkspaceTree` post-edit → throws `WorkspaceIntegrityError` (500), raised by the repository — distinct from the existing §6 row attributing tree-validation failures to the service, which applies to the read path (`getFullTree`) only.
+
+**Invariants preserved:** all of §5, unchanged in kind — id uniqueness/immutability, name/path consistency, valid `type`, always-string `content`, file/folder discrimination, tree-wide uniqueness/acyclicity. This is a narrower operation than a general node replace, layered under the same full-tree validation as every other mutation.
+
+**Interaction with generated content:** generated nodes default to `isReadonly: true` (§7.2), so `FileSystemService`'s readonly check (§4.1) naturally blocks `PUT` against them with no special-casing required. `reconcileGeneratedSubtree` remains the only way generated content changes; `updateFileContent` is reachable via `PUT /api/fs/file/:id` for any file, static or generated, but every generated file it could reach is already readonly by default, so no live generated node is mutable through this path in practice, without any code needing to enforce that exclusion explicitly.
 
 ---
 
@@ -98,6 +128,23 @@ Single method in Sprint 2: `getFullTree(): WorkspaceTree`.
 **Correction from the first draft**: this service does **not** merge generated branches into the tree. That responsibility moved to the repository (§3, §7) specifically to resolve the search-visibility contradiction. The service's job stays exactly what it was for Sprint 2 — validate whatever `getRootTree()` returns — and stays true unchanged once Phase 3 adds generated content, because from the service's perspective nothing about its input has structurally changed.
 
 What it explicitly does not do: no HTTP concerns, no direct data-source access, no `getFileById`/`searchFiles` ahead of the phase that needs them.
+
+### 4.1 Phase 2 additions — read and write
+
+Sprint 2C adds two methods, both thin orchestration over the repository — no new tree-assembly or validation logic is introduced beyond what §3.1 and §5 already define:
+
+**`getFileById(id): Promise<VirtualFile>`**
+1. Calls `FileNodeRepository.getFileById(id)`.
+2. Throws `NotFoundError` if the repository returns `undefined`.
+3. Returns the file. No additional validation — a file already inside the reconciled tree is already known-valid (it passed `validateWorkspaceTree` when it entered the tree, whether via seed construction or a prior `updateFileContent`/`reconcileGeneratedSubtree` commit).
+
+**`updateFile(id, content): Promise<VirtualFile>`** — owns the one piece of business policy Phase 2 introduces: readonly enforcement.
+1. Calls `FileNodeRepository.getFileById(id)` to read the current node.
+2. Throws `NotFoundError` if `undefined`.
+3. Throws `BadRequestError` if `existing.isReadonly === true` (§5.9/§6) — checked here, against the pre-edit node, and not inside the repository, because readonly is a business rule about *who is allowed to write*, not a structural fact about the tree itself (§3.1 "Readonly behavior").
+4. Calls `FileNodeRepository.updateFileContent(id, content)` and returns its result.
+
+The service still owns no persistence mechanics — step 4 delegates entirely to the repository, which owns the candidate-tree/validate/commit sequence (§3.1). The service's only added responsibility is the readonly policy check in step 3.
 
 ---
 
@@ -122,9 +169,10 @@ Extends the existing `AppError` hierarchy in `server/types/errors.ts` (`BadReque
 | Error | Raised by | Maps to | Meaning |
 |---|---|---|---|
 | Data source unreachable | `FileNodeRepository` | `BadGatewayError` (502) | Underlying store couldn't be read |
-| Tree fails validation (§5) | `FileSystemService` | *(new)* plain 500 | Malformed shape reached the service — a data bug, not a client input problem |
-| File not found *(Phase 2)* | Repository/Service | `NotFoundError` (404) | Backs `GET /api/fs/file/:id` |
-| Write to readonly file *(Phase 2)* | `FileSystemService` | `BadRequestError` (400) | Backs `PUT /api/fs/file/:id` |
+| Tree fails validation (§5), read path | `FileSystemService` | plain 500 | Malformed shape reached the service via `getFullTree()` — a data bug, not a client input problem |
+| File not found *(Phase 2)* | `FileNodeRepository` returns `undefined`; `FileSystemService` throws | `NotFoundError` (404) | Backs `GET /api/fs/file/:id` (via `FileSystemService.getFileById`, §4.1) and `PUT /api/fs/file/:id` (via `FileSystemService.updateFile`'s pre-check, §4.1 step 2) |
+| Write to readonly file *(Phase 2)* | `FileSystemService` | `BadRequestError` (400) | Backs `PUT /api/fs/file/:id` — enforced by `FileSystemService.updateFile` against the pre-edit node (§4.1 step 3), not by the repository (§3.1 "Readonly behavior") |
+| Candidate tree fails validation, write path *(Phase 2)* | `FileNodeRepository.updateFileContent` | `WorkspaceIntegrityError` (500) | Distinct from the read-path row above: raised directly by the repository during `updateFileContent`'s atomic commit (§3.1), before the error ever reaches the service |
 | Reconciliation failure *(Phase 3)* | `FileNodeRepository` | not HTTP-facing — this runs out-of-band, not inside a request | A malformed generated node set must not partially apply. The repository's affected namespace stays at its last-known-good state; the next sync cycle retries. Same atomicity principle as tree validation, applied to writes instead of reads. |
 
 Client-side hydration/save error handling is unchanged from `BACKEND_BOOTSTRAP.md`'s Error Handling Strategy.
@@ -159,6 +207,8 @@ Reconciliation for one namespace never touches another namespace's nodes, and ne
 | Change notification (separate domain) | `NotificationEngine` (Phase 3) | Decoupled from VFS; may be triggered alongside a reconciliation cycle but is not a VFS responsibility. Worth flagging as an interface seam when `IntegrationService` is designed: a notification should never reference a node id before that node's reconciliation has committed. |
 
 This table is the answer to "which component owns generated content at every stage" — no stage has ambiguous or shared ownership.
+
+**Relationship to direct file writes**: `updateFileContent` (§3.1, backing `PUT /api/fs/file/:id`) is a separate, general-purpose mutator — reachable for any file, static or generated — and is not part of this generated-content lifecycle table. It does not bypass reconciliation as the intended path for generated content: every generated node defaults to `isReadonly: true` (row 2 above), so `FileSystemService`'s readonly check (§4.1) blocks `PUT` against generated files in practice, without `updateFileContent` itself needing any generated-content awareness. `reconcileGeneratedSubtree` remains the sole namespace-level mutator; `updateFileContent` remains the sole single-file mutator. Neither owns the other's responsibility.
 
 ---
 

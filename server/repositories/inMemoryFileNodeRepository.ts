@@ -1,5 +1,6 @@
 import {
   isVirtualFile,
+  NotFoundError,
   WorkspaceIntegrityError,
   type VirtualFile,
   type VirtualFolder,
@@ -108,6 +109,55 @@ export class InMemoryFileNodeRepository implements FileNodeRepository {
 
     this.root = candidateRoot;
     this.index = InMemoryFileNodeRepository.buildIndex(candidateRoot);
+  }
+
+  async updateFileContent(id: string, content: string): Promise<VirtualFile> {
+    const existing = this.index.get(id);
+    if (!existing || !isVirtualFile(existing)) {
+      throw new NotFoundError(`No file found with id "${id}"`);
+    }
+
+    let updated: VirtualFile | undefined;
+
+    // Rebuilds only the ancestor chain from root down to the target file,
+    // reusing every untouched sibling/subtree by reference — the same
+    // structural-sharing approach as reconcileGeneratedSubtree, just recursive
+    // instead of single-level, since a static file can be arbitrarily deep
+    // (VFS_DESIGN.md §3.1).
+    const rebuild = (node: VirtualNode): VirtualNode => {
+      if (isVirtualFile(node)) {
+        return node;
+      }
+      let changed = false;
+      const children = node.children.map((child) => {
+        if (isVirtualFile(child)) {
+          if (child.id !== id) {
+            return child;
+          }
+          changed = true;
+          updated = { ...child, content };
+          return updated;
+        }
+        const rebuiltChild = rebuild(child);
+        if (rebuiltChild !== child) {
+          changed = true;
+        }
+        return rebuiltChild;
+      });
+      return changed ? { ...node, children } : node;
+    };
+
+    const candidateRoot = rebuild(this.root) as WorkspaceTree;
+
+    // Validate the whole candidate tree before committing — same atomicity
+    // guarantee as reconcileGeneratedSubtree: a failed candidate leaves
+    // `this.root`/`this.index` completely untouched (VFS_DESIGN.md §3.1).
+    validateWorkspaceTree(candidateRoot);
+
+    this.root = candidateRoot;
+    this.index = InMemoryFileNodeRepository.buildIndex(candidateRoot);
+
+    return updated as VirtualFile;
   }
 
   private static buildIndex(root: WorkspaceTree): Map<string, VirtualNode> {

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { allFiles, getFileById } from '../content/fileSystem';
 
@@ -29,6 +29,14 @@ export function resolveUrlPathToFile(pathname: string) {
 
 export function useRouterSync() {
   const { activeFileId, openFile } = useStore();
+  // Gates the activeFileId -> URL sync effect below until the URL -> activeFileId
+  // resolution on mount has committed. Without this, both effects fire in the same
+  // initial commit and the URL-derived sync can push a URL built from the store's
+  // pre-navigation default activeFileId, clobbering the just-resolved deep link.
+  // Set together with openFile() in the same synchronous pass so React 18 batches
+  // them into one commit — the effect below can never observe this flag as true
+  // while activeFileId is still the stale default.
+  const [initialRouteResolved, setInitialRouteResolved] = useState(false);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -44,12 +52,14 @@ export function useRouterSync() {
     } else if (window.location.pathname === '/') {
       window.history.replaceState(null, '', '/journey/readme');
     }
+    setInitialRouteResolved(true);
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [openFile]);
 
   useEffect(() => {
+    if (!initialRouteResolved) return;
     if (activeFileId) {
       const file = getFileById(activeFileId);
       if (file) {
@@ -66,5 +76,5 @@ export function useRouterSync() {
         }
       }
     }
-  }, [activeFileId]);
+  }, [activeFileId, initialRouteResolved]);
 }

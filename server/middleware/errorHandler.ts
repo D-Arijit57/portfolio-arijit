@@ -21,3 +21,4 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   logger.error('Unhandled request error', { path: req.originalUrl, message });
   res.status(500).json({ error: message });
 }
+

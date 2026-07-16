@@ -17,5 +17,5 @@ function readEnv(name: string, fallback?: string): string {
 export const config: AppConfig = {
   port: Number(readEnv('PORT', '4000')),
   nodeEnv: readEnv('NODE_ENV', 'development') as AppConfig['nodeEnv'],
-  corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3000'),
+  corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3001'),
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { codeToHtml } from 'shiki';
 import { useStore } from '../../store/useStore';
 import { getFileById } from '../../content/fileSystem';
@@ -6,15 +6,16 @@ import Editor from 'react-simple-code-editor';
 
 export function ShikiEditor({ fileId }: { fileId: string }) {
   const file = getFileById(fileId);
-  const { setFileDirty } = useStore();
-  const [content, setContent] = useState(file?.content || '');
-  const [highlighted, setHighlighted] = useState<string>('');
+  const draft = useStore((state) => state.draftContent[fileId]);
+  const savingState = useStore((state) => state.savingState[fileId]);
+  const setDraftContent = useStore((state) => state.setDraftContent);
+  const saveFile = useStore((state) => state.saveFile);
 
-  useEffect(() => {
-    if (file && file.content !== content) {
-      setContent(file.content);
-    }
-  }, [fileId]);
+  // draftContent is the single source of truth for in-progress edits; when
+  // no draft exists for this fileId, the editor falls back to the last
+  // confirmed backend content (workspaceFiles, via getFileById).
+  const content = draft !== undefined ? draft : file?.content ?? '';
+  const [highlighted, setHighlighted] = useState<string>('');
 
   useEffect(() => {
     if (!file) return;
@@ -24,14 +25,10 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
     if (lang === 'shell') lang = 'bash';
     if (lang === 'markdown') lang = 'md';
 
-    // We only need the inner HTML of the <code> tag for react-simple-code-editor
-    // Or we can just use codeToHtml and extract it
     codeToHtml(content, {
       lang: lang as any,
       theme: 'dark-plus'
     }).then((fullHtml) => {
-      // Shiki outputs: <pre class="shiki ..."><code>...</code></pre>
-      // We extract what's inside <code>...</code>
       const match = fullHtml.match(/<code>([\s\S]*?)<\/code>/);
       if (match && match[1]) {
         setHighlighted(match[1]);
@@ -41,9 +38,18 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
     }).catch(() => {
       setHighlighted(content);
     });
-    
-    setFileDirty(file.id, content !== file.content);
   }, [content, file]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        saveFile(fileId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fileId, saveFile]);
 
   if (!file) return null;
 
@@ -51,7 +57,7 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
     <div className="h-full w-full bg-[#1e1e1e] overflow-y-auto font-mono text-[14px]">
       <Editor
         value={content}
-        onValueChange={setContent}
+        onValueChange={(value) => setDraftContent(fileId, value)}
         highlight={() => highlighted}
         padding={16}
         style={{
@@ -61,6 +67,11 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
         }}
         textareaClassName="focus:outline-none"
       />
+      {savingState === 'error' && (
+        <div className="px-4 py-1 text-[12px] text-[#f48771] bg-[#5a1d1d]">
+          Save failed. Your edits are preserved — press Cmd/Ctrl+S to retry.
+        </div>
+      )}
     </div>
   );
 }

@@ -22,7 +22,6 @@ export interface EditorTab {
   id: string;
   fileId: string;
   pane: 'left' | 'right';
-  isDirty?: boolean;
 }
 
 export interface Notification {

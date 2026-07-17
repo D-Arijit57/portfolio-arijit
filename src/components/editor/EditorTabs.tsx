@@ -20,7 +20,7 @@ const FileIconMap: Record<string, React.ReactNode> = {
 };
 
 export function EditorTabs({ pane }: { pane: 'left' | 'right' }) {
-  const { openedTabs, activeFileId, setActiveFile, closeFile, reorderTabs } = useStore();
+  const { openedTabs, activeFileId, setActiveFile, closeFile, reorderTabs, draftContent } = useStore();
   const tabsInPane = openedTabs.filter(t => t.pane === pane);
 
   if (tabsInPane.length === 0) {
@@ -47,7 +47,8 @@ export function EditorTabs({ pane }: { pane: 'left' | 'right' }) {
             
             const isActive = activeFileId === file.id;
             const icon = FileIconMap[file.type] || FileIconMap.default;
-            const isDirty = tab.isDirty;
+            const draft = draftContent[file.id];
+            const isDirty = draft !== undefined && draft !== file.content;
 
             return (
               <Reorder.Item

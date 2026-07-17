@@ -38,14 +38,40 @@ export async function fetchFile(id: string): Promise<VirtualFile> {
   return res.json() as Promise<VirtualFile>;
 }
 
-export async function updateFile(id: string, content: string): Promise<VirtualFile> {
-  const res = await fetch(`${API_BASE_URL}/fs/file/${encodeURIComponent(id)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
-  if (!res.ok) {
-    throw new Error(await resolveErrorMessage(res));
+/**
+ * Discriminates the three outcomes a save can have, since a save-pipeline
+ * caller (Store.saveFile(), Sprint 4B) needs to tell "server rejected the
+ * write" apart from "request never reached the server" to decide whether
+ * retrying makes sense — a generic thrown Error collapses that distinction.
+ */
+export type UpdateFileResult =
+  | { status: 'success'; file: VirtualFile }
+  | { status: 'http-error'; statusCode: number; message: string }
+  | { status: 'network-error'; message: string };
+
+export async function updateFile(id: string, content: string): Promise<UpdateFileResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/fs/file/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+  } catch (err) {
+    return {
+      status: 'network-error',
+      message: err instanceof Error ? err.message : 'Network request failed',
+    };
   }
-  return res.json() as Promise<VirtualFile>;
+
+  if (!res.ok) {
+    return {
+      status: 'http-error',
+      statusCode: res.status,
+      message: await resolveErrorMessage(res),
+    };
+  }
+
+  const file = (await res.json()) as VirtualFile;
+  return { status: 'success', file };
 }

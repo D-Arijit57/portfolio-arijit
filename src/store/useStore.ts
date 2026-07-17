@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { EditorTab, Notification, VirtualFile, VirtualFolder } from '../types';
 import { workspaceSeed, getAllFiles } from '../content/workspaceSeed';
-import { fetchWorkspaceTree } from '../lib/api/vfsClient';
+import { fetchWorkspaceTree, updateFile } from '../lib/api/vfsClient';
+
+export type SavingState = 'idle' | 'saving' | 'success' | 'error';
 
 interface StoreState {
   activeFileId: string | null;
@@ -31,6 +33,17 @@ interface StoreState {
   vfsLoading: boolean;
   vfsError: string | null;
 
+  // Save pipeline (Sprint 4B). Keyed by file id rather than a single global
+  // value — the editor already supports multiple open tabs across two split
+  // panes, so a lone draft/savingState pair would let editing one file stomp
+  // another's in-flight draft or saving indicator. draftContent holds the
+  // user's uncommitted edits; workspaceFiles stays the last confirmed
+  // backend state and is never written to except via reconciliation after a
+  // successful save. Dirty state is derived (draft !== saved content), never
+  // stored — see fileIsDirty().
+  draftContent: Record<string, string>;
+  savingState: Record<string, SavingState>;
+
   // Actions
   setActiveFile: (id: string | null) => void;
   openFile: (id: string, pane?: 'left' | 'right') => void;
@@ -45,8 +58,9 @@ interface StoreState {
   dismissNotification: (id: string) => void;
   toggleEditorSplit: () => void;
   reorderTabs: (tabs: EditorTab[]) => void;
-  setFileDirty: (id: string, isDirty: boolean) => void;
   hydrateVFS: () => Promise<void>;
+  setDraftContent: (id: string, content: string) => void;
+  saveFile: (id: string) => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -78,6 +92,9 @@ export const useStore = create<StoreState>((set, get) => ({
   vfsLoaded: false,
   vfsLoading: false,
   vfsError: null,
+
+  draftContent: {},
+  savingState: {},
 
   setActiveFile: (id) => set({ activeFileId: id }),
   
@@ -156,10 +173,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   reorderTabs: (tabs) => set({ openedTabs: tabs }),
 
-  setFileDirty: (id, isDirty) => set((state) => ({
-    openedTabs: state.openedTabs.map(t => t.fileId === id ? { ...t, isDirty } : t)
-  })),
-
   hydrateVFS: async () => {
     if (get().vfsLoading) return;
     set({ vfsLoading: true, vfsError: null });
@@ -178,6 +191,36 @@ export const useStore = create<StoreState>((set, get) => ({
         vfsLoading: false,
         vfsError: err instanceof Error ? err.message : 'Failed to load workspace',
       });
+    }
+  },
+
+  setDraftContent: (id, content) => set((state) => ({
+    draftContent: { ...state.draftContent, [id]: content },
+  })),
+
+  saveFile: async (id) => {
+    const draft = get().draftContent[id];
+    if (draft === undefined) return;
+
+    set((state) => ({
+      savingState: { ...state.savingState, [id]: 'saving' },
+    }));
+
+    const result = await updateFile(id, draft);
+
+    if (result.status === 'success') {
+      set((state) => {
+        const { [id]: _saved, ...remainingDrafts } = state.draftContent;
+        return {
+          workspaceFiles: state.workspaceFiles.map(f => f.id === id ? result.file : f),
+          draftContent: remainingDrafts,
+          savingState: { ...state.savingState, [id]: 'success' },
+        };
+      });
+    } else {
+      set((state) => ({
+        savingState: { ...state.savingState, [id]: 'error' },
+      }));
     }
   },
 }));

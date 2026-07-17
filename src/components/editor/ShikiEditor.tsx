@@ -10,6 +10,7 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
   const savingState = useStore((state) => state.savingState[fileId]);
   const setDraftContent = useStore((state) => state.setDraftContent);
   const saveFile = useStore((state) => state.saveFile);
+  const editorTheme = useStore((state) => state.editorTheme);
 
   // draftContent is the single source of truth for in-progress edits; when
   // no draft exists for this fileId, the editor falls back to the last
@@ -27,7 +28,7 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
 
     codeToHtml(content, {
       lang: lang as any,
-      theme: 'dark-plus'
+      theme: editorTheme
     }).then((fullHtml) => {
       const match = fullHtml.match(/<code>([\s\S]*?)<\/code>/);
       if (match && match[1]) {
@@ -38,7 +39,7 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
     }).catch(() => {
       setHighlighted(content);
     });
-  }, [content, file]);
+  }, [content, file, editorTheme]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

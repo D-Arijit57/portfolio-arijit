@@ -2,8 +2,26 @@ import { create } from 'zustand';
 import { EditorTab, Notification, VirtualFile, VirtualFolder } from '../types';
 import { workspaceSeed, getAllFiles } from '../content/workspaceSeed';
 import { fetchWorkspaceTree, updateFile } from '../lib/api/vfsClient';
+import type { CommandContext, ExecutionStatus, HistoryEntry } from '../terminal/types';
+import { parseCommand } from '../terminal/parser';
+import { executeCommand } from '../terminal/executor';
+import { resolveVfsPath } from '../terminal/vfsPath';
+import { registerBuiltinCommands } from '../terminal/commands';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
+
+// Composition root for the command registry (TERMINAL_DESIGN.md §2, §18.7) —
+// registered once at module load, same pattern as instantiating a repository
+// once rather than holding it as reactive state.
+registerBuiltinCommands();
+
+const MAX_TERMINAL_HISTORY = 200;
+
+function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
+  return entries.length > MAX_TERMINAL_HISTORY
+    ? entries.slice(entries.length - MAX_TERMINAL_HISTORY)
+    : entries;
+}
 
 interface StoreState {
   activeFileId: string | null;
@@ -12,9 +30,18 @@ interface StoreState {
     isOpen: boolean;
     expandedFolders: string[];
   };
+  // Terminal session state (Sprint 5B). The store is the single owner of
+  // every terminal concern — command history, current input, cwd, execution
+  // status, and history-recall cursor. The command registry is deliberately
+  // NOT here (TERMINAL_DESIGN.md §2) — commands are code, held in a
+  // module-level Map in src/terminal/registry.ts.
   terminalState: {
     isOpen: boolean;
-    history: { command: string; output: string }[];
+    input: string;
+    status: ExecutionStatus;
+    cwd: string;
+    history: HistoryEntry[];
+    historyCursor: number | null;
   };
   commandPalette: {
     isOpen: boolean;
@@ -44,6 +71,10 @@ interface StoreState {
   draftContent: Record<string, string>;
   savingState: Record<string, SavingState>;
 
+  // Editor syntax-highlighting theme (Sprint 5B `theme` command target).
+  // Presentation-only — never affects IDE chrome/layout.
+  editorTheme: string;
+
   // Actions
   setActiveFile: (id: string | null) => void;
   openFile: (id: string, pane?: 'left' | 'right') => void;
@@ -51,8 +82,11 @@ interface StoreState {
   toggleExplorer: () => void;
   toggleFolder: (id: string) => void;
   toggleTerminal: () => void;
-  addTerminalHistory: (command: string, output: string) => void;
   clearTerminal: () => void;
+  setTerminalInput: (value: string) => void;
+  submitTerminalCommand: () => Promise<void>;
+  navigateHistory: (direction: 'up' | 'down') => void;
+  setEditorTheme: (theme: string) => void;
   setCommandPaletteOpen: (isOpen: boolean) => void;
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
   dismissNotification: (id: string) => void;
@@ -75,10 +109,26 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   terminalState: {
     isOpen: true,
+    input: '',
+    status: 'idle',
+    cwd: '/',
     history: [
-      { command: '', output: "Welcome to Arijit Das's workspace." },
-      { command: '', output: "Type 'help' to see available commands." }
-    ]
+      {
+        id: 'hist-welcome-1',
+        command: '',
+        cwd: '/',
+        output: [{ type: 'text', text: "Welcome to Arijit Das's workspace." }],
+        timestamp: Date.now(),
+      },
+      {
+        id: 'hist-welcome-2',
+        command: '',
+        cwd: '/',
+        output: [{ type: 'text', text: "Type 'help' to see available commands." }],
+        timestamp: Date.now(),
+      },
+    ],
+    historyCursor: null,
   },
   commandPalette: { isOpen: false },
   notifications: [
@@ -95,6 +145,8 @@ export const useStore = create<StoreState>((set, get) => ({
 
   draftContent: {},
   savingState: {},
+
+  editorTheme: 'dark-plus',
 
   setActiveFile: (id) => set({ activeFileId: id }),
   
@@ -139,16 +191,103 @@ export const useStore = create<StoreState>((set, get) => ({
     terminalState: { ...state.terminalState, isOpen: !state.terminalState.isOpen }
   })),
 
-  addTerminalHistory: (command, output) => set((state) => ({
-    terminalState: {
-      ...state.terminalState,
-      history: [...state.terminalState.history, { command, output }]
-    }
+  clearTerminal: () => set((state) => ({
+    terminalState: { ...state.terminalState, history: [], historyCursor: null }
   })),
 
-  clearTerminal: () => set((state) => ({
-    terminalState: { ...state.terminalState, history: [] }
+  setTerminalInput: (value) => set((state) => ({
+    terminalState: { ...state.terminalState, input: value }
   })),
+
+  // The only orchestrator for terminal execution (TERMINAL_DESIGN.md §1, §6).
+  // Parses and delegates to the executor/registry; never contains a command
+  // switch statement itself.
+  submitTerminalCommand: async () => {
+    const raw = get().terminalState.input;
+    const trimmed = raw.trim();
+
+    if (trimmed === '') {
+      const entry: HistoryEntry = {
+        id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        command: '',
+        cwd: get().terminalState.cwd,
+        output: [],
+        timestamp: Date.now(),
+      };
+      set((state) => ({
+        terminalState: {
+          ...state.terminalState,
+          history: capHistory([...state.terminalState.history, entry]),
+          input: '',
+          historyCursor: null,
+        },
+      }));
+      return;
+    }
+
+    set((state) => ({ terminalState: { ...state.terminalState, status: 'executing' } }));
+
+    const parsed = parseCommand(raw);
+    const ctx: CommandContext = {
+      args: parsed.args,
+      raw,
+      cwd: get().terminalState.cwd,
+      history: get().terminalState.history.map((h) => h.command).filter(Boolean),
+      openFile: get().openFile,
+      resolvePath: (path) => resolveVfsPath(get().workspaceTree, get().terminalState.cwd, path),
+      setCwd: (path) => set((state) => ({ terminalState: { ...state.terminalState, cwd: path } })),
+      clearHistory: () => get().clearTerminal(),
+      getEditorTheme: () => get().editorTheme,
+      setEditorTheme: (theme) => set({ editorTheme: theme }),
+    };
+
+    const result = await executeCommand(parsed, ctx);
+
+    const entry: HistoryEntry = {
+      id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      command: raw,
+      cwd: get().terminalState.cwd,
+      output: result.output,
+      timestamp: Date.now(),
+    };
+
+    set((state) => ({
+      terminalState: {
+        ...state.terminalState,
+        history: capHistory([...state.terminalState.history, entry]),
+        input: '',
+        historyCursor: null,
+        status: 'idle',
+      },
+    }));
+  },
+
+  // ↑ recalls further back, ↓ recalls forward; commandLog is derived from
+  // history, never a second stored array (TERMINAL_DESIGN.md §8).
+  navigateHistory: (direction) => set((state) => {
+    const commandLog = state.terminalState.history.map((h) => h.command).filter(Boolean);
+    if (commandLog.length === 0) return {};
+
+    const { historyCursor } = state.terminalState;
+
+    if (direction === 'up') {
+      const nextIndex = historyCursor === null ? commandLog.length - 1 : Math.max(0, historyCursor - 1);
+      return {
+        terminalState: { ...state.terminalState, historyCursor: nextIndex, input: commandLog[nextIndex] },
+      };
+    }
+
+    if (historyCursor === null) return {};
+    const nextIndex = historyCursor + 1;
+    if (nextIndex >= commandLog.length) {
+      return { terminalState: { ...state.terminalState, historyCursor: null, input: '' } };
+    }
+    return {
+      terminalState: { ...state.terminalState, historyCursor: nextIndex, input: commandLog[nextIndex] },
+    };
+  }),
+
+  setEditorTheme: (theme) => set({ editorTheme: theme }),
 
   setCommandPaletteOpen: (isOpen) => set({ commandPalette: { isOpen } }),
 

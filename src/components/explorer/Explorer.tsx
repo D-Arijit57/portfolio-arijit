@@ -6,6 +6,7 @@ import { ExplorerNode, VirtualFile, VirtualFolder } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SearchPanel } from './SearchPanel';
+import { ResizeHandle } from '../shared/ResizeHandle';
 
 const FileIconMap: Record<string, React.ReactNode> = {
   markdown: <FileText size={16} className="text-[#519aba]" />,
@@ -19,14 +20,17 @@ const FileIconMap: Record<string, React.ReactNode> = {
 };
 
 export function Explorer() {
-  const { explorerState } = useStore();
+  const { explorerState, setExplorerWidth } = useStore();
 
   if (!explorerState.isOpen) return null;
 
   const isSearchView = explorerState.view === 'search';
 
   return (
-    <div className="w-[220px] bg-[#252526] shrink-0 border-r border-[#3c3c3c] flex flex-col h-full">
+    <div
+      style={{ width: explorerState.width }}
+      className="relative bg-[#252526] shrink-0 border-r border-[#3c3c3c] flex flex-col h-full"
+    >
       <div className="flex items-center justify-between px-4 py-3 uppercase tracking-wider text-[11px] font-bold text-[#858585]">
         <span>{isSearchView ? 'Search' : 'Explorer'}</span>
         {!isSearchView && <span>...</span>}
@@ -34,6 +38,11 @@ export function Explorer() {
       <div className="flex-1 overflow-y-auto">
         {isSearchView ? <SearchPanel /> : <FolderNode node={fileSystem} level={0} />}
       </div>
+      <ResizeHandle
+        direction="horizontal"
+        onResize={setExplorerWidth}
+        className="absolute top-0 bottom-0 right-0 -mr-0.5"
+      />
     </div>
   );
 }

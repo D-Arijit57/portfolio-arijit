@@ -53,6 +53,29 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
     : entries;
 }
 
+/**
+ * WA-01: the one place pane placement is decided for every openFile() call
+ * that doesn't pass an explicit pane — Explorer, Search, Terminal commands,
+ * Command Palette, and router deep-links all go through this. Previously a
+ * dead ternary (`pane || (state.editorSplit ? 'left' : 'left')`) always
+ * resolved to 'left', so the right pane could never be repopulated once its
+ * last tab closed. Strategy: reuse whichever pane is empty; if both panes
+ * are occupied (or both empty), open alongside whatever's currently active,
+ * the same way a real IDE opens new files into the last-focused group.
+ */
+function resolveTargetPane(state: Pick<StoreState, 'openedTabs' | 'editorSplit' | 'activeFileId'>): 'left' | 'right' {
+  if (!state.editorSplit) return 'left';
+
+  const leftCount = state.openedTabs.filter((t) => t.pane === 'left').length;
+  const rightCount = state.openedTabs.filter((t) => t.pane === 'right').length;
+
+  if (leftCount === 0 && rightCount > 0) return 'left';
+  if (rightCount === 0 && leftCount > 0) return 'right';
+
+  const activeTab = state.openedTabs.find((t) => t.fileId === state.activeFileId);
+  return activeTab?.pane ?? 'left';
+}
+
 interface StoreState {
   activeFileId: string | null;
   openedTabs: EditorTab[];
@@ -60,6 +83,8 @@ interface StoreState {
     isOpen: boolean;
     expandedFolders: string[];
     view: 'files' | 'search';
+    // WA-06: drag-resizable width (px), clamped in setExplorerWidth.
+    width: number;
   };
   // Terminal session state (Sprint 5B). The store is the single owner of
   // every terminal concern — command history, current input, cwd, execution
@@ -73,6 +98,8 @@ interface StoreState {
     cwd: string;
     history: HistoryEntry[];
     historyCursor: number | null;
+    // WA-06: drag-resizable height (px), clamped in setTerminalHeight.
+    height: number;
   };
   commandPalette: {
     isOpen: boolean;
@@ -100,6 +127,10 @@ interface StoreState {
     visible: Notification[];
   };
   editorSplit: boolean;
+  // WA-06: fraction (0-1) of the split editor's width given to the left
+  // pane, clamped in setSplitRatio. Only meaningful while editorSplit is
+  // true; irrelevant to (and untouched by) single-pane layout.
+  splitRatio: number;
 
   // VFS state (Sprint 3A/3B). Seeded statically below so fileSystem.ts's
   // facade (src/content/fileSystem.ts) always has valid data to read, even
@@ -134,7 +165,9 @@ interface StoreState {
   toggleExplorer: () => void;
   toggleFolder: (id: string) => void;
   setExplorerView: (view: 'files' | 'search') => void;
+  setExplorerWidth: (deltaPx: number) => void;
   toggleTerminal: () => void;
+  setTerminalHeight: (deltaPx: number) => void;
   clearTerminal: () => void;
   setTerminalInput: (value: string) => void;
   submitTerminalCommand: () => Promise<void>;
@@ -144,6 +177,7 @@ interface StoreState {
   /** Thin passthrough to notificationService.dismiss() — the store isn't a privileged caller (ARCHITECTURE.md §4). */
   dismissNotification: (id: string) => void;
   toggleEditorSplit: () => void;
+  setSplitRatio: (deltaPx: number, containerWidthPx: number) => void;
   reorderTabs: (tabs: EditorTab[]) => void;
   hydrateVFS: () => Promise<void>;
   setDraftContent: (id: string, content: string) => void;
@@ -161,13 +195,15 @@ export const useStore = create<StoreState>((set, get) => ({
   explorerState: {
     isOpen: true,
     expandedFolders: ['root', 'projects', 'cortexa', 'about', 'experience', 'skills', 'contact'],
-    view: 'files'
+    view: 'files',
+    width: 220
   },
   terminalState: {
     isOpen: true,
     input: '',
     status: 'idle',
     cwd: '/',
+    height: 200,
     history: [
       {
         id: 'hist-welcome-1',
@@ -190,6 +226,7 @@ export const useStore = create<StoreState>((set, get) => ({
   searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
   notificationState: { visible: [] },
   editorSplit: true,
+  splitRatio: 0.5,
 
   workspaceTree: workspaceSeed,
   workspaceFiles: initialWorkspaceFiles,
@@ -209,7 +246,7 @@ export const useStore = create<StoreState>((set, get) => ({
     if (existingTab) {
       return { activeFileId: id };
     }
-    const targetPane = pane || (state.editorSplit ? 'left' : 'left');
+    const targetPane = pane ?? resolveTargetPane(state);
     const newTab = { id: `tab-${Date.now()}`, fileId: id, pane: targetPane };
     return {
       openedTabs: [...state.openedTabs, newTab],
@@ -217,13 +254,27 @@ export const useStore = create<StoreState>((set, get) => ({
     };
   }),
 
-  closeFile: (id) => set((state) => {
-    const newTabs = state.openedTabs.filter(t => t.fileId !== id);
-    return {
-      openedTabs: newTabs,
-      activeFileId: state.activeFileId === id ? (newTabs.length > 0 ? newTabs[newTabs.length - 1].fileId : null) : state.activeFileId
-    };
-  }),
+  closeFile: (id) => {
+    set((state) => {
+      const newTabs = state.openedTabs.filter(t => t.fileId !== id);
+      return {
+        openedTabs: newTabs,
+        activeFileId: state.activeFileId === id ? (newTabs.length > 0 ? newTabs[newTabs.length - 1].fileId : null) : state.activeFileId
+      };
+    });
+
+    // WA-08: closing the playground is the one file-close producers were
+    // asked to surface — points the user at the `playground` command
+    // (WA-08) rather than leaving the restore path undiscoverable.
+    if (id === 'playground') {
+      notificationService.info({
+        title: 'Playground closed',
+        message: "Run 'playground' in the terminal to restore it.",
+        source: 'Editor',
+        duration: 6000,
+      });
+    }
+  },
 
   toggleExplorer: () => set((state) => ({
     explorerState: { ...state.explorerState, isOpen: !state.explorerState.isOpen }
@@ -245,9 +296,31 @@ export const useStore = create<StoreState>((set, get) => ({
     explorerState: { ...state.explorerState, view, isOpen: true }
   })),
 
+  // WA-06: delta-based, clamped to a usable range (170-480px) so a fast
+  // drag can never collapse Explorer to unreadable or runaway width.
+  setExplorerWidth: (deltaPx) => set((state) => ({
+    explorerState: {
+      ...state.explorerState,
+      width: Math.min(480, Math.max(170, state.explorerState.width + deltaPx)),
+    },
+  })),
+
   toggleTerminal: () => set((state) => ({
     terminalState: { ...state.terminalState, isOpen: !state.terminalState.isOpen }
   })),
+
+  // WA-06: dragging the handle up (negative deltaY) grows the terminal, so
+  // height is decremented by deltaY. Clamped to a usable range, with the
+  // upper bound leaving room for the editor above it.
+  setTerminalHeight: (deltaPx) => set((state) => {
+    const maxHeight = typeof window !== 'undefined' ? Math.max(160, window.innerHeight - 200) : 600;
+    return {
+      terminalState: {
+        ...state.terminalState,
+        height: Math.min(maxHeight, Math.max(100, state.terminalState.height - deltaPx)),
+      },
+    };
+  }),
 
   clearTerminal: () => set((state) => ({
     terminalState: { ...state.terminalState, history: [], historyCursor: null }
@@ -362,6 +435,17 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
     return { editorSplit: true };
+  }),
+
+  // WA-06: converts a pixel delta into a ratio delta against the measured
+  // container width (passed by the caller, which owns that DOM ref — the
+  // store stays DOM-agnostic), then clamps so neither pane can be dragged
+  // below a 200px-equivalent minimum.
+  setSplitRatio: (deltaPx, containerWidthPx) => set((state) => {
+    if (containerWidthPx <= 0) return {};
+    const minRatio = Math.min(0.4, 200 / containerWidthPx);
+    const next = state.splitRatio + deltaPx / containerWidthPx;
+    return { splitRatio: Math.min(1 - minRatio, Math.max(minRatio, next)) };
   }),
 
   reorderTabs: (tabs) => set({ openedTabs: tabs }),

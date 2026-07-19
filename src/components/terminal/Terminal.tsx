@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { getPrompt } from '../../terminal/prompt';
 import { OutputRenderer } from './OutputRenderer';
+import { ResizeHandle } from '../shared/ResizeHandle';
 
 /**
  * UI shell only (TERMINAL_DESIGN.md §1, §6). Collects input, displays
@@ -9,7 +10,7 @@ import { OutputRenderer } from './OutputRenderer';
  * looks up, or executes a command itself.
  */
 export function Terminal() {
-  const { terminalState, setTerminalInput, submitTerminalCommand, navigateHistory } = useStore();
+  const { terminalState, setTerminalInput, submitTerminalCommand, navigateHistory, setTerminalHeight } = useStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -18,6 +19,16 @@ export function Terminal() {
       bottomRef.current.scrollIntoView({ behavior: 'auto' });
     }
   }, [terminalState.history]);
+
+  // WA-03: the input is disabled while a command executes (below), and a
+  // native <input> does not automatically regain focus when re-enabled —
+  // it drops to <body>. Re-focus explicitly once execution finishes so the
+  // terminal stays keyboard-ready without requiring a re-click.
+  useEffect(() => {
+    if (terminalState.status !== 'executing') {
+      inputRef.current?.focus();
+    }
+  }, [terminalState.status]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +50,15 @@ export function Terminal() {
   const isExecuting = terminalState.status === 'executing';
 
   return (
-    <div className="h-[200px] border-t border-[#3c3c3c] bg-[#1e1e1e] flex flex-col font-mono text-[13px] shrink-0">
+    <div
+      style={{ height: terminalState.height }}
+      className="relative border-t border-[#3c3c3c] bg-[#1e1e1e] flex flex-col font-mono text-[13px] shrink-0"
+    >
+      <ResizeHandle
+        direction="vertical"
+        onResize={setTerminalHeight}
+        className="absolute left-0 right-0 top-0 -mt-0.5"
+      />
       <div className="flex px-4 pt-2 space-x-6 text-[11px] font-bold uppercase text-[#858585]">
         <span className="text-white border-b-2 border-white pb-1 cursor-pointer">Terminal</span>
         <span className="hover:text-white cursor-pointer pb-1 border-b-2 border-transparent">Output</span>

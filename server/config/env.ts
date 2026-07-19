@@ -27,7 +27,7 @@ function readOptionalEnv(name: string): string | undefined {
 export const config: AppConfig = {
   port: Number(readEnv('PORT', '4000')),
   nodeEnv: readEnv('NODE_ENV', 'development') as AppConfig['nodeEnv'],
-  corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3001'),
+  corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3000'),
   githubUsername: readOptionalEnv('GITHUB_USERNAME'),
   githubToken: readOptionalEnv('GITHUB_TOKEN'),
 };

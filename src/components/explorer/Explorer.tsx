@@ -5,6 +5,7 @@ import { fileSystem, getFileById } from '../../content/fileSystem';
 import { ExplorerNode, VirtualFile, VirtualFolder } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { SearchPanel } from './SearchPanel';
 
 const FileIconMap: Record<string, React.ReactNode> = {
   markdown: <FileText size={16} className="text-[#519aba]" />,
@@ -22,14 +23,16 @@ export function Explorer() {
 
   if (!explorerState.isOpen) return null;
 
+  const isSearchView = explorerState.view === 'search';
+
   return (
     <div className="w-[220px] bg-[#252526] shrink-0 border-r border-[#3c3c3c] flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 uppercase tracking-wider text-[11px] font-bold text-[#858585]">
-        <span>Explorer</span>
-        <span>...</span>
+        <span>{isSearchView ? 'Search' : 'Explorer'}</span>
+        {!isSearchView && <span>...</span>}
       </div>
       <div className="flex-1 overflow-y-auto">
-        <FolderNode node={fileSystem} level={0} />
+        {isSearchView ? <SearchPanel /> : <FolderNode node={fileSystem} level={0} />}
       </div>
     </div>
   );

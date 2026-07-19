@@ -7,13 +7,23 @@ import { parseCommand } from '../terminal/parser';
 import { executeCommand } from '../terminal/executor';
 import { resolveVfsPath } from '../terminal/vfsPath';
 import { registerBuiltinCommands } from '../terminal/commands';
+import { buildIndex } from '../search/searchIndex';
+import { search as runSearch } from '../search/searchEngine';
+import type { SearchResult } from '../search/types';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
+export type SearchStatus = 'idle' | 'searching' | 'done';
 
 // Composition root for the command registry (TERMINAL_DESIGN.md §2, §18.7) —
 // registered once at module load, same pattern as instantiating a repository
 // once rather than holding it as reactive state.
 registerBuiltinCommands();
+
+// Initial search index build (ARCHITECTURE.md §8 lists hydrateVFS()/saveFile()
+// success as rebuild triggers; this seeds the index at module load so search
+// is never stale/empty during the brief pre-hydration window).
+const initialWorkspaceFiles = getAllFiles(workspaceSeed);
+buildIndex(initialWorkspaceFiles);
 
 const MAX_TERMINAL_HISTORY = 200;
 
@@ -29,6 +39,7 @@ interface StoreState {
   explorerState: {
     isOpen: boolean;
     expandedFolders: string[];
+    view: 'files' | 'search';
   };
   // Terminal session state (Sprint 5B). The store is the single owner of
   // every terminal concern — command history, current input, cwd, execution
@@ -45,6 +56,18 @@ interface StoreState {
   };
   commandPalette: {
     isOpen: boolean;
+  };
+  // Search session state (Sprint 7B, ARCHITECTURE.md §2). The store owns
+  // query/results/activeResultIndex/status and orchestrates calls into
+  // src/search/searchEngine.ts; it never matches or ranks anything itself.
+  // The index itself is explicitly NOT here — it's a module-level cache in
+  // src/search/searchIndex.ts (§2), same reasoning as the terminal command
+  // registry.
+  searchState: {
+    query: string;
+    results: SearchResult[];
+    activeResultIndex: number | null;
+    status: SearchStatus;
   };
   notifications: Notification[];
   editorSplit: boolean;
@@ -81,6 +104,7 @@ interface StoreState {
   closeFile: (id: string) => void;
   toggleExplorer: () => void;
   toggleFolder: (id: string) => void;
+  setExplorerView: (view: 'files' | 'search') => void;
   toggleTerminal: () => void;
   clearTerminal: () => void;
   setTerminalInput: (value: string) => void;
@@ -95,6 +119,8 @@ interface StoreState {
   hydrateVFS: () => Promise<void>;
   setDraftContent: (id: string, content: string) => void;
   saveFile: (id: string) => Promise<void>;
+  setSearchQuery: (query: string) => Promise<void>;
+  setActiveResultIndex: (index: number | null) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -105,7 +131,8 @@ export const useStore = create<StoreState>((set, get) => ({
   ],
   explorerState: {
     isOpen: true,
-    expandedFolders: ['root', 'projects', 'cortexa', 'about', 'experience', 'skills', 'contact']
+    expandedFolders: ['root', 'projects', 'cortexa', 'about', 'experience', 'skills', 'contact'],
+    view: 'files'
   },
   terminalState: {
     isOpen: true,
@@ -131,6 +158,7 @@ export const useStore = create<StoreState>((set, get) => ({
     historyCursor: null,
   },
   commandPalette: { isOpen: false },
+  searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
   notifications: [
     { id: 'notif-1', source: 'GitHub', message: '3 commits pushed to portfolio-v2 today.', timestamp: Date.now() - 10000 },
     { id: 'notif-2', source: 'LeetCode', message: 'Solved 542 problems. Current streak: 12 days.', timestamp: Date.now() }
@@ -138,7 +166,7 @@ export const useStore = create<StoreState>((set, get) => ({
   editorSplit: true,
 
   workspaceTree: workspaceSeed,
-  workspaceFiles: getAllFiles(workspaceSeed),
+  workspaceFiles: initialWorkspaceFiles,
   vfsLoaded: false,
   vfsLoading: false,
   vfsError: null,
@@ -186,6 +214,10 @@ export const useStore = create<StoreState>((set, get) => ({
       }
     };
   }),
+
+  setExplorerView: (view) => set((state) => ({
+    explorerState: { ...state.explorerState, view, isOpen: true }
+  })),
 
   toggleTerminal: () => set((state) => ({
     terminalState: { ...state.terminalState, isOpen: !state.terminalState.isOpen }
@@ -318,6 +350,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const tree = await fetchWorkspaceTree();
       const files = getAllFiles(tree);
+      buildIndex(files); // ARCHITECTURE.md §8: hydrateVFS() success rebuilds the index
       set({
         workspaceTree: tree,
         workspaceFiles: files,
@@ -350,8 +383,10 @@ export const useStore = create<StoreState>((set, get) => ({
     if (result.status === 'success') {
       set((state) => {
         const { [id]: _saved, ...remainingDrafts } = state.draftContent;
+        const updatedFiles = state.workspaceFiles.map(f => f.id === id ? result.file : f);
+        buildIndex(updatedFiles); // ARCHITECTURE.md §8: saveFile() success rebuilds the index
         return {
-          workspaceFiles: state.workspaceFiles.map(f => f.id === id ? result.file : f),
+          workspaceFiles: updatedFiles,
           draftContent: remainingDrafts,
           savingState: { ...state.savingState, [id]: 'success' },
         };
@@ -362,4 +397,38 @@ export const useStore = create<StoreState>((set, get) => ({
       }));
     }
   },
+
+  // The one orchestrator for search (ARCHITECTURE.md §1, mirrors
+  // submitTerminalCommand's shape): updates query, delegates matching/ranking
+  // to the Search Engine, stores results. Never matches or ranks itself.
+  setSearchQuery: async (query) => {
+    if (query.trim() === '') {
+      set((state) => ({
+        searchState: { ...state.searchState, query, results: [], activeResultIndex: null, status: 'idle' },
+      }));
+      return;
+    }
+
+    set((state) => ({ searchState: { ...state.searchState, query, status: 'searching' } }));
+
+    const results = await runSearch(query);
+
+    set((state) => {
+      // Guard against an out-of-order resolution clobbering a newer query's
+      // results — cheap now, load-bearing once search() is truly async (§9).
+      if (state.searchState.query !== query) return {};
+      return {
+        searchState: {
+          ...state.searchState,
+          results,
+          status: 'done',
+          activeResultIndex: results.length > 0 ? 0 : null,
+        },
+      };
+    });
+  },
+
+  setActiveResultIndex: (index) => set((state) => ({
+    searchState: { ...state.searchState, activeResultIndex: index },
+  })),
 }));

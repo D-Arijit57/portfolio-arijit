@@ -23,10 +23,3 @@ export interface EditorTab {
   fileId: string;
   pane: 'left' | 'right';
 }
-
-export interface Notification {
-  id: string;
-  source: 'GitHub' | 'LeetCode' | 'System';
-  message: string;
-  timestamp: number;
-}

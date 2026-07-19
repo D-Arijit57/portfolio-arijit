@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { EditorTab, Notification, VirtualFile, VirtualFolder } from '../types';
+import { EditorTab, VirtualFile, VirtualFolder } from '../types';
 import { workspaceSeed, getAllFiles } from '../content/workspaceSeed';
 import { fetchWorkspaceTree, updateFile } from '../lib/api/vfsClient';
 import type { CommandContext, ExecutionStatus, HistoryEntry } from '../terminal/types';
@@ -9,10 +9,30 @@ import { resolveVfsPath } from '../terminal/vfsPath';
 import { registerBuiltinCommands } from '../terminal/commands';
 import { buildIndex } from '../search/searchIndex';
 import { search as runSearch } from '../search/searchEngine';
+import { namespaceOf } from '../search/types';
 import type { SearchResult } from '../search/types';
+import { notificationService } from '../notifications/notificationService';
+import type { Notification } from '../notifications/types';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
 export type SearchStatus = 'idle' | 'searching' | 'done';
+
+// Human-readable label per generated namespace for the hydration-time
+// provider-sync approximation (ARCHITECTURE.md "Notification Service" §8) —
+// a future namespace not listed here still gets a sensible generic label,
+// so adding a provider never requires touching this file's notification
+// wiring beyond this one map entry (optional).
+const GENERATED_NAMESPACE_SYNCED_TITLE: Record<string, string> = {
+  github: 'GitHub synchronized',
+  leetcode: 'LeetCode refreshed',
+};
+
+// Session-local bookkeeping for the hydration-time notification producer —
+// not store state, not the notification queue's concern; purely "have we
+// already told the user about this namespace / this session's boot" so a
+// hypothetical second hydrateVFS() call doesn't re-notify.
+const notifiedGeneratedNamespaces = new Set<string>();
+let workspaceIndexedNotified = false;
 
 // Composition root for the command registry (TERMINAL_DESIGN.md §2, §18.7) —
 // registered once at module load, same pattern as instantiating a repository
@@ -69,7 +89,16 @@ interface StoreState {
     activeResultIndex: number | null;
     status: SearchStatus;
   };
-  notifications: Notification[];
+  // Notification session state (Sprint 9B, ARCHITECTURE.md "Notification
+  // Service" §2). NOT authoritative — a reactive mirror of
+  // src/notifications/notificationQueue.ts, kept in sync via
+  // notificationService.subscribe() (wired once, right after this store is
+  // created, below). Producers never call a store action to create a
+  // notification; they call notificationService directly, the same as any
+  // other consumer would.
+  notificationState: {
+    visible: Notification[];
+  };
   editorSplit: boolean;
 
   // VFS state (Sprint 3A/3B). Seeded statically below so fileSystem.ts's
@@ -112,7 +141,7 @@ interface StoreState {
   navigateHistory: (direction: 'up' | 'down') => void;
   setEditorTheme: (theme: string) => void;
   setCommandPaletteOpen: (isOpen: boolean) => void;
-  addNotification: (notification: Omit<Notification, 'id' | 'timestamp'>) => void;
+  /** Thin passthrough to notificationService.dismiss() — the store isn't a privileged caller (ARCHITECTURE.md §4). */
   dismissNotification: (id: string) => void;
   toggleEditorSplit: () => void;
   reorderTabs: (tabs: EditorTab[]) => void;
@@ -159,10 +188,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
   commandPalette: { isOpen: false },
   searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
-  notifications: [
-    { id: 'notif-1', source: 'GitHub', message: '3 commits pushed to portfolio-v2 today.', timestamp: Date.now() - 10000 },
-    { id: 'notif-2', source: 'LeetCode', message: 'Solved 542 problems. Current streak: 12 days.', timestamp: Date.now() }
-  ],
+  notificationState: { visible: [] },
   editorSplit: true,
 
   workspaceTree: workspaceSeed,
@@ -323,13 +349,9 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setCommandPaletteOpen: (isOpen) => set({ commandPalette: { isOpen } }),
 
-  addNotification: (notif) => set((state) => ({
-    notifications: [...state.notifications, { ...notif, id: `notif-${Date.now()}`, timestamp: Date.now() }]
-  })),
-
-  dismissNotification: (id) => set((state) => ({
-    notifications: state.notifications.filter(n => n.id !== id)
-  })),
+  dismissNotification: (id) => {
+    notificationService.dismiss(id);
+  },
 
   toggleEditorSplit: () => set((state) => {
     if (state.editorSplit) {
@@ -358,6 +380,27 @@ export const useStore = create<StoreState>((set, get) => ({
         vfsLoading: false,
         vfsError: null,
       });
+
+      // Notification Service integration (ARCHITECTURE.md "Notification
+      // Service" §8). GitHubProvider/LeetCodeProvider run in the backend
+      // process and cannot call notificationService directly — this is the
+      // documented approximation: fire one "synchronized" notification per
+      // generated namespace the first time it's observed present in a
+      // hydrated tree this session (not a true "just synced" signal).
+      if (!workspaceIndexedNotified) {
+        workspaceIndexedNotified = true;
+        notificationService.info({ title: 'Workspace indexed', source: 'Hydration', duration: 2500 });
+      }
+      const generatedNamespaces = new Set(files.map(namespaceOf).filter((ns) => ns !== 'workspace'));
+      for (const namespace of generatedNamespaces) {
+        if (notifiedGeneratedNamespaces.has(namespace)) continue;
+        notifiedGeneratedNamespaces.add(namespace);
+        notificationService.info({
+          title: GENERATED_NAMESPACE_SYNCED_TITLE[namespace] ?? `${namespace} synchronized`,
+          source: 'Hydration',
+          duration: 2500,
+        });
+      }
     } catch (err) {
       set({
         vfsLoading: false,
@@ -391,10 +434,12 @@ export const useStore = create<StoreState>((set, get) => ({
           savingState: { ...state.savingState, [id]: 'success' },
         };
       });
+      notificationService.success({ title: 'File saved', message: id, source: 'Save Pipeline', dedupeKey: `save:${id}` });
     } else {
       set((state) => ({
         savingState: { ...state.savingState, [id]: 'error' },
       }));
+      notificationService.error({ title: 'File save failed', message: result.message, source: 'Save Pipeline' });
     }
   },
 
@@ -432,3 +477,12 @@ export const useStore = create<StoreState>((set, get) => ({
     searchState: { ...state.searchState, activeResultIndex: index },
   })),
 }));
+
+// Store never owns notification state directly (ARCHITECTURE.md
+// "Notification Service" §2/§4) — it mirrors notificationQueue by
+// subscribing once here, the same "queue is authoritative, store just
+// reflects it" relationship searchState.results has to the search index.
+// This subscription is the ONLY place notificationState is ever set.
+notificationService.subscribe(() => {
+  useStore.setState({ notificationState: { visible: [...notificationService.getVisible()] } });
+});

@@ -8,6 +8,8 @@ This document originated as the Phase 1 (frontend-only) architecture snapshot. `
 
 **Revision note (2026-07-19, Sprint 8A)**: added a "LeetCode Provider" section validating that `VFS_DESIGN.md` §11's `ContentProvider` pattern generalizes to a second concrete provider with zero contract changes. Documented here rather than as a `VFS_DESIGN.md` edit, since no framework change was needed — see that section's §0 for why.
 
+**Revision note (2026-07-19, Sprint 9A)**: added a "Notification Service" section, resolving the open question `BACKEND_BOOTSTRAP.md`'s Integration APIs section explicitly left for "whoever designs the Notification Engine." Design only — no code written.
+
 ## Component Hierarchy
 ```text
 App
@@ -441,3 +443,218 @@ No candidate requires a `ContentProvider` interface change, a repository change,
 | Treating "no contest history" / "no recent submissions" as an error state | Would conflate a legitimate empty result with an actual failure, causing `getStatus()` to report `error` for users who simply haven't used a feature. Handled instead as a valid empty-content case (§9). |
 
 **This freezes**: nothing new architecturally — it validates that `VFS_DESIGN.md` §11's `ContentProvider` contract, pipeline shape, and ownership rules already cover a second provider unmodified (§1), and freezes `LeetCodeProvider`'s own concrete shape (workspace layout §4, failure handling §9) the same way `VFS_DESIGN.md` §11.5 froze GitHub's. No code was written in Sprint 8A.
+
+---
+
+## Notification Service
+
+**Status: Design only, frozen as of 2026-07-19 (Sprint 9A). Nothing in this section is implemented yet.**
+
+### 0. Grounding — what already exists
+
+`src/types/index.ts` already defines a `Notification { id, source: 'GitHub' | 'LeetCode' | 'System', message, timestamp }` type, and `useStore.ts` already holds a flat `notifications: Notification[]` array with `addNotification()`/`dismissNotification()` actions. `src/components/notifications/Notifications.tsx` renders them as framer-motion toasts, bottom-right, with a hardcoded 5-second auto-dismiss driven by a `useEffect`/`setTimeout` inside the component itself. Today, nothing actually calls `addNotification()` except the store's own hardcoded seed data — no real producer exists yet.
+
+This section keeps the animation feel this component already established (slide-and-fade entrance, fade-and-scale exit, bottom-right stack) but redesigns *where the logic lives*: the queue, auto-dismiss timers, and ordering move out of the component and out of a hardcoded severity/source union, into a framework-independent module every future subsystem can call into directly — which is the actual gap Sprint 9A is asked to close (`addNotification()` requires importing the Zustand store, which `src/search/*` and `src/terminal/*` are deliberately forbidden from doing, and which a backend `ContentProvider` cannot do at all — different runtime).
+
+**A real, previously-flagged gap this section resolves**: `BACKEND_BOOTSTRAP.md`'s Integration APIs section already named `GET /api/notifications/poll (or WebSocket setup)` and explicitly left "whether real-time provider-sync notifications are needed, and how" as "an open question for whoever designs the Notification Engine, not decided here." Sprint 9A is that design. The answer (§8 below): a live backend→frontend push channel is **not** built now — it would be a real backend/infrastructure change, contradicting this sprint's "design only" scope — so provider-originated notifications are approximated from data the frontend already has (hydration results), with the gap this leaves explicitly flagged rather than papered over.
+
+### 1. Architectural Goals — how each is met
+
+| Goal | How |
+|---|---|
+| Globally accessible | `notificationService` is a singleton module, importable from anywhere — no provider/context wiring needed to reach it |
+| Framework independent | `src/notifications/{types,notificationQueue,notificationService}.ts` are pure TypeScript — no React, no Zustand imports |
+| React only renders | `Notifications.tsx` is the only file that imports React/framer-motion; it reads `store.notificationState` and calls `dismissNotification()`/hover handlers — it contains no ordering, timer, or overflow logic |
+| Producer doesn't know who renders | Every producer calls `notificationService.notify(input)` and gets back an id; it never touches the store, a component, or knows a renderer exists |
+| Reusable by future systems | Terminal, Atlas, Command Palette (§8) integrate through the exact same `notify()` call every existing producer uses — zero new API surface per subsystem |
+| Queue-based | `notificationQueue.ts` is an ordered, mutable, module-level queue (§5) — not a single "latest toast" slot |
+| Multiple simultaneous notifications | The queue holds an unbounded backlog and a bounded visible window (§5); the model and renderer both support N concurrent toasts |
+
+### 2. Ownership
+
+| Concern | Owner | Notes |
+|---|---|---|
+| `Notification` (the data record) | Created by the calling producer via `notificationService.notify()`; immutable once created | Same "the output of one execution is a fact about that execution" reasoning `TERMINAL_DESIGN.md` uses for `HistoryEntry.output` |
+| `NotificationQueue` | Module-level, **not store state** — pure TS, in `src/notifications/notificationQueue.ts` | Same category of thing as `src/search/searchIndex.ts`'s cache and the terminal command registry — derived/session-lifetime data, not persisted, not Zustand |
+| `NotificationService` | Module-level, **not store state** — pure TS, in `src/notifications/notificationService.ts` | Thin public API (`notify`/`dismiss`/`clear`/`pause`/`resume`/`subscribe`) wrapping the queue — mirrors `searchEngine.ts` sitting in front of `searchIndex.ts` |
+| `NotificationState` (store slice) | `store.notificationState.visible: Notification[]` — a **reactive mirror** of the queue, kept in sync via `notificationService.subscribe()` | Not authoritative — same relationship `searchState.results` has to the search index: the queue is the source of truth, the store is what React reads |
+| `NotificationRenderer` (`Notifications.tsx`) | React component; pure consumer of `notificationState` | Owns layout, stacking, animation, dismiss button, severity icon, hover detection (§6) |
+| Auto-dismiss lifecycle — the timer itself | `NotificationQueue`, via plain `setTimeout`, independent of any component's mount lifecycle | This is the fix for the current implementation's bug class: today's `useEffect`-owned timers reset or leak on remount; a queue-owned timer doesn't |
+| Auto-dismiss lifecycle — pause/resume trigger | `NotificationRenderer` detects the hover DOM event and calls `notificationService.pause(id)`/`resume(id)`; the queue remains the one place that knows whether a timer is actually running | React reports *that* the user is hovering; the queue decides *what that means* for the timer — keeps the interaction detection (a DOM/React concern) separate from the lifecycle authority (a queue concern) |
+| Animations | `NotificationRenderer` only — entrance/exit/stack-reflow/progress-bar width are 100% presentational | The queue has no concept of pixels, easing, or motion; it only exposes `duration` and pause state |
+
+No concern above has two owners.
+
+### 3. High-Level Architecture
+
+```
+Subsystem (Save Pipeline, Search, Hydration, Terminal, Atlas, Command Palette, ...)
+   │  notificationService.notify({ title, message?, severity, source, ... }) → id
+   ▼
+NotificationService          src/notifications/notificationService.ts
+   │  thin public API; delegates every call to the queue; never imports React/Zustand
+   ▼
+NotificationQueue            src/notifications/notificationQueue.ts
+   │  ordered, mutable, module-level; owns enqueue/dismiss/clear/pause/resume,
+   │  max-visible windowing (§5), dedupe (§5), and every auto-dismiss timer
+   │  notifies subscribers on every state change
+   ▼
+Store                        useStore.ts — notificationState.visible
+   │  subscribes once at store creation; mirrors the queue's current visible
+   │  list into reactive Zustand state; exposes dismissNotification(id) as a
+   │  thin passthrough for the renderer's convenience
+   ▼
+Toast Renderer                src/components/notifications/Notifications.tsx
+   │  reads store.notificationState only; renders, animates, detects hover,
+   │  calls store.dismissNotification(id) on click
+   ▼
+Animated Toasts
+```
+
+**Per-layer responsibility, explicitly:**
+
+| Layer | Responsibility | Must never |
+|---|---|---|
+| Subsystem (producer) | Call `notify()` with what happened | Know about the queue, the store, or React |
+| `NotificationService` | Expose the public API; validate/default the input (severity defaults, duration defaults per §9) | Hold state itself — delegates to the queue |
+| `NotificationQueue` | Ordering, visible-window bounding, overflow, dedupe, timers | Know about React, Zustand, or rendering |
+| Store (`notificationState`) | Mirror the queue reactively for components to read | Contain queue logic — it subscribes, it doesn't compute |
+| `NotificationRenderer` | Layout, animation, interaction | Own timers, ordering, or overflow decisions |
+
+### 4. Notification Model
+
+```ts
+// src/notifications/types.ts
+export type NotificationSeverity = 'success' | 'info' | 'warning' | 'error';
+
+export interface Notification {
+  id: string;
+  title: string;
+  message?: string;
+  severity: NotificationSeverity;
+  timestamp: number;
+  /** ms until auto-dismiss; null = sticky, dismissed only by user action or clear() (§9's per-severity defaults). */
+  duration: number | null;
+  /** Whether a manual close (✕) button renders. Defaults to true; false is reserved for a future non-skippable case (§10), not used today. */
+  dismissible: boolean;
+  /** Free-form producer label ('Save Pipeline', 'GitHub', 'LeetCode', 'Search', 'Terminal', 'Hydration', ...) — not a fixed union, same reasoning SearchResult.namespace uses: a hardcoded source list would need editing every time a future subsystem (Atlas, Command Palette) starts producing notifications. */
+  source: string;
+  /** Optional coalescing key (§5) — a new notify() call reusing an active id's dedupeKey refreshes it instead of stacking a duplicate. */
+  dedupeKey?: string;
+  /** Reserved, not implemented (§10) — buttons like Undo/Retry/Open File render from this once a future sprint adds it. */
+  actions?: { label: string; onSelect: () => void }[];
+}
+
+export interface NotifyInput
+  extends Partial<Pick<Notification, 'message' | 'duration' | 'dismissible' | 'dedupeKey' | 'actions'>>,
+    Pick<Notification, 'title' | 'severity' | 'source'> {}
+```
+
+`id`/`timestamp` are assigned by the queue on `enqueue()`, not supplied by the caller — mirrors how `HistoryEntry.id`/`timestamp` are assigned by the terminal's orchestrator, not by individual commands. This is deliberately the same six-ish-field shape the brief asked for and nothing more — no `progress` field, no discriminated union for future action types (§10 covers why those are additive, not designed in now).
+
+This supersedes `src/types/index.ts`'s current `Notification` type (hardcoded `source` union, no `severity`/`duration`/`dismissible`/`dedupeKey`) — flagged for whichever sprint implements this design, not changed here.
+
+### 5. Queue Behaviour
+
+```ts
+// src/notifications/notificationQueue.ts
+function enqueue(input: NotifyInput): string;         // returns the generated id
+function dismiss(id: string): void;
+function clear(): void;
+function pause(id: string): void;
+function resume(id: string): void;
+function subscribe(listener: () => void): () => void;  // returns an unsubscribe function
+function getVisible(): readonly Notification[];
+function getQueued(): readonly Notification[];          // backlog beyond the visible window
+```
+
+- **Maximum visible**: 3 (the user's own UX guidance). A bounded *visible* window, not a bounded total — nothing is ever silently discarded.
+- **Overflow strategy**: when 3 notifications are already visible and a new one arrives, the new one still becomes visible immediately (a brand-new "File save failed" shouldn't wait behind two old "File saved" toasts) and the least-recently-added visible notification is demoted into the backlog queue rather than dismissed. Backlog entries are promoted back to visible, oldest-backlog-first, whenever a visible slot frees up (dismiss, expiry, or manual close). This guarantees every notification is eventually seen, while keeping on-screen clutter bounded — the alternative (drop overflow entirely) risks silently losing an error notification, which is worse than a brief queueing delay.
+- **Ordering**: insertion order, oldest-first internally; the renderer decides visual stacking direction (§6) — the queue only guarantees a stable order, not a screen position.
+- **Duplicate handling**: `dedupeKey` (§4). If `enqueue()` is called with a `dedupeKey` matching an already-active (visible or queued) notification, the existing entry's `timestamp` and auto-dismiss timer are refreshed instead of adding a second toast. This is what keeps something like rapid autosave-driven "File saved" events from spamming the stack — the producer doesn't need to track "did I already show this," the queue absorbs it.
+- **`clear()`**: dismisses everything, visible and backlog, immediately — used sparingly (e.g. a future "clear all" action), not part of any producer's normal flow.
+
+### 6. Rendering
+
+`Notifications.tsx` (`NotificationRenderer`) is a pure consumer of `store.notificationState.visible`. Its responsibilities, and nothing more:
+
+- **Layout**: fixed bottom-right container, matching the existing component's positioning.
+- **Stacking**: newest notification enters at the bottom of the stack and pushes older ones upward (the user's explicit UX note) — a `flex-col-reverse` layout over the store's oldest-first array achieves this without the queue needing to know about visual direction at all.
+- **Animation**: entrance/exit/stack-reflow (§7).
+- **Progress timer (visual)**: a thin bar per toast, animated width from 100% → 0% over `duration`; the animation's *play/pause* state is driven by whether the store mirror currently marks that notification as paused (set via the hover handler below), not by the renderer independently guessing elapsed time.
+- **Dismiss button**: calls `store.dismissNotification(id)`, a thin passthrough to `notificationService.dismiss(id)`.
+- **Hover-to-pause**: `onMouseEnter`/`onMouseLeave` call `notificationService.pause(id)`/`resume(id)` directly (no store round-trip needed for this — the queue is already subscribed-to and will push the updated state back through the store on its own).
+
+No ordering, timer, or overflow logic lives in this component — it renders exactly the array it's given, in the order it's given.
+
+### 7. Animation Behaviour
+
+Keeps the existing component's motion vocabulary (§0) rather than inventing a new one, since it already matches the user's "avoid flashy motion" guidance:
+
+- **Entrance**: fade + slide in from the right (`opacity: 0, x: 50` → `opacity: 1, x: 0`), same as today.
+- **Exit**: fade + slight scale-down (`opacity: 1, scale: 1` → `opacity: 0, scale: 0.95`), same as today.
+- **Stack movement**: framer-motion's `layout` prop on each toast plus `AnimatePresence mode="popLayout"` — when a toast is removed from the middle of the stack, the remaining toasts reflow automatically via framer-motion's built-in layout animation, with no manual position math. This is what makes "push older ones upward" (§5/§6) look smooth instead of an abrupt jump.
+- **Progress indicator**: a 2px bar along a toast's bottom edge, width animated linearly over `duration`; paused by freezing the animation (not restarting it) when `pause(id)` is signaled, so resuming continues from wherever it left off rather than resetting.
+- **Severity icon**: ✓ (success), ℹ (info), ⚠ (warning), ✕ (error) — a static per-severity glyph, no motion of its own.
+
+All animation values are small, short-duration, and non-bouncy — communicating "something happened" rather than drawing attention to the animation itself.
+
+### 8. Integration Points
+
+| Subsystem | How it publishes | Coupling avoided |
+|---|---|---|
+| **Save Pipeline** (`saveFile()`, `useStore.ts`) | `notify({ title: 'File saved', source: 'Save Pipeline', severity: 'success', duration: 3000, dedupeKey: 'save:'+id })` on success; `severity: 'error', duration: null` on failure | The store calls `notificationService` the same way any other producer would — it isn't a privileged caller |
+| **GitHubProvider** / **LeetCodeProvider** | **Cannot call `notificationService` directly — they run in the backend Node process; the service is a frontend module.** Approximated instead: on `hydrateVFS()` success, the frontend checks which generated namespaces (`github`, `leetcode`, derived the same way `namespaceOf()` already does for Search) are present, and fires one "GitHub synchronized" / "LeetCode refreshed" notification per namespace **the first time it's seen this session** | Zero new backend dependency — reuses hydration data already fetched; explicitly flagged as an approximation, not a true "just synced" signal (see the gap below) |
+| **Search** | Only for a discrete, explicit search action (e.g. a future Terminal `find`/`grep` via `ctx.search()`) — **not** the live-as-you-type Explorer search panel, which would fire a notification per keystroke and violate the "avoid flashy motion" / no-spam goal. This is a deliberate exclusion, not an oversight. | Search Engine itself never imports `notificationService` — only the discrete call site (a future terminal command) would |
+| **Hydration** | `hydrateVFS()` success: one `notify({ title: 'Workspace indexed', source: 'Hydration', severity: 'info', duration: 2500 })` per session. Failure is **not** also toasted — `vfsError` already drives the full-screen `BootErrorScreen`; duplicating that into a toast would be a redundant signal for the same event. | Hydration doesn't know a renderer exists; it just calls `notify()` once on its existing success path |
+| **Terminal (future)** | New `CommandContext.notify(input)` capability, added the same way `ctx.search()` was added in Sprint 7B — a thin passthrough to `notificationService.notify()`. Proposed, not frozen; no terminal commands use it yet. | Terminal commands call `ctx.notify()`, never `notificationService` directly — preserves the existing capability-injection pattern |
+| **Atlas (future)** | Whatever Atlas turns out to be, it integrates exactly like every other producer: import `notificationService`, call `notify()`. No special case designed in — none is needed. | — |
+| **Command Palette (future)** | Same as Atlas — direct `notify()` calls for whatever actions it performs (e.g. theme changes, once wired) | — |
+| **Theme changed** | Wherever theme is actually set (today: the terminal `theme` command; future: Command Palette) calls `notify({ title: 'Theme changed', message: theme, source: 'Editor', severity: 'info', duration: 2000 })` | — |
+
+**The one real gap, stated plainly**: "Provider refresh failed" (explicitly listed in the brief's examples) is **not observable by the frontend at all under Sprint 9A's model.** A failed `GitHubProvider`/`LeetCodeProvider` refresh today just means that namespace's folder is absent, or stays at its last-known-good content (`VFS_DESIGN.md` §11.4) — nothing surfaces that a failure occurred. Making this a real notification requires the frontend to observe backend provider status somehow: either a small addition to `GET /api/fs/tree`'s response, or a new lightweight status endpoint — both are backend contract changes, out of scope for a design-only, no-implementation sprint, and exactly the question `BACKEND_BOOTSTRAP.md` already left open for this design (§0). **Proposed, not frozen**: expose `ProviderStatus` (already defined server-side, `server/providers/contentProvider.ts`) through a small read-only surface the frontend can poll or receive at hydration time — same "flag it, propose it, wait for sign-off" posture as `VFS_DESIGN.md` §11.5's GitHub-terminal-sugar proposal and `TERMINAL_DESIGN.md` §13.1. Not decided here.
+
+### 9. Error Handling
+
+Per-severity defaults (all overridable per-call via `NotifyInput`):
+
+| Severity | Default `duration` | Reasoning |
+|---|---|---|
+| `error` | `null` (sticky) | An error a user doesn't get to read before it vanishes defeats the point of surfacing it; requires manual dismissal |
+| `warning` | `6000` ms | Longer than info/success — worth noticing, but not blocking |
+| `success` | `3000` ms | Brief acknowledgment; the action already succeeded, nothing more is needed from the user |
+| `info` | `2500` ms | Same reasoning as success — ambient awareness, not a call to action |
+| Long-running operations | **Not supported in Sprint 9A.** A long-running op is represented as two discrete notifications today (a start + a later completion/failure), not one mutating notification — `notificationService` has no `update()` method yet (§10) | Explicitly deferred, not silently half-built |
+
+### 10. Future Extensibility
+
+| Future addition | Mechanism already in place | New work required |
+|---|---|---|
+| Buttons / Undo / Retry / Open File / Open Folder / Open Settings | `Notification.actions?: { label, onSelect }[]` is already reserved in the model (§4) | `NotificationRenderer` gains button rendering for a non-empty `actions` array — zero `NotificationQueue`/`NotificationService` change, since the queue already treats `actions` as opaque data it stores and forwards |
+| Progress notifications | Not reserved as a field today (avoiding over-design per the brief) | A new optional `progress: { current: number; total: number } | null` field, plus a new additive `notificationService.update(id, patch)` method — the one place this design anticipates a future non-breaking API addition, not a redesign |
+| Real-time provider-sync / "Provider refresh failed" | `source`/`severity` already generalize to any backend-originated event | The backend-observability gap in §8 — a separate, larger decision, not a `NotificationService` change |
+
+No addition above requires changing `NotificationQueue`'s ordering/overflow/dedupe logic, the store's mirroring mechanism, or how producers call `notify()` — every addition is either already-reserved data or a new, additive method.
+
+### 11. Technical Debt (intentional, flagged now)
+
+- No live backend→frontend push channel — provider-sync notifications are approximated at hydration time (§8), and "provider refresh failed" isn't observable by the frontend at all yet. Proposed resolution flagged, not frozen, requires separate sign-off (§8).
+- No notification history/log panel (VS Code's bell-icon Notifications Center) — only the live toast stack exists. A natural future Command-Palette-adjacent feature, not built now.
+- `notificationService.update(id, patch)` (needed for progress notifications, §10) doesn't exist yet.
+- Dedupe is a simple timestamp-refresh, not smart batching (e.g. collapsing "3 files saved" into one toast) — deferred.
+- No sound or OS-level (`Notification` Web API) integration — out of scope for a browser-embedded IDE simulation.
+- No persistence across reloads — session-only, consistent with every other piece of session state in this app.
+
+### 12. Alternative Designs Considered — and Rejected
+
+| Alternative | Rejected because |
+|---|---|
+| Keep today's implementation — producers call `useStore().addNotification()` directly | Couples every producer to Zustand, which `src/search/*`/`src/terminal/*` are deliberately forbidden from importing, and which a backend `ContentProvider` cannot import at all (different runtime). Directly violates "producer does not know who renders." |
+| A generic toast library (react-hot-toast, sonner, etc.) | Explicitly rejected by the user's own guidance — doesn't fit VS Code's specific visual vocabulary (severity icons, progress bar, push-upward stacking, hover-pause), and this codebase's existing framer-motion toast already has the right feel (§0/§7) — replacing it would throw that away for no benefit. |
+| Auto-dismiss timers owned by the React component (today's actual implementation) | Ties a queue-lifecycle concern to component mount lifecycle — a remount (route change, HMR) can reset or lose a timer. Directly violates "do not put queue logic inside React." |
+| A React Context provider instead of a Zustand store slice | This codebase has exactly one established pattern for session-observable state (`useStore()`, used by Search, Terminal, VFS, everything). A second pattern for one subsystem fragments state access for no real benefit over a thin store mirror, which already achieves "React only renders." |
+| Build the live backend push channel (WebSocket/polling) now, to make provider-sync notifications truly real-time | Contradicts this sprint's "design only, do not implement" scope, and resolves a real backend/infrastructure question that deserves its own sign-off — same posture as every other "proposed, not frozen" backend question in this project's history (`VFS_DESIGN.md` §11.5, `TERMINAL_DESIGN.md` §13.1). Flagged as future work (§11), not decided here. |
+| A single global auto-dismiss duration for every severity | Per-severity defaults (§9) better match "errors must be read, success can vanish quickly" without forcing every producer to specify `duration` manually — still overridable per call. |
+| Drop overflow notifications past the max-visible count instead of queueing them | Risks silently losing an error notification a user never saw — the backlog-and-promote strategy (§5) guarantees eventual visibility at the cost of a possible short display delay, a better tradeoff for a system where "error" is one of the four severities. |
+
+**This freezes**: the layered architecture and per-layer responsibilities (§3), ownership (§2), the notification model (§4), queue behavior including overflow/dedupe (§5), the render/queue split (§6), animation behavior (§7), integration points including the one explicitly-flagged backend-observability gap (§8), per-severity error handling defaults (§9), and the extensibility mechanism (§10). No code was written in Sprint 9A; `src/notifications/*`, the `notificationState` store slice, and every producer integration remain unbuilt until a future sprint implements against this section.

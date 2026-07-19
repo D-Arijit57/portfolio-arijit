@@ -19,7 +19,8 @@ import {
  * in-memory seed (BACKEND_BOOTSTRAP.md Milestone 2 scope — swapping this for a
  * database-backed implementation is explicitly deferred, not this sprint's job).
  *
- * Owns the single reconciled source of truth for static + generated content
+ * Owns the single reconciled source of t
+ * ruth for static + generated content
  * (VFS_DESIGN.md §3/§7) — every method reads from the same `root`/`index`,
  * there is no separate merge step anywhere above this class.
  */

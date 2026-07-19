@@ -342,7 +342,7 @@ Every error path returns the state machine to `idle`. None of them is treated as
 | Workspace commands (`mkdir`, etc., hypothetical) | `cwd`-relative resolution already designed (§9–10) | New command module |
 | Package manager simulation (`npm run …`) | Becomes an ordinary registered command instead of a special-cased switch branch (today's actual implementation) | New command module — **removes** a special case rather than adding one |
 | Task runner | Workspace/backend hybrid — same registration path | New command module, possibly backend-request category |
-| Search (`find`/`grep`) | Reuses `FileNodeRepository.searchFiles()`-backed client path Search/Command Palette will already use (`VFS_DESIGN.md` §10) | Thin wrapper command, no new search implementation |
+| Search (`find`/`grep`) | **Revised (2026-07-19, Sprint 7A, design only)**: reuses the client-side Search Engine (`ARCHITECTURE.md`'s "Global Search Subsystem" section, `src/search/searchEngine.ts`), via a new `ctx.search(query, options?)` `CommandContext` capability — not `FileNodeRepository.searchFiles()` as originally sketched here. | Thin wrapper command, no new search implementation |
 | Command Palette integration | `registry.listCommands()` already enumerable (§5, §12) | New `Command.Group` in `CommandPalette.tsx` only |
 
 No item above requires touching `Terminal.tsx`, the store's lifecycle actions, `parser.ts`, or `executor.ts` — every addition is either a new command module or an additive `OutputEntry` variant.

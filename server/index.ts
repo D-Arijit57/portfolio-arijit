@@ -1,6 +1,7 @@
 import type { Server } from 'http';
 import { createApp } from './app';
 import { config } from './config/env';
+import { providerRegistry } from './providers';
 import { logger } from './utils/logger';
 
 function registerShutdownHandlers(server: Server): void {
@@ -24,6 +25,11 @@ async function bootstrap(): Promise<void> {
   });
 
   registerShutdownHandlers(server);
+
+  // Startup refresh only, deliberately async/non-blocking (VFS_DESIGN.md §11.4):
+  // must never gate the server listening or the frontend's vfsLoaded boot gate.
+  // Recurring/scheduled refresh is explicitly out of scope for this sprint.
+  void providerRegistry.refreshAll();
 }
 
 bootstrap();

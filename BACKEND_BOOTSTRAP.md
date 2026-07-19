@@ -14,6 +14,8 @@ Not everything below is being built now. This spec covers all planned backend su
 | **Phase 2** | Terminal Engine API, `GET /api/fs/file/:id`, `PUT /api/fs/file/:id` | Designed below, not yet approved |
 | **Phase 3** | Search Engine, GitHub/LeetCode Integrations, Notification Engine | Designed below, not yet approved |
 
+**Revision note (2026-07-18, Sprint 6A — GitHub Workspace Architecture Review, design only)**: the GitHub/LeetCode integration sketch below (Integration Service, `GET /api/integrations/github`, Milestone 9) predates the VFS and was written before it was decided that generated content becomes ordinary VFS files rather than a separately-fetched widget payload. `VFS_DESIGN.md` §11 now specifies this concretely as a generic **Content Provider pattern** — GitHub content is produced by a `ContentProvider` implementation and enters the tree via the already-existing `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1), not via a client-facing stats endpoint. This narrows what "Integration Service"/"`GET /api/integrations/github`" mean below — see the inline notes at each affected section. Flagged here rather than silently applied; Phase 3 remains "not yet approved," so no implementation is authorized by this note.
+
 ---
 
 ## Ownership of Responsibilities
@@ -181,12 +183,9 @@ stateDiagram-v2
   - Purpose: Processes terminal commands dynamically instead of relying on frontend switch statements.
 
 ### 3. Integration APIs (Stats & Notifications) — Phase 3
-- **`GET /api/integrations/github`**
-  - Returns live commit history, active streaks, or PR counts.
-- **`GET /api/integrations/leetcode`**
-  - Returns solved problem counts and current streak.
+- **`GET /api/integrations/github` / `GET /api/integrations/leetcode`** — *narrowed by `VFS_DESIGN.md` §11*: GitHub/LeetCode profile, repo, and activity content is no longer proposed as a separately-fetched stats payload for a frontend widget. It is generated content — produced by a `ContentProvider` implementation and merged into the workspace tree via `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1, §11.1) — so the frontend reads it through the existing `GET /api/fs/tree` like any other file, not through a dedicated integrations endpoint. Whether either endpoint is still needed for anything **other** than workspace content (e.g. a lightweight signal for the Notification Engine below, which is an explicitly separate domain per `VFS_DESIGN.md` §7.2's last row) is an open question for whoever designs the Notification Engine, not decided here.
 - **`GET /api/notifications/poll`** (or WebSocket setup)
-  - Pushes real-time alerts to the frontend notification engine.
+  - Pushes real-time alerts to the frontend notification engine. Unaffected by the above — notifications are a separate domain from generated workspace content (`VFS_DESIGN.md` §7.2).
 
 ---
 
@@ -245,6 +244,7 @@ Any non-2xx response or network failure is treated identically by `vfsClient`: r
 
 ### 3. Integration Service — Phase 3
 - Background workers or cron jobs that periodically fetch data from GitHub and LeetCode APIs to prevent rate-limiting and ensure fast frontend responses.
+- Specified concretely by `VFS_DESIGN.md` §11 as the generic **Content Provider pattern**: each of GitHub/LeetCode is one `ContentProvider` implementation (fetch → transform → generate markdown → generate `VirtualFile`s → `reconcileGeneratedSubtree`), scheduled independently of any request, owning its own refresh/loading/error state. "Integration Service" is the umbrella scheduling composition that runs each registered provider on its cadence — not a single class that knows what GitHub or LeetCode are.
 
 ---
 
@@ -266,9 +266,12 @@ Any non-2xx response or network failure is treated identically by `vfsClient`: r
 ## Core Engines
 
 ### Search Engine — Phase 3
-- Required for the Command Palette (`Cmd+K`).
-- Initially, the frontend filters the static array. The backend should provide a `/api/search?q={query}` endpoint that uses full-text search (e.g., Postgres `tsvector` or Elasticsearch) to return matching `VirtualFile` records quickly.
-- Depends on `FileNodeRepository` (see Repository Layer) — do not build a parallel search index outside the repository abstraction.
+
+**Revision note (2026-07-19, Sprint 7A — Global Search System Architecture Review, design only)**: this section's premise (a backend `/api/search` endpoint) predates the frozen fact that the entire workspace is hydrated client-side in one atomic fetch (`VFS_DESIGN.md` §9.1). `ARCHITECTURE.md`'s new "Global Search Subsystem" section now specifies this concretely: Search is a **frontend** subsystem operating entirely on the already-hydrated VFS, not a backend API. `FileNodeRepository.searchFiles(query)` (below) remains in the codebase but is not the path Command Palette/Explorer/Editor/Terminal search goes through. Flagged here rather than silently applied; the paragraph below is preserved for history but is no longer the design this project builds against.
+
+- ~~Required for the Command Palette (`Cmd+K`).~~
+- ~~Initially, the frontend filters the static array. The backend should provide a `/api/search?q={query}` endpoint that uses full-text search (e.g., Postgres `tsvector` or Elasticsearch) to return matching `VirtualFile` records quickly.~~
+- ~~Depends on `FileNodeRepository` (see Repository Layer) — do not build a parallel search index outside the repository abstraction.~~
 
 ### Terminal Engine — Phase 2
 - Must be stateful per session or handle state explicitly via JWT/session cookies to track the `cwd` (Current Working Directory).
@@ -346,7 +349,7 @@ Carried forward from `ARCHITECTURE.md`/`CURRENT_STATE.md`, plus items surfaced d
 
 ## Future Extension Points
 - **Terminal Engine API** (`/api/terminal/execute`) — once Phase 1 is stable and approved to proceed.
-- **Search Engine API** for Command Palette, replacing the client-side `.filter()` over `allFiles`.
+- ~~**Search Engine API** for Command Palette, replacing the client-side `.filter()` over `allFiles`.~~ **Superseded (Sprint 7A)** — Search stays client-side; see `ARCHITECTURE.md`'s "Global Search Subsystem" section.
 - **GitHub/LeetCode Integration services** + **Notification Engine** (poll or WebSocket).
 - **`PUT /api/fs/file/:id` save flow**, wiring into `ShikiEditor`'s existing dirty-state indicator (`setFileDirty`) so saves actually clear it instead of it being purely local/simulated.
 - **Session/JWT-based Terminal statefulness** for real `cwd` tracking, replacing the current hardcoded `pwd`/`cd` output in `Terminal.tsx`.
@@ -358,7 +361,7 @@ Carried forward from `ARCHITECTURE.md`/`CURRENT_STATE.md`, plus items surfaced d
 When booting the backend, wire the endpoints directly into these existing frontend files:
 1. `src/content/fileSystem.ts` → becomes a **read facade**: `fileSystem`, `allFiles`, and `getFileById` keep their existing exported names and call signatures, but read from the Zustand store's `vfsTree`/`vfsFileList`/`vfsFileMap` instead of a hardcoded literal. This is why none of its ten current importers need to change.
 2. `src/components/terminal/Terminal.tsx` → Swap `handleCommand` logic for `fetch('/api/terminal/execute')`. *(Phase 2)*
-3. `src/components/command-palette/CommandPalette.tsx` → Use backend search API. *(Phase 3)*
+3. ~~`src/components/command-palette/CommandPalette.tsx` → Use backend search API. *(Phase 3)*~~ **Superseded (Sprint 7A)**: wires to `src/search/searchEngine.ts`'s client-side `search()` instead — see `ARCHITECTURE.md`.
 4. `src/store/useStore.ts` → Add `vfsTree`/`vfsFileMap`/`vfsFileList`/`vfsLoaded`/`vfsError` state and the `hydrateVFS()` action (see Store Hydration Flow). *(Phase 1)*
 5. `src/App.tsx` → Becomes the bootstrap gate: triggers `hydrateVFS()` on mount, renders boot/error/shell based on store flags (see Bootstrap Flow). *(Phase 1, new integration point not in the original map)*
 
@@ -429,18 +432,23 @@ The repo currently has `express`, `@types/express`, `dotenv`, and `esbuild` alre
 - **Acceptance criteria**: Opening a file whose content wasn't included in the initial tree correctly lazy-loads and displays it; `ShikiEditor` no longer freezes on stale/empty content for a file opened before its data arrives.
 - **Review checkpoint**: Explicitly verify the `ShikiEditor` dependency-array fix landed and is covered by a manual reproduction of the old bug — this is the one milestone where a previously-documented latent bug must be confirmed fixed, not just newly-written code reviewed.
 
-### Milestone 8 — Search Engine API *(Phase 3)*
-- **Objective**: Move Command Palette search server-side.
-- **Scope**: `FileNodeRepository.searchFiles(query)`; `GET /api/search` route; `CommandPalette.tsx` wiring.
-- **Dependencies**: Milestone 2.
-- **Files expected to change**: `server/repositories/FileNodeRepository.ts`, `server/routes/search.routes.ts`; `src/components/command-palette/CommandPalette.tsx`.
-- **Acceptance criteria**: At minimum, parity with the current client-side `.filter()` behavior; no added latency perceptible in the `Cmd+K` UX.
-- **Review checkpoint**: Manual comparison of search result sets against the current client-side filter for a representative set of queries.
+### Milestone 8 — Global Search Subsystem *(Phase 3)*
+
+**Revised (2026-07-19, Sprint 7A — design only)**: this milestone no longer moves search server-side. See `ARCHITECTURE.md`'s "Global Search Subsystem" section for the frozen design — Search is a client-side subsystem (`src/search/*` + a `searchState` store slice) operating on the already-hydrated VFS, not a backend endpoint.
+
+- **Objective**: Build a reusable, provider-agnostic search subsystem (indexing/matching/ranking), consumed by Command Palette, Explorer, Editor, and Terminal.
+- **Scope**: `src/search/{types,searchIndex,matcher,ranker,searchEngine}.ts`; `searchState` slice + `setSearchQuery`/`setActiveResultIndex`/`clearSearch` in `useStore.ts`; index rebuild wired into `hydrateVFS()`/`saveFile()` success paths.
+- **Dependencies**: Milestone 2 (VFS), the hydration/save-pipeline sprints (already shipped).
+- **Files expected to change**: new `src/search/` directory; `src/store/useStore.ts`; `src/components/command-palette/CommandPalette.tsx` (swap its `allFiles.map()` + `cmdk`-fuzzy-filter for `search()`); optionally a new `find`/`grep` terminal command per `TERMINAL_DESIGN.md` §14.
+- **Acceptance criteria**: search results are correct and typed (`SearchResult[]`, not raw strings) across static and generated content with no provider-specific code in `src/search/*`; no perceptible latency in the `Cmd+K` UX (no network call).
+- **Review checkpoint**: confirm a generated `github/*.md` file is searchable with zero changes to `src/search/*` — the concrete test of "adding a provider requires no Search Engine changes."
 
 ### Milestone 9 — GitHub/LeetCode Integrations + Notification Engine *(Phase 3)*
 - **Objective**: Replace hardcoded notifications and status data with live integration data.
-- **Scope**: `IntegrationService` with background/cron-based refresh (not per-request, to respect rate limits); notification delivery mechanism (poll or WebSocket, per Core Engines); wiring into `StatusBar`/`Notifications`.
-- **Dependencies**: Milestone 1 only — independent of the VFS work.
-- **Files expected to change**: New `server/services/IntegrationService.ts`, `server/routes/integrations.routes.ts`, `server/routes/notifications.routes.ts`; `src/store/useStore.ts`; `src/components/notifications/Notifications.tsx`.
-- **Acceptance criteria**: Real GitHub/LeetCode data replaces the hardcoded `notifications` array in `useStore.ts`; no external API rate-limit violations under a normal browsing session; external API outages degrade gracefully (must not block app boot — this stays independent of the `vfsLoaded` gate).
-- **Review checkpoint**: Verify graceful degradation specifically — simulate a GitHub/LeetCode API failure and confirm the rest of the IDE remains fully usable.
+- **Scope, revised by `VFS_DESIGN.md` §11 (design only, not yet approved for implementation)**: this milestone now splits into two independent pieces that should not be conflated:
+  1. **Generated GitHub/LeetCode workspace content** — one `ContentProvider` implementation per source (`GitHubProvider`, future `LeetCodeProvider`), each with background/cron-based refresh (not per-request, to respect rate limits), reconciled into the VFS tree via `reconcileGeneratedSubtree`. No new frontend state, no new frontend components — Explorer/Editor/Terminal already consume this for free (`VFS_DESIGN.md` §10, §11.5).
+  2. **Notification delivery** — unchanged in shape from the original sketch (poll or WebSocket, wiring into `StatusBar`/`Notifications`), and explicitly a **separate domain** from (1) per `VFS_DESIGN.md` §7.2's last row: it may be triggered alongside a provider's reconciliation cycle but must never reference a generated node's id before that node's reconciliation has committed.
+- **Dependencies**: Milestone 1 only for (2); (1) additionally depends on Milestone 2 (the VFS repository/`reconcileGeneratedSubtree` already exist, per `VFS_DESIGN.md` §7.1).
+- **Files expected to change**: New `server/providers/GitHubProvider.ts` (+ its internal client/transformer/generator modules, `VFS_DESIGN.md` §11.2/§11.5) for (1); `server/routes/notifications.routes.ts`, `src/store/useStore.ts`, `src/components/notifications/Notifications.tsx` for (2). `server/services/IntegrationService.ts` as originally named is replaced by the provider-scheduling composition described in `VFS_DESIGN.md` §11.4.
+- **Acceptance criteria**: Generated `github/*.md` files appear in the workspace tree indistinguishably from static files, correctly marked readonly; real GitHub/LeetCode data replaces the hardcoded `notifications` array in `useStore.ts`; no external API rate-limit violations under a normal browsing session; external API outages degrade gracefully for both pieces (must not block app boot — stays independent of the `vfsLoaded` gate).
+- **Review checkpoint**: Verify graceful degradation specifically — simulate a GitHub/LeetCode API failure and confirm the rest of the IDE remains fully usable, and confirm the workspace tree simply lacks (or retains stale) `github/` content rather than erroring.

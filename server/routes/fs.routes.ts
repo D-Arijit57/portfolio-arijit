@@ -1,15 +1,8 @@
 import { Router } from 'express';
-import { InMemoryFileNodeRepository, workspaceSeed } from '../repositories';
-import { FileSystemService } from '../services';
+import { fileSystemService } from '../composition';
 import { BadRequestError } from '../types';
 
 export const fsRouter = Router();
-
-// Composition root for the VFS API layer: the route file is the only place
-// that wires a concrete FileNodeRepository into FileSystemService — routes
-// call the service exclusively from here on (VFS_DESIGN.md §3/§4).
-const repository = new InMemoryFileNodeRepository(workspaceSeed);
-const fileSystemService = new FileSystemService(repository);
 
 fsRouter.get('/fs/tree', async (_req, res, next) => {
   try {

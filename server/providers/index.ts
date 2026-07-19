@@ -2,6 +2,8 @@ import { repository } from '../composition';
 import { config } from '../config/env';
 import { GitHubApiClient } from './github/githubApiClient';
 import { GitHubProvider } from './github/githubProvider';
+import { LeetCodeApiClient } from './leetcode/leetcodeApiClient';
+import { LeetCodeProvider } from './leetcode/leetcodeProvider';
 import { ProviderRegistry } from './providerRegistry';
 
 export * from './contentProvider';
@@ -21,4 +23,8 @@ providerRegistry.register(
     config.githubUsername,
     Boolean(config.githubToken),
   ),
+);
+
+providerRegistry.register(
+  new LeetCodeProvider(repository, new LeetCodeApiClient(config.leetcodeUsername ?? ''), config.leetcodeUsername),
 );

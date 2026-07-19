@@ -6,6 +6,8 @@ This document originated as the Phase 1 (frontend-only) architecture snapshot. `
 
 **Decision (2026-07-19, Sprint 7A)**: rather than adding a new standalone design document per subsystem indefinitely, `ARCHITECTURE.md` is the intended home for subsystem documentation that doesn't rise to the level of an independent, deeply-detailed engine like the VFS or Terminal — starting with Global Search below. Deep, implementation-guiding documents remain reserved for foundational subsystems with their own internal domain models and pipelines.
 
+**Revision note (2026-07-19, Sprint 8A)**: added a "LeetCode Provider" section validating that `VFS_DESIGN.md` §11's `ContentProvider` pattern generalizes to a second concrete provider with zero contract changes. Documented here rather than as a `VFS_DESIGN.md` edit, since no framework change was needed — see that section's §0 for why.
+
 ## Component Hierarchy
 ```text
 App
@@ -299,3 +301,143 @@ No item above requires touching `searchState`'s shape or Explorer/Editor/Termina
 | Folder-name matches as a distinct `SearchResult` kind | Path-substring matching already covers folder relevance for every file under it, at zero extra indexing cost; a second discriminated-union branch has no consumer in a design-only, UI-excluded sprint. |
 
 **This freezes**: ownership (§2), the end-to-end architecture and per-layer responsibilities (§1), the Search Engine's pure-module shape (§3), the indexing strategy and recommendation (§4), search scope (§5), the typed result model (§6), the ranking philosophy (§7), the refresh lifecycle (§8), failure handling (§9), integration boundaries (§10), and the extensibility contract slots (§11). No code was written in Sprint 7A; `src/search/*`, the `searchState` store slice, and every UI integration point remain unbuilt until a future sprint implements against this section.
+
+---
+
+## LeetCode Provider
+
+**Status: Design only, frozen as of 2026-07-19 (Sprint 8A). Nothing in this section is implemented yet.**
+
+### 0. Grounding — what already exists
+
+`VFS_DESIGN.md` §11 froze a generic `ContentProvider` pattern (interface: `namespace` / `refresh()` / `getStatus()`; a four-stage internal pipeline: API Client → Transformer → Markdown Generator → VirtualFile Generator → `reconcileGeneratedSubtree`) and instantiated it once, concretely, as `GitHubProvider` (§11.5). §11.6 already named LeetCode as a future namespace requiring, in principle, "New provider implementation only." Sprint 8A's job is to actually validate that claim by designing `LeetCodeProvider` against the existing contract, not to extend or re-open it.
+
+**This section does not modify `VFS_DESIGN.md`.** The validation below concludes the `ContentProvider` interface, `FileNodeRepository`, `FileSystemService`, and `reconcileGeneratedSubtree` need zero changes to support a second provider — so per this project's own documentation-strategy rule (only foundational engines with their own domain model get a standalone `*_DESIGN.md`; everything else lives here), `LeetCodeProvider` is documented as an `ARCHITECTURE.md` section, exactly like Global Search above, rather than as a `VFS_DESIGN.md` edit. If implementation later surfaces a real contract gap, that gap gets fixed in `VFS_DESIGN.md` §11 directly (the way Sprint 6A did for GitHub) — not forked into a parallel document.
+
+### 1. Architectural Validation
+
+**Yes — `LeetCodeProvider` is implementable against the current `ContentProvider` contract with zero interface changes.**
+
+| Member | Why it already fits |
+|---|---|
+| `namespace: string` | `'leetcode'` is just another string value, exactly like `'github'`. No structural requirement on namespace values exists beyond §2's id-prefix convention, which LeetCode ids satisfy the same way GitHub ids do (`leetcode:<key>`). |
+| `refresh(): Promise<void>` | LeetCode's source data (profile stats, solved-problem counts, contest history, recent submissions) is structurally the same shape as GitHub's (a profile plus a handful of bounded aggregate collections) — it fits the same fetch → transform → generate → reconcile pipeline (`VFS_DESIGN.md` §11.2) without a new stage or a different method signature. |
+| `getStatus(): ProviderStatus` | LeetCode's failure modes (§9 below) all collapse into the existing `idle \| syncing \| error` states plus `lastSyncedAt`/`lastError` — nothing about them needs a new status shape. |
+
+No change is required to `ContentProvider`, `FileNodeRepository`, `FileSystemService`, or `reconcileGeneratedSubtree`. Sprint 8A's brief asked to identify a gap only if one is real; there isn't one — this is the concrete proof that `VFS_DESIGN.md` §11.6's "no redesign" claim holds, not just an assertion of it.
+
+### 2. High-Level Architecture
+
+```
+LeetCode (unofficial GraphQL endpoint — see §3's note)
+   ↓
+LeetCodeApiClient          — network I/O only, mirrors GitHubApiClient's role (VFS_DESIGN.md §11.2)
+   ↓
+LeetCodeTransformer         — pure: raw response → internal domain types
+   ↓
+LeetCodeMarkdownGenerator    — pure: one domain type in, one markdown string out
+   ↓
+LeetCodeVirtualFileGenerator  — wraps markdown into VirtualFiles (leetcode:<key> ids, isReadonly: true)
+                                 + assembles the leetcode/ VirtualFolder
+   ↓
+reconcileGeneratedSubtree('leetcode', nodes)   — same repository entry point every provider uses
+```
+
+`LeetCodeProvider` is the orchestrator, running these four stages in sequence — identical shape to `GitHubProvider`, just a different upstream and a different set of output files (§4 below).
+
+### 3. Ownership
+
+Reuses `VFS_DESIGN.md` §11.4's ownership table verbatim — no new rows, no new owners:
+
+| Concern | Owner | LeetCode-specific note |
+|---|---|---|
+| Fetched LeetCode data | `LeetCodeApiClient`, transient | Raw GraphQL response; never held durably |
+| Transformed domain model | `LeetCodeTransformer`, transient | Pure output of one stage, input of the next |
+| Generated markdown | `LeetCodeMarkdownGenerator`, transient | One markdown string per output file |
+| Generated VirtualFiles | `LeetCodeVirtualFileGenerator`, transient until reconciled | Namespaced ids (`leetcode:profile`, etc.), `isReadonly: true` |
+| Refresh state (cadence/scheduling) | `LeetCodeProvider`, via the same generic scheduler GitHub uses | Non-blocking startup + recurring interval, same strategy, conservative cadence given §3's endpoint-stability note |
+| Provider status (loading/error) | `LeetCodeProvider.getStatus()` | In-memory only, never a `VirtualFile` field — same as GitHub |
+| The reconciled content itself | `FileNodeRepository` | Same single durable copy; no LeetCode-specific cache |
+
+**A note on the API Client stage, flagged rather than glossed over**: unlike GitHub, LeetCode has no official, documented public REST API. Public profile data is reachable through an unofficial GraphQL endpoint the LeetCode web client itself uses, which works unauthenticated for public profiles but isn't a stable, versioned, rate-limit-documented contract the way GitHub's REST API is. That's a real operational risk (schema drift, no `Retry-After` header), but it's entirely contained inside `LeetCodeApiClient` — it doesn't change the `ContentProvider` contract or anything above the API Client stage. See §9.
+
+### 4. Workspace Layout
+
+```
+leetcode/
+  README.md      — leetcode:readme    — index; links to the files below + last-synced timestamp
+  profile.md      — leetcode:profile    — username, ranking, solved counts by difficulty, acceptance rate
+  stats.md         — leetcode:stats      — solved/attempted breakdown, by category if the public query exposes it
+  recent.md         — leetcode:recent     — bounded aggregate: most recent N submissions (title, difficulty,
+                                            status, timestamp) — same top-N-cap pattern GitHub's repositories.md
+                                            uses (VFS_DESIGN.md §11.5), for the same reason
+  contests.md         — leetcode:contests   — contest rating + bounded recent-contest history; renders a
+                                            "no contest history" note if the user has never entered one —
+                                            a valid empty state, not a failure (§9)
+  activity.md           — leetcode:activity   — submission-streak / calendar summary, same role as
+                                            github/contributions.md
+```
+
+**Why aggregate files, not one file per problem**: rejected for the identical reason GitHub rejected `github/repos/<name>.md` (`VFS_DESIGN.md` §11.5) — a `leetcode/problems/<slug>.md`-per-problem layout makes namespace size proportional to solved-problem count (potentially hundreds), reintroducing the unbounded-tree-growth risk this project's VFS stress test already flagged. `recent.md`'s fixed top-N cap keeps `leetcode/`'s size constant regardless of how many problems the user has solved.
+
+### 5. Readonly Policy
+
+No new logic. `LeetCodeVirtualFileGenerator` sets `isReadonly: true` on every node it produces, exactly like `GitHubVirtualFileGenerator`. `FileSystemService.updateFile()`'s existing readonly rejection (`VFS_DESIGN.md` §3.1, already implemented and already exercised end-to-end by GitHub) requires zero LeetCode-specific code — it rejects writes against `isReadonly: true` nodes regardless of which provider produced them.
+
+### 6. Hydration
+
+Zero changes required. `getRootTree()` / `getFullTree()` / `hydrateVFS()` already return whatever is currently reconciled under every namespace, merged with static and `github` content indistinguishably (`VFS_DESIGN.md` §10's consistency guarantee). Nothing about hydration is namespace-aware — it walks whatever `FileNodeRepository` currently holds. Adding a second reconciled namespace exercises this guarantee a second time; it doesn't require re-proving it with new code.
+
+### 7. Search Integration
+
+Zero changes required, per this document's own Global Search Subsystem §5: "Future generated content (LeetCode, Blog, AI Notes) | Yes, automatically, zero Search Engine changes | ... a future provider's reconciled files simply appear in `workspaceFiles` after the next hydration." `src/search/*` indexes `VirtualFile`s by `name`/`path`/`content` and derives `namespace` structurally from `file.id` (`namespaceOf()`, Global Search §6) — `leetcode:` ids produce `namespace: 'leetcode'` automatically, with no `ProviderRegistry` import and no hardcoded namespace list. `LeetCodeProvider` is the first real exercise of a guarantee that was designed in ahead of time, not an assumption being made now.
+
+### 8. Terminal Integration
+
+Proposed, not frozen — same posture as `VFS_DESIGN.md` §11.5's still-unsigned-off GitHub proposal. Once `leetcode/README.md` is an ordinary reconciled `VirtualFile`, a future `leetcode` (or `open leetcode`) command needs no backend round-trip: it can be sugar for `open("leetcode/README.md")`, the same "named shortcut to `open`" pattern `TERMINAL_DESIGN.md` §10 already uses for `projects`/`contact`/`resume`. This is not a terminal command implementation — it's a one-line future registry addition once both the GitHub and LeetCode proposals are actually signed off (`TERMINAL_DESIGN.md` §13.1). No backend terminal command is introduced by this design.
+
+### 9. Failure Handling
+
+Generic policy is `VFS_DESIGN.md` §11.4 (on any pipeline-stage failure, keep the namespace's last-known-good content, retry next cycle). LeetCode-specific cases, same shape as GitHub's table (§11.5):
+
+| Case | Handling |
+|---|---|
+| Invalid username | LeetCode's `matchedUser` query returns null/empty for a nonexistent username — treated as a configuration error, same as GitHub's 404 case: `getStatus()` reports a persistent `error` state; the provider retries on the normal schedule rather than a special backoff, since a misconfigured username won't resolve faster by retrying sooner. |
+| API unavailable | Transient failure — `LeetCodeApiClient` throws, the provider keeps the namespace's last-known-good reconciled content untouched, retries next scheduled cycle. |
+| Rate limiting | No documented `Retry-After`/rate-limit headers exist for the unofficial endpoint, unlike GitHub. Instead of header-driven backoff, `LeetCodeApiClient` applies a fixed, conservative self-imposed request cadence chosen well under any observed throttling threshold. This is the one place the LeetCode provider's *implementation* differs from GitHub's — it's contained entirely inside `LeetCodeApiClient`; the `ContentProvider` contract and scheduler are unaffected. |
+| Timeout | Same generic handling — abort the fetch, keep last-known-good, retry next cycle. |
+| Partial data | Same per-file granularity as GitHub: `profile.md` is the one required file; if it fails, the whole cycle aborts per the last-known-good rule. If a best-effort file (`stats`/`recent`/`contests`/`activity`) fails to fetch, only that file is regenerated from previous content (or a small inline note), not the whole cycle. A user with zero contests entered or zero recent submissions is a **valid empty result, not a failure** — `contests.md`/`recent.md` render a "no data yet" note rather than erroring. |
+
+### 10. Future Extensibility
+
+Evaluating the remaining sources named in the Sprint 8A brief against the same zero-redesign bar:
+
+| Future source | Namespace | Fits current pattern without redesign? |
+|---|---|---|
+| Resume | `resume` | Yes — already named in `VFS_DESIGN.md` §11.6; a single small aggregate file, the simplest possible provider. |
+| Blog | `blog` | Yes — already named in §11.6; posts are content, same aggregate-vs-per-post tradeoff §4 above already resolved (aggregate preferred, or a bounded top-N file if per-post is wanted). |
+| Certificates | `certificates` | Yes — same shape: an aggregate `certificates.md` listing issuer/date/credential-link per entry; certificate counts don't grow unboundedly the way solved-problems or commits do, so even a per-entry layout would be low-risk, but aggregate stays consistent with every other provider. |
+| Publications | `publications` | Yes — same shape: an aggregate `publications.md`; the same top-N-cap precedent applies if a per-publication layout were ever wanted. |
+
+No candidate requires a `ContentProvider` interface change, a repository change, or a new consumer-side special case — every one is "implement the four pipeline stages, pick an aggregate-file layout, register with the scheduler," exactly what `VFS_DESIGN.md` §11.1–§11.4 already specify generically. This table is additive evaluation only; it does not modify `VFS_DESIGN.md` §11.6's existing table.
+
+### 11. Technical Debt
+
+- The unofficial-GraphQL-endpoint risk (schema drift, no formal rate-limit contract) is a real constraint, not resolved here — implementation must treat this endpoint as less stable than GitHub's official REST API and budget for it (conservative cadence, defensive parsing).
+- Exact GraphQL query shape / which fields `LeetCodeTransformer` extracts is deferred to implementation.
+- `stats.md`'s tag/category breakdown depends on what the public profile query actually exposes unauthenticated — may need to degrade to difficulty-only breakdown if category data turns out to require a logged-in session; deferred to implementation to confirm against the live API.
+- The multi-provider scheduler stagger question `VFS_DESIGN.md` §11.7 already flagged (avoiding GitHub and LeetCode refreshing on the same tick) remains deferred, now slightly more relevant with a second concrete provider.
+- Frontend readonly affordance — still out of scope, same as §11.7.
+- Terminal `leetcode` command (§8 above) — proposed, not frozen, requires the same sign-off the `github` proposal still needs.
+
+### 12. Alternative Designs Considered — and Rejected
+
+| Alternative | Rejected because |
+|---|---|
+| `LEETCODE_PROVIDER_DESIGN.md` as a standalone document | Not an independent subsystem — it's a second instantiation of the already-frozen `ContentProvider` pattern. A standalone doc would duplicate `VFS_DESIGN.md` §11's already-frozen decisions instead of reusing them, and would undermine the exact thing Sprint 8A set out to prove (that the pattern generalizes without forking). |
+| One markdown file per solved problem | Unbounded namespace growth proportional to solved-problem count — identical reasoning to GitHub's per-repository rejection (§4 above, `VFS_DESIGN.md` §11.5). |
+| Modifying `ContentProvider` to add a LeetCode-specific method (e.g. `getSolvedCount()`) | Would break "every consumer reads the same reconciled tree with no source-awareness" (`VFS_DESIGN.md` §11.6) and reintroduce per-provider special-casing exactly where this pattern exists to prevent it. Nothing LeetCode needs falls outside `namespace`/`refresh()`/`getStatus()`. |
+| Fetching LeetCode data at hydration time (no reconciliation/cache) | Reintroduces a request-time external dependency into hydration and multiplies upstream calls by concurrent hydration requests — worse here than for GitHub, given the unofficial endpoint's unknown throttling tolerance. Same rejection GitHub's alternatives table already made (`VFS_DESIGN.md` §11.8). |
+| Treating "no contest history" / "no recent submissions" as an error state | Would conflate a legitimate empty result with an actual failure, causing `getStatus()` to report `error` for users who simply haven't used a feature. Handled instead as a valid empty-content case (§9). |
+
+**This freezes**: nothing new architecturally — it validates that `VFS_DESIGN.md` §11's `ContentProvider` contract, pipeline shape, and ownership rules already cover a second provider unmodified (§1), and freezes `LeetCodeProvider`'s own concrete shape (workspace layout §4, failure handling §9) the same way `VFS_DESIGN.md` §11.5 froze GitHub's. No code was written in Sprint 8A.

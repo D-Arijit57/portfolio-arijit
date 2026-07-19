@@ -6,6 +6,7 @@ export interface AppConfig {
   readonly corsOrigin: string;
   readonly githubUsername?: string;
   readonly githubToken?: string;
+  readonly leetcodeUsername?: string;
 }
 
 function readEnv(name: string, fallback?: string): string {
@@ -30,4 +31,5 @@ export const config: AppConfig = {
   corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3000'),
   githubUsername: readOptionalEnv('GITHUB_USERNAME'),
   githubToken: readOptionalEnv('GITHUB_TOKEN'),
+  leetcodeUsername: readOptionalEnv('LEETCODE_USERNAME'),
 };

@@ -4,6 +4,7 @@ import type {
   GitHubPinnedRepoSummary,
   GitHubProfile,
   GitHubRepoSummary,
+  RawGitHubCommitSearchResult,
   RawGitHubContributionCalendar,
   RawGitHubEvent,
   RawGitHubPinnedRepo,
@@ -76,6 +77,21 @@ export function transformActivity(raw: readonly RawGitHubEvent[]): GitHubActivit
       createdAt: event.created_at,
     }))
     .filter((entry): entry is GitHubActivityEntry => entry.summary !== null);
+}
+
+/**
+ * Real commit history from the Search API (githubApiClient.searchRecentCommits) —
+ * preferred over transformActivity's Events-derived summaries whenever
+ * available, since these carry an actual SHA and the real, unmodified first
+ * line of the commit message rather than a generated description.
+ */
+export function transformCommits(raw: readonly RawGitHubCommitSearchResult[]): GitHubActivityEntry[] {
+  return raw.map((item) => ({
+    summary: item.commit.message.split('\n')[0],
+    repoName: item.repository.full_name,
+    createdAt: item.commit.author.date,
+    sha: item.sha.slice(0, 7),
+  }));
 }
 
 /**

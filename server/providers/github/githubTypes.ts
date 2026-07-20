@@ -48,6 +48,21 @@ export interface RawGitHubPinnedRepo {
   primaryLanguage: { name: string } | null;
 }
 
+/** One item from `GET /search/commits` (Search API, not the Events feed — see githubApiClient.ts). */
+export interface RawGitHubCommitSearchResult {
+  sha: string;
+  commit: {
+    message: string;
+    author: { date: string };
+  };
+  repository: { full_name: string };
+}
+
+export interface RawGitHubCommitSearchResponse {
+  total_count: number;
+  items: RawGitHubCommitSearchResult[];
+}
+
 /** Raw shape of GitHub's GraphQL `contributionsCollection.contributionCalendar`. */
 export interface RawGitHubContributionCalendar {
   totalContributions: number;
@@ -103,6 +118,10 @@ export interface GitHubActivityEntry {
   summary: string;
   repoName: string;
   createdAt: string;
+  /** Short (7-char) commit SHA — present only when sourced from real commit
+   *  search (transformCommits), absent for the Events-API-derived fallback
+   *  (transformActivity), which has no per-commit detail to offer one. */
+  sha?: string;
 }
 
 /** A single day's contribution intensity, GitHub-style 0-4 level bucketing. */

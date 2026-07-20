@@ -93,7 +93,9 @@ export function generateActivityMarkdown(activity: readonly GitHubActivityEntry[
   if (activity.length === 0) {
     return '# Recent Activity\n\nNo recent public activity.\n';
   }
-  const items = activity.map((entry) => `- ${entry.createdAt.slice(0, 10)} — ${entry.summary}`);
+  const items = activity.map(
+    (entry) => `- ${entry.createdAt.slice(0, 10)}${entry.sha ? ` \`${entry.sha}\`` : ''} — ${entry.summary} (${entry.repoName})`,
+  );
   // Human-readable list stays the file's primary content (this file is a
   // normal, readable workspace file like any other); the fenced JSON block
   // is an additive, structured mirror of the same data for the frontend's

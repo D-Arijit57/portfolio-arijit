@@ -3,6 +3,7 @@ import type { FileNodeRepository } from '../../repositories';
 import { GitHubApiClient } from './githubApiClient';
 import {
   transformActivity,
+  transformCommits,
   transformContributionCalendar,
   transformPinned,
   transformProfile,
@@ -69,12 +70,20 @@ export class GitHubProvider implements ContentProvider {
       return;
     }
 
-    const [repos, pinned, events, contributionCalendar] = await Promise.all([
+    const [repos, pinned, events, contributionCalendar, commits] = await Promise.all([
       this.safely(() => this.apiClient.listRepos()),
       this.hasToken ? this.safely(() => this.apiClient.listPinnedRepos()) : Promise.resolve(undefined),
       this.safely(() => this.apiClient.listPublicEvents()),
       this.hasToken ? this.safely(() => this.apiClient.getContributionCalendar()) : Promise.resolve(undefined),
+      this.hasToken ? this.safely(() => this.apiClient.searchRecentCommits()) : Promise.resolve(undefined),
     ]);
+
+    // Real commit history (sha + message) is preferred over the Events-API
+    // fallback (repo-level prose, no per-commit detail) whenever the Search
+    // API succeeded and actually returned something; an empty/failed search
+    // still degrades to the Events-derived summary rather than "unavailable"
+    // outright, since that's real (if less detailed) data too.
+    const activityEntries = commits && commits.length > 0 ? transformCommits(commits) : events ? transformActivity(events) : undefined;
 
     const lastSyncedAt = new Date().toISOString();
     const markdown: GitHubMarkdownBundle = {
@@ -86,7 +95,7 @@ export class GitHubProvider implements ContentProvider {
         : this.hasToken
           ? generateUnavailableMarkdown('Pinned Repositories')
           : generatePinnedUnavailableMarkdown(),
-      activity: events ? generateActivityMarkdown(transformActivity(events)) : generateUnavailableMarkdown('Recent Activity'),
+      activity: activityEntries ? generateActivityMarkdown(activityEntries) : generateUnavailableMarkdown('Recent Activity'),
       contributions: contributionCalendar
         ? generateContributionsMarkdown(transformContributionCalendar(contributionCalendar))
         : this.hasToken

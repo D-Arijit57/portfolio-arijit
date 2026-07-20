@@ -1,10 +1,14 @@
 import type {
+  RawGitHubCommitSearchResponse,
+  RawGitHubCommitSearchResult,
   RawGitHubContributionCalendar,
   RawGitHubEvent,
   RawGitHubPinnedRepo,
   RawGitHubRepo,
   RawGitHubUser,
 } from './githubTypes';
+
+const RECENT_COMMITS_LIMIT = 10;
 
 const GITHUB_API_BASE_URL = 'https://api.github.com';
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
@@ -54,6 +58,32 @@ export class GitHubApiClient {
     return this.request<RawGitHubEvent[]>(
       `${GITHUB_API_BASE_URL}/users/${this.username}/events/public?per_page=100`,
     );
+  }
+
+  /**
+   * Real commit history (sha, message, repo) across every repo the author
+   * has committed to — the public Events API's PushEvent payload carries no
+   * commit-level detail (see RawGitHubEvent's comment), so this is a
+   * separate endpoint: the REST Search API's global commit search
+   * (`GET /search/commits`, GA, not preview — confirmed against GitHub's own
+   * docs before implementing). `is:public` is explicit, not incidental: a
+   * token with broader access must never let a private repo's commit
+   * message leak onto a public portfolio page. Token-gated like pinned
+   * repos/contribution calendar — the Search API's unauthenticated cap
+   * (10 requests/min) is tight enough that an unauthenticated call here
+   * isn't worth the risk of contending with other providers' refresh
+   * cycles; authenticated search gets 30/min, comfortable for a refresh
+   * that runs at most every few minutes.
+   */
+  async searchRecentCommits(): Promise<RawGitHubCommitSearchResult[] | undefined> {
+    if (!this.token) {
+      return undefined;
+    }
+    const query = encodeURIComponent(`author:${this.username} is:public`);
+    const body = await this.request<RawGitHubCommitSearchResponse>(
+      `${GITHUB_API_BASE_URL}/search/commits?q=${query}&sort=author-date&order=desc&per_page=${RECENT_COMMITS_LIMIT}`,
+    );
+    return body.items;
   }
 
   /**

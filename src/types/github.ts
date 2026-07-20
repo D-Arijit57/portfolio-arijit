@@ -22,4 +22,6 @@ export interface GitHubActivityEntry {
   summary: string;
   repoName: string;
   createdAt: string;
+  /** Short (7-char) commit SHA — present only when sourced from real commit search. */
+  sha?: string;
 }

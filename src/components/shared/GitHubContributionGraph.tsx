@@ -19,6 +19,11 @@ const LEVEL_COLORS: Record<0 | 1 | 2 | 3 | 4, string> = {
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// GitHub's own convention: label only Mon/Wed/Fri (index 1/3/5) to avoid
+// crowding a 7-row grid this small; Sun/Tue/Thu/Sat stay blank but still
+// occupy a row so the column height matches the day grid exactly.
+const WEEKDAY_LABELS = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
 const REVEAL_SESSION_KEY = 'github-contribution-graph';
 const MIN_REVEAL_MS = 600;
 const MAX_REVEAL_MS = 1000;
@@ -141,39 +146,49 @@ export function GitHubContributionGraph({ sourceFileId = 'github:contributions' 
       <div className="mb-2 text-[#cccccc]">{calendar.totalContributions} contributions in the last year</div>
 
       <div className="overflow-x-auto">
-        <div className="relative inline-block">
-          <div className="relative mb-1 h-[14px]" style={{ width: totalWeeks * 13 }}>
-            {monthMarkers.map(({ weekIndex, label }) => (
-              <span
-                key={weekIndex}
-                className="absolute top-0 text-[10px] text-[#858585]"
-                style={{ left: weekIndex * 13 }}
-              >
+        <div className="inline-flex gap-1">
+          <div className="flex flex-col gap-[3px] pt-[18px]">
+            {WEEKDAY_LABELS.map((label, i) => (
+              <span key={i} className="h-[10px] text-[9px] leading-[10px] text-[#858585]">
                 {label}
               </span>
             ))}
           </div>
 
-          <div className="flex gap-[3px]">
-            {calendar.weeks.map((week, weekIndex) => (
-              <div key={weekIndex} className="flex flex-col gap-[3px]">
-                {week.days.map((day) => {
-                  const revealed = weekIndex < revealedWeeks;
-                  const color = revealed ? LEVEL_COLORS[day.level] : LEVEL_COLORS[0];
-                  return (
-                    <div
-                      key={day.date}
-                      role="gridcell"
-                      tabIndex={0}
-                      aria-label={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
-                      title={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
-                      className="h-[10px] w-[10px] rounded-[2px] outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[#007acc]"
-                      style={{ backgroundColor: color }}
-                    />
-                  );
-                })}
-              </div>
-            ))}
+          <div className="relative inline-block">
+            <div className="relative mb-1 h-[14px]" style={{ width: totalWeeks * 13 }}>
+              {monthMarkers.map(({ weekIndex, label }) => (
+                <span
+                  key={weekIndex}
+                  className="absolute top-0 text-[10px] text-[#858585]"
+                  style={{ left: weekIndex * 13 }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex gap-[3px]">
+              {calendar.weeks.map((week, weekIndex) => (
+                <div key={weekIndex} className="flex flex-col gap-[3px]">
+                  {week.days.map((day) => {
+                    const revealed = weekIndex < revealedWeeks;
+                    const color = revealed ? LEVEL_COLORS[day.level] : LEVEL_COLORS[0];
+                    return (
+                      <div
+                        key={day.date}
+                        role="gridcell"
+                        tabIndex={0}
+                        aria-label={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
+                        title={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
+                        className="h-[10px] w-[10px] rounded-[2px] outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[#007acc]"
+                        style={{ backgroundColor: color }}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

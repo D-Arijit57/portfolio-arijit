@@ -37,6 +37,8 @@ export interface CommandContext {
   cwd: string;
   history: string[];
   openFile: (id: string) => void;
+  /** Sprint 10C: explicit "open beside the current file" — see useStore's openToSide(). */
+  openToSide: (id: string) => void;
   resolvePath: (path: string) => VirtualFile | VirtualFolder | undefined;
   setCwd: (path: string) => void;
   clearHistory: () => void;

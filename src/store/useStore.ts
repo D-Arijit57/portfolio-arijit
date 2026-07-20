@@ -45,6 +45,12 @@ registerBuiltinCommands();
 const initialWorkspaceFiles = getAllFiles(workspaceSeed);
 buildIndex(initialWorkspaceFiles);
 
+// Sprint 10C.1: the two fileIds the README+Playground onboarding pairing is
+// built from — named once here so openFile()'s onboarding logic and the
+// initial boot state can't drift out of sync with each other.
+const README_FILE_ID = 'readme';
+const PLAYGROUND_FILE_ID = 'playground';
+
 const MAX_TERMINAL_HISTORY = 200;
 
 function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
@@ -62,6 +68,11 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
  * last tab closed. Strategy: reuse whichever pane is empty; if both panes
  * are occupied (or both empty), open alongside whatever's currently active,
  * the same way a real IDE opens new files into the last-focused group.
+ *
+ * Sprint 10C: this only decides *which* pane ordinary navigation targets —
+ * openFile() always replaces whatever tab already lives in that pane (see
+ * openFile()'s own comment) rather than adding a tab, so it never grows the
+ * split beyond what openToSide() explicitly created.
  */
 function resolveTargetPane(state: Pick<StoreState, 'openedTabs' | 'editorSplit' | 'activeFileId'>): 'left' | 'right' {
   if (!state.editorSplit) return 'left';
@@ -131,6 +142,14 @@ interface StoreState {
   // pane, clamped in setSplitRatio. Only meaningful while editorSplit is
   // true; irrelevant to (and untouched by) single-pane layout.
   splitRatio: number;
+  // Sprint 10C: the fileId of the tab that caused an *automatic* split via
+  // openToSide() (e.g. Playground), or null if the current split is either
+  // absent or was turned on manually (Command Palette's "Toggle Split
+  // Editor"). closeFile() only reverts editorSplit back to false when the
+  // closed tab is the one that owns the split — a manual split stays put
+  // regardless of which files close, exactly like the manual toggle already
+  // behaves today.
+  splitTrigger: string | null;
 
   // VFS state (Sprint 3A/3B). Seeded statically below so fileSystem.ts's
   // facade (src/content/fileSystem.ts) always has valid data to read, even
@@ -161,6 +180,8 @@ interface StoreState {
   // Actions
   setActiveFile: (id: string | null) => void;
   openFile: (id: string, pane?: 'left' | 'right') => void;
+  /** Sprint 10C: the one explicit "open beside the current file" action — see openToSide()'s own comment. */
+  openToSide: (id: string) => void;
   closeFile: (id: string) => void;
   toggleExplorer: () => void;
   toggleFolder: (id: string) => void;
@@ -187,10 +208,14 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set, get) => ({
-  activeFileId: 'readme',
+  activeFileId: README_FILE_ID,
+  // Sprint 10C.1: the boot state is exactly what openFile(README_FILE_ID)
+  // itself would produce (see its onboarding branch below) — README is
+  // always shown paired with Playground, on boot and any time the user
+  // navigates back to it.
   openedTabs: [
-    { id: 'tab-readme', fileId: 'readme', pane: 'left' },
-    { id: 'tab-playground', fileId: 'playground', pane: 'right' }
+    { id: 'tab-readme', fileId: README_FILE_ID, pane: 'left' },
+    { id: 'tab-playground', fileId: PLAYGROUND_FILE_ID, pane: 'right' },
   ],
   explorerState: {
     isOpen: true,
@@ -227,6 +252,11 @@ export const useStore = create<StoreState>((set, get) => ({
   notificationState: { visible: [] },
   editorSplit: true,
   splitRatio: 0.5,
+  // 'playground' owns the split whether it got there via the README
+  // onboarding pairing (boot, or openFile(README_FILE_ID) later) or via the
+  // manual `playground` command (openToSide) — closeFile() collapses to a
+  // single editor either way with no extra branching required.
+  splitTrigger: PLAYGROUND_FILE_ID,
 
   workspaceTree: workspaceSeed,
   workspaceFiles: initialWorkspaceFiles,
@@ -241,15 +271,92 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setActiveFile: (id) => set({ activeFileId: id }),
   
+  // Sprint 10C: the single path for *ordinary* navigation (Explorer, Search,
+  // Terminal's `open`, Command Palette, router deep-links). It never grows
+  // the tab list — it replaces whatever tab currently occupies the target
+  // pane, so normal navigation has exactly one obvious outcome and can never
+  // accumulate tabs or force a split into existence. openToSide() is the
+  // only action that adds a tab alongside an existing one.
+  //
+  // Sprint 10C.1: README is the one centralized exception to "ordinary
+  // navigation never creates a split" — every caller listed above goes
+  // through this same function, so the onboarding rule lives here once
+  // rather than as scattered README checks in Explorer/Search/etc.
   openFile: (id, pane) => set((state) => {
+    // Landing on README always (re)establishes the onboarding pairing with
+    // Playground, replacing whatever the workspace was showing — the same
+    // outcome whether this is the very first render or a return visit.
+    if (id === README_FILE_ID) {
+      const ts = Date.now();
+      return {
+        editorSplit: true,
+        splitTrigger: PLAYGROUND_FILE_ID,
+        openedTabs: [
+          { id: `tab-${ts}-readme`, fileId: README_FILE_ID, pane: 'left' },
+          { id: `tab-${ts}-playground`, fileId: PLAYGROUND_FILE_ID, pane: 'right' },
+        ],
+        activeFileId: README_FILE_ID,
+      };
+    }
+
+    // Leaving the README+Playground onboarding pairing for any other file
+    // quietly closes Playground and returns to a single editor. Derived
+    // from the current tabs rather than a stored flag, so it only fires for
+    // this specific pairing and never collapses a split the `playground`
+    // command created around some other file (openToSide()'s own
+    // splitTrigger ownership is untouched by this branch).
+    const isReadmeOnboarding = state.editorSplit &&
+      state.openedTabs.some(t => t.fileId === README_FILE_ID) &&
+      state.openedTabs.some(t => t.fileId === PLAYGROUND_FILE_ID);
+
+    if (isReadmeOnboarding) {
+      return {
+        editorSplit: false,
+        splitTrigger: null,
+        openedTabs: [{ id: `tab-${Date.now()}`, fileId: id, pane: 'left' as const }],
+        activeFileId: id,
+      };
+    }
+
     const existingTab = state.openedTabs.find(t => t.fileId === id);
     if (existingTab) {
       return { activeFileId: id };
     }
     const targetPane = pane ?? resolveTargetPane(state);
     const newTab = { id: `tab-${Date.now()}`, fileId: id, pane: targetPane };
+    const tabsWithoutTargetPane = state.openedTabs.filter(t => t.pane !== targetPane);
     return {
-      openedTabs: [...state.openedTabs, newTab],
+      openedTabs: [...tabsWithoutTargetPane, newTab],
+      activeFileId: id,
+    };
+  }),
+
+  // Sprint 10C: the one explicit "split for a reason" action — used today by
+  // the `playground` terminal command, and the mechanism a future "Open to
+  // Side" command or Atlas comparison view would call too. Unlike openFile(),
+  // this never replaces the current tab: it turns split on if needed and
+  // opens the file into the *other* pane, beside whatever's active. If a
+  // split didn't already exist, this call becomes its owner (splitTrigger) so
+  // closeFile() knows to revert to a single editor once this file closes — a
+  // split that was already on (e.g. via the manual "Toggle Split Editor"
+  // command) is left owned by whatever turned it on originally.
+  openToSide: (id) => set((state) => {
+    const existingTab = state.openedTabs.find(t => t.fileId === id);
+    if (existingTab) {
+      return { activeFileId: id, editorSplit: true };
+    }
+
+    const activeTab = state.openedTabs.find(t => t.fileId === state.activeFileId);
+    const currentPane = activeTab?.pane ?? 'left';
+    const sidePane: 'left' | 'right' = currentPane === 'left' ? 'right' : 'left';
+
+    const tabsWithoutSidePane = state.openedTabs.filter(t => t.pane !== sidePane);
+    const newTab = { id: `tab-${Date.now()}`, fileId: id, pane: sidePane };
+
+    return {
+      editorSplit: true,
+      splitTrigger: state.editorSplit ? state.splitTrigger : id,
+      openedTabs: [...tabsWithoutSidePane, newTab],
       activeFileId: id,
     };
   }),
@@ -257,16 +364,22 @@ export const useStore = create<StoreState>((set, get) => ({
   closeFile: (id) => {
     set((state) => {
       const newTabs = state.openedTabs.filter(t => t.fileId !== id);
+      // Sprint 10C: only collapse back to a single editor when the tab
+      // closing is the one that automatically opened the split — a manually
+      // toggled split (or one owned by some other still-open file) persists.
+      const ownsSplit = state.splitTrigger === id;
       return {
-        openedTabs: newTabs,
-        activeFileId: state.activeFileId === id ? (newTabs.length > 0 ? newTabs[newTabs.length - 1].fileId : null) : state.activeFileId
+        openedTabs: ownsSplit ? newTabs.map(t => ({ ...t, pane: 'left' as const })) : newTabs,
+        activeFileId: state.activeFileId === id ? (newTabs.length > 0 ? newTabs[newTabs.length - 1].fileId : null) : state.activeFileId,
+        editorSplit: ownsSplit ? false : state.editorSplit,
+        splitTrigger: ownsSplit ? null : state.splitTrigger,
       };
     });
 
     // WA-08: closing the playground is the one file-close producers were
     // asked to surface — points the user at the `playground` command
     // (WA-08) rather than leaving the restore path undiscoverable.
-    if (id === 'playground') {
+    if (id === PLAYGROUND_FILE_ID) {
       notificationService.info({
         title: 'Playground closed',
         message: "Run 'playground' in the terminal to restore it.",
@@ -365,6 +478,7 @@ export const useStore = create<StoreState>((set, get) => ({
       cwd: get().terminalState.cwd,
       history: get().terminalState.history.map((h) => h.command).filter(Boolean),
       openFile: get().openFile,
+      openToSide: get().openToSide,
       resolvePath: (path) => resolveVfsPath(get().workspaceTree, get().terminalState.cwd, path),
       setCwd: (path) => set((state) => ({ terminalState: { ...state.terminalState, cwd: path } })),
       clearHistory: () => get().clearTerminal(),
@@ -431,10 +545,13 @@ export const useStore = create<StoreState>((set, get) => ({
       // Merging back to one pane
       return {
         editorSplit: false,
+        splitTrigger: null,
         openedTabs: state.openedTabs.map(t => ({ ...t, pane: 'left' }))
       };
     }
-    return { editorSplit: true };
+    // Manually requested split — not owned by any specific file, so closing
+    // files never auto-collapses it (see closeFile()'s ownsSplit check).
+    return { editorSplit: true, splitTrigger: null };
   }),
 
   // WA-06: converts a pixel delta into a ratio delta against the measured

@@ -1,19 +1,21 @@
 import type { CommandDefinition } from '../types';
 
 /**
- * WA-08: named shortcut to `open`, the same "sugar" pattern already used
- * for projects/contact/resume (TERMINAL_DESIGN.md §10). Restoring after a
- * close needs no special-casing beyond this — WA-01's pane-selection
- * strategy already reuses whichever pane is empty, so if the playground's
- * pane collapsed (WA-07) this naturally reopens it there and the split
- * layout re-expands on its own.
+ * WA-08: named shortcut for the playground, the same "sugar" pattern already
+ * used for projects/contact/resume (TERMINAL_DESIGN.md §10). Sprint 10C:
+ * calls openToSide() rather than openFile() — Playground is the one feature
+ * that's explicitly allowed to create a split (ARCHITECTURE.md's "split
+ * editors exist only when explicitly required"), so running this command
+ * opens it beside whatever's currently active instead of replacing it. The
+ * split it creates is automatically torn back down by closeFile() once the
+ * playground tab closes (see useStore's splitTrigger).
  */
 export const playgroundCommand: CommandDefinition = {
   name: 'playground',
-  description: 'Reopen the playground editor',
+  description: 'Open the playground editor beside the current file',
   category: 'workspace',
   execute: (ctx) => {
-    ctx.openFile('playground');
-    return { output: [{ type: 'file-link', fileId: 'playground', label: 'Reopened playground.py' }] };
+    ctx.openToSide('playground');
+    return { output: [{ type: 'file-link', fileId: 'playground', label: 'Opened playground.py' }] };
   },
 };

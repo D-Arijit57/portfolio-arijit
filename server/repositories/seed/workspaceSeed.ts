@@ -70,7 +70,7 @@ print(f"Welcome to {me.name}'s workspace.")
 
 Full Stack Engineer | AI Enthusiast | Systems Architect
 
-\`\`\`profile-status
+\`\`\`profile-sidebar
 \`\`\`
 
 Hello! I'm a software engineer passionate about building scalable, high-performance applications. I bridge the gap between complex backend architectures and intuitive, pixel-perfect frontend experiences.
@@ -86,11 +86,6 @@ Hello! I'm a software engineer passionate about building scalable, high-performa
 - **AI/ML:** Prompt engineering, RAG pipelines, fine-tuning open-source models for specific domains.
 
 > Code is read far more often than it's written — I optimize for the person who inherits this next.
-
-## GitHub Contributions
-
-\`\`\`github-contribution-calendar
-\`\`\`
 
 ## Recent Activity
 

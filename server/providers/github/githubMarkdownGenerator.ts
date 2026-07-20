@@ -1,6 +1,6 @@
 import type {
   GitHubActivityEntry,
-  GitHubContributionSummary,
+  GitHubContributionCalendar,
   GitHubPinnedRepoSummary,
   GitHubProfile,
   GitHubRepoSummary,
@@ -94,20 +94,35 @@ export function generateActivityMarkdown(activity: readonly GitHubActivityEntry[
     return '# Recent Activity\n\nNo recent public activity.\n';
   }
   const items = activity.map((entry) => `- ${entry.createdAt.slice(0, 10)} — ${entry.summary}`);
-  return ['# Recent Activity', '', ...items, ''].join('\n');
+  // Human-readable list stays the file's primary content (this file is a
+  // normal, readable workspace file like any other); the fenced JSON block
+  // is an additive, structured mirror of the same data for the frontend's
+  // reusable Recent Activity widget (EditorRenderer's markdown `code`
+  // override) to parse — no second API call, no separate endpoint.
+  const json = JSON.stringify(activity.slice(0, 8));
+  return ['# Recent Activity', '', ...items, '', '```github-recent-activity', json, '```', ''].join('\n');
 }
 
-export function generateContributionsMarkdown(summary: GitHubContributionSummary): string {
+export function generateContributionsMarkdown(calendar: GitHubContributionCalendar): string {
+  const json = JSON.stringify(calendar);
   return [
     '# Contributions',
     '',
-    `> Approximated from public activity over the last ${summary.windowDays} days — not a true contribution calendar (GitHub's public REST API doesn't expose one).`,
+    `${calendar.totalContributions} contributions in the last year.`,
     '',
-    `- Active days: ${summary.activeDayCount} / ${summary.windowDays}`,
-    `- Public events: ${summary.totalEventCount}`,
-    `- Most active repository: ${summary.mostActiveRepo ?? 'n/a'}`,
+    '```github-contribution-calendar',
+    json,
+    '```',
     '',
   ].join('\n');
+}
+
+export function generateContributionsUnavailableMarkdown(): string {
+  return (
+    '# Contributions\n' +
+    '\n> The real contribution calendar requires the GitHub GraphQL API, which needs a configured GITHUB_TOKEN. ' +
+    'Set GITHUB_TOKEN to enable this file.\n'
+  );
 }
 
 export function generateUnavailableMarkdown(title: string): string {

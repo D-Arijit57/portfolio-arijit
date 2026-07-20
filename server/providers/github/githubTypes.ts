@@ -48,6 +48,17 @@ export interface RawGitHubPinnedRepo {
   primaryLanguage: { name: string } | null;
 }
 
+/** Raw shape of GitHub's GraphQL `contributionsCollection.contributionCalendar`. */
+export interface RawGitHubContributionCalendar {
+  totalContributions: number;
+  weeks: {
+    contributionDays: {
+      date: string;
+      contributionCount: number;
+    }[];
+  }[];
+}
+
 /**
  * Internal domain types the Transformer stage produces (VFS_DESIGN.md §11.2)
  * — the Markdown Generator stage knows only these shapes, never the raw
@@ -94,9 +105,19 @@ export interface GitHubActivityEntry {
   createdAt: string;
 }
 
-export interface GitHubContributionSummary {
-  activeDayCount: number;
-  totalEventCount: number;
-  mostActiveRepo: string | null;
-  windowDays: number;
+/** A single day's contribution intensity, GitHub-style 0-4 level bucketing. */
+export interface GitHubContributionDay {
+  date: string;
+  count: number;
+  level: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface GitHubContributionWeek {
+  days: GitHubContributionDay[];
+}
+
+/** Real contribution calendar (VFS_DESIGN.md §11.7 tech debt, now resolved via GraphQL). */
+export interface GitHubContributionCalendar {
+  totalContributions: number;
+  weeks: GitHubContributionWeek[];
 }

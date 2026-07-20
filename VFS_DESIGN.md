@@ -11,6 +11,8 @@
 
 **Revision note (2026-07-19, Sprint 7A — Global Search System Architecture Review, design only)**: §3's `searchFiles(query)` row and §10's Search row below were written assuming the Phase 3 "Search Engine" would be a backend-driven consumer of this method. `ARCHITECTURE.md`'s new "Global Search Subsystem" section now specifies Search concretely as a **client-side** subsystem operating on the already-hydrated VFS (`workspaceFiles`, populated by §9.1's hydration) — not a consumer of this repository method over HTTP. `searchFiles(query)` remains a valid repository method (harmless, already implemented) but is no longer described as backing "the Search Engine"; that name now refers to `src/search/searchEngine.ts`. Flagged here rather than silently left inconsistent; no other entity, contract, or invariant in this document changed.
 
+**Revision note (2026-07-21, profile.md Redesign sprint)**: closes one §11.7 tech-debt item — `GitHubApiClient` gained `getContributionCalendar()`, a GraphQL query for the real `contributionsCollection.contributionCalendar` (exact per-day counts), following the identical token-gated/best-effort pattern already established for pinned repos (§11.5). `contributions.md`'s generated content now embeds this as a fenced `github-contribution-calendar` JSON block via the same `reconcileGeneratedSubtree` path — no new endpoint, no change to §1–§10's frozen contracts or §11.1–§11.4's pipeline shape. The old Events-API-derived approximation (`deriveContributions`/`GitHubContributionSummary`) is removed, not kept alongside, since real data now exists.
+
 No code is defined here. Interface and method descriptions are contracts to implement against, not implementations.
 
 ---
@@ -371,7 +373,7 @@ None of these require touching `FileNodeRepository`, `FileSystemService`, hydrat
 
 ### 11.7 Technical debt (intentional, flagged now)
 
-- `contributions.md` is an approximation (derived from the Events API), not a true contribution calendar — GitHub's public REST API doesn't cleanly expose the contribution graph; a GraphQL-backed true calendar is explicit follow-up work, not a launch blocker.
+- ~~`contributions.md` is an approximation (derived from the Events API), not a true contribution calendar — GitHub's public REST API doesn't cleanly expose the contribution graph; a GraphQL-backed true calendar is explicit follow-up work, not a launch blocker.~~ **Resolved (profile.md Redesign sprint)** — `GitHubApiClient.getContributionCalendar()` now queries the real GraphQL `contributionsCollection.contributionCalendar`, gated on `GITHUB_TOKEN` (undefined without one, same pattern as pinned repos, VFS_DESIGN.md §11.5). `contributions.md` embeds the exact per-day calendar as a fenced `github-contribution-calendar` JSON block alongside a human-readable summary line — same file, same reconciliation path, no new endpoint.
 - No cross-restart persistence for reconciled generated content — a restart means a namespace is empty until the first post-boot refresh completes. Acceptable for a low-traffic personal portfolio today.
 - Manual-refresh trigger's auth/exposure story (hidden route vs. env-gated dev-only route vs. omitted) is left as an implementation decision.
 - Rate-limit backoff is specified at policy level only (§11.5); exact retry/jitter mechanics are deferred.

@@ -2,8 +2,8 @@ import type { ContentProvider, ProviderStatus } from '../contentProvider';
 import type { FileNodeRepository } from '../../repositories';
 import { GitHubApiClient } from './githubApiClient';
 import {
-  deriveContributions,
   transformActivity,
+  transformContributionCalendar,
   transformPinned,
   transformProfile,
   transformRepos,
@@ -11,6 +11,7 @@ import {
 import {
   generateActivityMarkdown,
   generateContributionsMarkdown,
+  generateContributionsUnavailableMarkdown,
   generatePinnedMarkdown,
   generatePinnedUnavailableMarkdown,
   generateProfileMarkdown,
@@ -68,10 +69,11 @@ export class GitHubProvider implements ContentProvider {
       return;
     }
 
-    const [repos, pinned, events] = await Promise.all([
+    const [repos, pinned, events, contributionCalendar] = await Promise.all([
       this.safely(() => this.apiClient.listRepos()),
       this.hasToken ? this.safely(() => this.apiClient.listPinnedRepos()) : Promise.resolve(undefined),
       this.safely(() => this.apiClient.listPublicEvents()),
+      this.hasToken ? this.safely(() => this.apiClient.getContributionCalendar()) : Promise.resolve(undefined),
     ]);
 
     const lastSyncedAt = new Date().toISOString();
@@ -85,9 +87,11 @@ export class GitHubProvider implements ContentProvider {
           ? generateUnavailableMarkdown('Pinned Repositories')
           : generatePinnedUnavailableMarkdown(),
       activity: events ? generateActivityMarkdown(transformActivity(events)) : generateUnavailableMarkdown('Recent Activity'),
-      contributions: events
-        ? generateContributionsMarkdown(deriveContributions(events))
-        : generateUnavailableMarkdown('Contributions'),
+      contributions: contributionCalendar
+        ? generateContributionsMarkdown(transformContributionCalendar(contributionCalendar))
+        : this.hasToken
+          ? generateUnavailableMarkdown('Contributions')
+          : generateContributionsUnavailableMarkdown(),
     };
 
     try {

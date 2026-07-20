@@ -1,4 +1,10 @@
-import type { RawGitHubEvent, RawGitHubPinnedRepo, RawGitHubRepo, RawGitHubUser } from './githubTypes';
+import type {
+  RawGitHubContributionCalendar,
+  RawGitHubEvent,
+  RawGitHubPinnedRepo,
+  RawGitHubRepo,
+  RawGitHubUser,
+} from './githubTypes';
 
 const GITHUB_API_BASE_URL = 'https://api.github.com';
 const GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql';
@@ -85,6 +91,44 @@ export class GitHubApiClient {
       body: JSON.stringify({ query, variables: { login: this.username } }),
     });
     return body.data?.user?.pinnedItems?.nodes ?? [];
+  }
+
+  /**
+   * The real contribution calendar (weeks/days/counts) is GraphQL-only, same
+   * constraint as pinned repos — unauthenticated requests are rejected, so
+   * this returns undefined (not an error) with no token configured.
+   * GitHubProvider treats that as a best-effort miss (VFS_DESIGN.md §11.5),
+   * exactly like pinned repos already do.
+   */
+  async getContributionCalendar(): Promise<RawGitHubContributionCalendar | undefined> {
+    if (!this.token) {
+      return undefined;
+    }
+    const query = `
+      query($login: String!) {
+        user(login: $login) {
+          contributionsCollection {
+            contributionCalendar {
+              totalContributions
+              weeks {
+                contributionDays {
+                  date
+                  contributionCount
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const body = await this.request<{
+      data?: { user?: { contributionsCollection?: { contributionCalendar?: RawGitHubContributionCalendar } } };
+      errors?: unknown[];
+    }>(GITHUB_GRAPHQL_URL, {
+      method: 'POST',
+      body: JSON.stringify({ query, variables: { login: this.username } }),
+    });
+    return body.data?.user?.contributionsCollection?.contributionCalendar;
   }
 
   private async request<T>(url: string, init: { method?: string; body?: string } = {}): Promise<T> {

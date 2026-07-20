@@ -72,7 +72,13 @@ print(f"Welcome to {me.name}'s workspace.")
 
 Full Stack Engineer | AI Enthusiast | Systems Architect
 
+\`\`\`profile-status
+\`\`\`
+
 Hello! I'm a software engineer passionate about building scalable, high-performance applications. I bridge the gap between complex backend architectures and intuitive, pixel-perfect frontend experiences.
+
+\`\`\`tech-stack
+\`\`\`
 
 ## Core Competencies
 
@@ -80,6 +86,18 @@ Hello! I'm a software engineer passionate about building scalable, high-performa
 - **Backend:** Microservices design, Distributed systems, RESTful API and GraphQL development.
 - **DevOps:** CI/CD pipeline automation, Infrastructure as Code, Monitoring.
 - **AI/ML:** Prompt engineering, RAG pipelines, fine-tuning open-source models for specific domains.
+
+> Code is read far more often than it's written — I optimize for the person who inherits this next.
+
+## GitHub Contributions
+
+\`\`\`github-contribution-calendar
+\`\`\`
+
+## Recent Activity
+
+\`\`\`github-recent-activity
+\`\`\`
 `,
         } as VirtualFile,
       ],

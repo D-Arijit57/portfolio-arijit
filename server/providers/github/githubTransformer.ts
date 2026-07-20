@@ -1,9 +1,10 @@
 import type {
   GitHubActivityEntry,
-  GitHubContributionSummary,
+  GitHubContributionCalendar,
   GitHubPinnedRepoSummary,
   GitHubProfile,
   GitHubRepoSummary,
+  RawGitHubContributionCalendar,
   RawGitHubEvent,
   RawGitHubPinnedRepo,
   RawGitHubRepo,
@@ -12,7 +13,6 @@ import type {
 
 const REPO_CAP = 20;
 const ACTIVITY_CAP = 20;
-const CONTRIBUTION_WINDOW_DAYS = 90;
 
 /**
  * Transformer stage (VFS_DESIGN.md §11.2): pure functions, raw GitHub API
@@ -79,34 +79,35 @@ export function transformActivity(raw: readonly RawGitHubEvent[]): GitHubActivit
 }
 
 /**
- * Approximation, not a true contribution calendar — GitHub's public REST API
- * doesn't expose the contribution graph; that would require the GraphQL API
- * (VFS_DESIGN.md §11.7, flagged tech debt). Derived from the same public
- * Events feed activity.md uses, bounded to the last 90 days.
+ * Real contribution calendar (VFS_DESIGN.md §11.7 tech debt, now resolved):
+ * GitHub's GraphQL API returns exact per-day counts directly — no
+ * approximation from the Events feed needed anymore. Level bucketing
+ * mirrors GitHub's own relative-intensity scheme (quartiles of this
+ * account's own max daily count, not a fixed global threshold), since
+ * GitHub's exact bucketing algorithm isn't publicly documented.
  */
-export function deriveContributions(raw: readonly RawGitHubEvent[]): GitHubContributionSummary {
-  const cutoff = Date.now() - CONTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const recent = raw.filter((event) => new Date(event.created_at).getTime() >= cutoff);
+export function transformContributionCalendar(raw: RawGitHubContributionCalendar): GitHubContributionCalendar {
+  const maxCount = raw.weeks.reduce(
+    (max, week) => Math.max(max, ...week.contributionDays.map((day) => day.contributionCount)),
+    0,
+  );
+  const step = maxCount > 0 ? maxCount / 4 : 0;
 
-  const activeDays = new Set(recent.map((event) => event.created_at.slice(0, 10)));
-  const repoCounts = new Map<string, number>();
-  for (const event of recent) {
-    repoCounts.set(event.repo.name, (repoCounts.get(event.repo.name) ?? 0) + 1);
-  }
-  let mostActiveRepo: string | null = null;
-  let highestCount = 0;
-  for (const [repo, count] of repoCounts) {
-    if (count > highestCount) {
-      mostActiveRepo = repo;
-      highestCount = count;
-    }
-  }
+  const levelFor = (count: number): 0 | 1 | 2 | 3 | 4 => {
+    if (count === 0) return 0;
+    if (step === 0) return 1;
+    return Math.min(4, Math.ceil(count / step)) as 1 | 2 | 3 | 4;
+  };
 
   return {
-    activeDayCount: activeDays.size,
-    totalEventCount: recent.length,
-    mostActiveRepo,
-    windowDays: CONTRIBUTION_WINDOW_DAYS,
+    totalContributions: raw.totalContributions,
+    weeks: raw.weeks.map((week) => ({
+      days: week.contributionDays.map((day) => ({
+        date: day.date,
+        count: day.contributionCount,
+        level: levelFor(day.contributionCount),
+      })),
+    })),
   };
 }
 

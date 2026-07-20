@@ -5,11 +5,13 @@ import Markdown from 'react-markdown';
 import { WorkHistoryViewer } from './WorkHistoryViewer';
 import { MermaidViewer } from './MermaidViewer';
 import { ShikiEditor } from './ShikiEditor';
+import { TypingReveal } from '../shared/TypingReveal';
+import type { VirtualFile } from '../../types';
 
 export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   const { activeFileId, openedTabs } = useStore();
-  
-  const activeTabInPane = openedTabs.find(t => t.fileId === activeFileId && t.pane === pane) 
+
+  const activeTabInPane = openedTabs.find(t => t.fileId === activeFileId && t.pane === pane)
     || openedTabs.filter(t => t.pane === pane).pop();
 
   if (!activeTabInPane) return null;
@@ -17,6 +19,14 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   const file = getFileById(activeTabInPane.fileId);
   if (!file) return null;
 
+  return (
+    <TypingReveal fileId={file.id} contentLength={file.content.length}>
+      {renderFileContent(file)}
+    </TypingReveal>
+  );
+}
+
+function renderFileContent(file: VirtualFile) {
   if (file.type === 'markdown') {
     return (
       <div className="h-full overflow-y-auto bg-[#1e1e1e] p-8 text-[#cccccc]">

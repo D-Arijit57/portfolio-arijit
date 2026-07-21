@@ -137,6 +137,12 @@ interface StoreState {
   notificationState: {
     visible: Notification[];
   };
+  // Sprint 10E.2: true from store creation until the first-load boot
+  // terminal (EditorArea/BootTerminal) finishes or is skipped. Reactive
+  // (unlike lib/bootSequence.ts's plain `booted` flag) because Notifications
+  // needs to re-render when it flips, to suppress hydration-time toasts
+  // ("Workspace indexed", etc.) until the boot illusion is done.
+  bootActive: boolean;
   editorSplit: boolean;
   // WA-06: fraction (0-1) of the split editor's width given to the left
   // pane, clamped in setSplitRatio. Only meaningful while editorSplit is
@@ -194,6 +200,7 @@ interface StoreState {
   submitTerminalCommand: () => Promise<void>;
   navigateHistory: (direction: 'up' | 'down') => void;
   setEditorTheme: (theme: string) => void;
+  setBootActive: (active: boolean) => void;
   setCommandPaletteOpen: (isOpen: boolean) => void;
   /** Thin passthrough to notificationService.dismiss() — the store isn't a privileged caller (ARCHITECTURE.md §4). */
   dismissNotification: (id: string) => void;
@@ -250,6 +257,7 @@ export const useStore = create<StoreState>((set, get) => ({
   commandPalette: { isOpen: false },
   searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
   notificationState: { visible: [] },
+  bootActive: true,
   editorSplit: true,
   splitRatio: 0.5,
   // 'playground' owns the split whether it got there via the README
@@ -533,6 +541,8 @@ export const useStore = create<StoreState>((set, get) => ({
   }),
 
   setEditorTheme: (theme) => set({ editorTheme: theme }),
+
+  setBootActive: (active) => set({ bootActive: active }),
 
   setCommandPaletteOpen: (isOpen) => set({ commandPalette: { isOpen } }),
 

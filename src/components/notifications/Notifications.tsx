@@ -28,7 +28,13 @@ const SEVERITY_BAR_COLOR: Record<NotificationSeverity, string> = {
 };
 
 export function Notifications() {
-  const { notificationState } = useStore();
+  const { notificationState, bootActive } = useStore();
+
+  // Sprint 10E.2: suppressed while the boot terminal is active — a
+  // "Workspace indexed" toast popping up mid-boot breaks the illusion that
+  // the workspace is still initializing. The queue/timers underneath keep
+  // running as normal; whatever's still visible once boot ends renders then.
+  if (bootActive) return null;
 
   return (
     <div className="fixed bottom-[30px] right-4 z-50 flex flex-col gap-2 max-w-[320px] pointer-events-none">

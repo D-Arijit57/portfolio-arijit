@@ -1,6 +1,6 @@
 import React from 'react';
 
-const TECHNOLOGIES = ['TypeScript', 'React / Next.js', 'Python', 'Go', 'Docker / K8s'];
+const TECHNOLOGIES = ['Python', 'React / Next.js', 'RAG', 'LLMS', 'Docker / K8s'];
 
 /** Muted, monospace tech pills for profile.md — plain CSS, no new design tokens. */
 export function TechStackPills() {

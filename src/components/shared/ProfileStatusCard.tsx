@@ -1,8 +1,8 @@
 import React from 'react';
 
 const FIELDS: { label: string; value: string }[] = [
-  { label: 'Location', value: 'Remote' },
-  { label: 'Experience', value: '5+ years' },
+  { label: 'Location', value: 'Indore, MP, India' },
+  { label: 'Experience', value: '1 year' },
   { label: 'Timezone', value: 'IST (UTC+5:30)' },
 ];
 

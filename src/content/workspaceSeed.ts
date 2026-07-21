@@ -1,4 +1,14 @@
 import { VirtualFolder, VirtualFile, ExplorerNode } from '../types';
+import { resumeData, generateResumeMarkdown } from './resume';
+
+// Sprint 10F.1: RESUME.md's content is now generated from the single
+// structured source (content/resume.ts) rather than hand-typed here —
+// verified byte-identical to the Sprint 10F hand-written version. Still
+// duplicated as a literal string in server/repositories/seed/workspaceSeed.ts
+// (that seed can't import from src/, same "no frontend imports" convention
+// every backend seed file already follows) — update that copy by hand if
+// content/resume.ts ever changes.
+const RESUME_MARKDOWN = generateResumeMarkdown(resumeData);
 
 /**
  * Pre-hydration seed for the workspace store. Schema-equivalent to the
@@ -57,6 +67,13 @@ me = Engineer(
 
 print(f"Welcome to {me.name}'s workspace.")
 `,
+    } as VirtualFile,
+    {
+      id: 'resume',
+      name: 'RESUME.md',
+      type: 'markdown',
+      path: '/RESUME.md',
+      content: RESUME_MARKDOWN,
     } as VirtualFile,
     {
       id: 'about',

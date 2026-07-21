@@ -27,6 +27,23 @@ const GENERATED_NAMESPACE_SYNCED_TITLE: Record<string, string> = {
   leetcode: 'LeetCode refreshed',
 };
 
+// Sprint 10G: namespaces kept fully fetchable (workspaceFiles stays
+// unfiltered — ProfileSidebar's GitHub widgets read github:activity/
+// github:contributions directly by id, see RecentActivityLog.tsx /
+// GitHubContributionGraph.tsx) but deliberately excluded from every surface
+// a user can *browse* to them from: Explorer/Terminal (both read
+// workspaceTree), Search (reads the built index), and Command Palette
+// (reads allFiles directly, bypassing the tree). One set, three call sites.
+const HIDDEN_BROWSE_NAMESPACES = new Set(['github']);
+
+function isBrowsable(file: VirtualFile): boolean {
+  return !HIDDEN_BROWSE_NAMESPACES.has(namespaceOf(file));
+}
+
+function hideBrowseNamespaceFolders(tree: VirtualFolder): VirtualFolder {
+  return { ...tree, children: tree.children.filter((child) => !HIDDEN_BROWSE_NAMESPACES.has(child.id)) };
+}
+
 // Session-local bookkeeping for the hydration-time notification producer —
 // not store state, not the notification queue's concern; purely "have we
 // already told the user about this namespace / this session's boot" so a
@@ -43,7 +60,7 @@ registerBuiltinCommands();
 // success as rebuild triggers; this seeds the index at module load so search
 // is never stale/empty during the brief pre-hydration window).
 const initialWorkspaceFiles = getAllFiles(workspaceSeed);
-buildIndex(initialWorkspaceFiles);
+buildIndex(initialWorkspaceFiles.filter(isBrowsable));
 
 // Sprint 10C.1: the two fileIds the README+Playground onboarding pairing is
 // built from — named once here so openFile()'s onboarding logic and the
@@ -583,9 +600,9 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const tree = await fetchWorkspaceTree();
       const files = getAllFiles(tree);
-      buildIndex(files); // ARCHITECTURE.md §8: hydrateVFS() success rebuilds the index
+      buildIndex(files.filter(isBrowsable)); // ARCHITECTURE.md §8: hydrateVFS() success rebuilds the index
       set({
-        workspaceTree: tree,
+        workspaceTree: hideBrowseNamespaceFolders(tree),
         workspaceFiles: files,
         vfsLoaded: true,
         vfsLoading: false,
@@ -638,7 +655,7 @@ export const useStore = create<StoreState>((set, get) => ({
       set((state) => {
         const { [id]: _saved, ...remainingDrafts } = state.draftContent;
         const updatedFiles = state.workspaceFiles.map(f => f.id === id ? result.file : f);
-        buildIndex(updatedFiles); // ARCHITECTURE.md §8: saveFile() success rebuilds the index
+        buildIndex(updatedFiles.filter(isBrowsable)); // ARCHITECTURE.md §8: saveFile() success rebuilds the index
         return {
           workspaceFiles: updatedFiles,
           draftContent: remainingDrafts,

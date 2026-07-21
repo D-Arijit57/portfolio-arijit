@@ -11,6 +11,7 @@ export const TYPING_REVEAL_FILE_IDS = new Set([
   'contact_sh',
   'skills_frontend',
   'skills_backend',
+  'resume',
 ]);
 
 // Session-local bookkeeping — resets on a real page refresh, same pattern as

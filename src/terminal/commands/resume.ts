@@ -1,17 +1,16 @@
 import type { CommandDefinition } from '../types';
 
 /**
- * Named shortcut to `open`. No dedicated resume file exists in the VFS
- * seed (server or client) — mapped to the profile page as the closest
- * existing resume-equivalent content. Flagged in the Sprint 5B report as
- * a judgment call, not a silent assumption.
+ * Sprint 10F: RESUME.md now exists as a real VFS file, resolving the
+ * Sprint 5B judgment call that previously mapped this command to `profile`
+ * for lack of dedicated resume content.
  */
 export const resumeCommand: CommandDefinition = {
   name: 'resume',
-  description: 'Open resume / profile',
+  description: 'Open resume',
   category: 'workspace',
   execute: (ctx) => {
-    const target = ctx.resolvePath('profile');
+    const target = ctx.resolvePath('resume');
     if (!target || 'children' in target) {
       return { output: [{ type: 'error', text: 'resume: content not found' }] };
     }

@@ -5,6 +5,10 @@ interface TypingRevealProps {
   fileId: string;
   contentLength: number;
   children: React.ReactNode;
+  /** Sprint 10F: fired once, the instant the reveal finishes (or immediately
+   * on mount if it was already done — reduced motion / replayed same file id
+   * this session). Every existing caller omits this and is unaffected. */
+  onRevealComplete?: () => void;
 }
 
 /**
@@ -17,8 +21,16 @@ interface TypingRevealProps {
  * reveal finishes (or never applied), this renders children directly with
  * zero extra DOM — "no animation state remains."
  */
-export function TypingReveal({ fileId, contentLength, children }: TypingRevealProps) {
+export function TypingReveal({ fileId, contentLength, children, onRevealComplete }: TypingRevealProps) {
   const { isRevealing, progress } = useTypingReveal(fileId, contentLength);
+  const firedRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!isRevealing && !firedRef.current) {
+      firedRef.current = true;
+      onRevealComplete?.();
+    }
+  }, [isRevealing, onRevealComplete]);
 
   if (!isRevealing) {
     return <>{children}</>;

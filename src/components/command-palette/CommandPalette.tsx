@@ -4,6 +4,13 @@ import { useStore } from '../../store/useStore';
 import { allFiles } from '../../content/fileSystem';
 import { FileText, FileCode2, Terminal as TerminalIcon, Layout } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { namespaceOf } from '../../search/types';
+
+// Sprint 10G: GitHub's generated files stay fully fetchable by id (see
+// useStore.ts's HIDDEN_BROWSE_NAMESPACES note — ProfileSidebar's widgets
+// depend on that) but shouldn't be listed here, since this bypasses the
+// tree Explorer/Terminal already have the folder hidden from.
+const paletteFiles = () => allFiles.filter((file) => namespaceOf(file) !== 'github');
 
 export function CommandPalette() {
   const { commandPalette, setCommandPaletteOpen, openFile, toggleTerminal, toggleExplorer, toggleEditorSplit } = useStore();
@@ -48,7 +55,7 @@ export function CommandPalette() {
               <Command.Empty className="py-6 text-center text-[#858585]">No results found.</Command.Empty>
               
               <Command.Group heading="Files" className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-[#858585] [&_[cmdk-group-heading]]:uppercase">
-                {allFiles.map(file => (
+                {paletteFiles().map(file => (
                   <Command.Item
                     key={file.id}
                     value={file.name}

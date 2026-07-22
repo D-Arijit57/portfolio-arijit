@@ -1,14 +1,16 @@
 import React from 'react';
 import { Phone, Mail, Linkedin, Github, MapPin, User, GraduationCap, Code2, Award, FolderGit2, CheckCircle2, Download } from 'lucide-react';
-import { getResumeOverview, resumeData, renderInlineMarkdown } from '../../content/resume';
+import { getResumeOverview, renderInlineMarkdown } from '../../content/resume';
+import { getDefaultResumeVariant } from './variants/resumeRegistry';
 import { cn } from '../../lib/utils';
 
 /**
  * Sprint 10F.1: the redesigned left panel — an executive overview, not
  * RESUME.md rendered as prose (that was the Sprint 10F version this
  * replaces). Goal per the brief: a recruiter understands the profile in
- * about 30 seconds. Every section reads from getResumeOverview(resumeData)
- * (content/resume.ts) — nothing here hardcodes resume text.
+ * about 30 seconds. Every section reads from
+ * getResumeOverview(getDefaultResumeVariant().data) — nothing here
+ * hardcodes resume text or a specific variant (Sprint 10F.5).
  */
 
 const CHIP_CLASS = 'rounded-full border border-[#3c3c3c] bg-[#2d2d2d] px-2.5 py-0.5 font-mono text-[11px] text-[#9cdcfe] whitespace-nowrap';
@@ -42,7 +44,7 @@ interface ResumeOverviewProps {
 }
 
 export function ResumeOverview({ onDownloadPdf, isDownloading }: ResumeOverviewProps) {
-  const overview = getResumeOverview(resumeData);
+  const overview = getResumeOverview(getDefaultResumeVariant().data);
 
   return (
     <div className="h-full overflow-y-auto bg-[#1e1e1e] px-6 py-6 text-[#cccccc]">

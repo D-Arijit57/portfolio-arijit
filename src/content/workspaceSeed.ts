@@ -1,14 +1,16 @@
 import { VirtualFolder, VirtualFile, ExplorerNode } from '../types';
-import { resumeData, generateResumeMarkdown } from './resume';
+import { generateResumeMarkdown } from './resume';
+import { getDefaultResumeVariant } from '../components/resume/variants/resumeRegistry';
 
-// Sprint 10F.1: RESUME.md's content is now generated from the single
-// structured source (content/resume.ts) rather than hand-typed here —
-// verified byte-identical to the Sprint 10F hand-written version. Still
-// duplicated as a literal string in server/repositories/seed/workspaceSeed.ts
-// (that seed can't import from src/, same "no frontend imports" convention
-// every backend seed file already follows) — update that copy by hand if
-// content/resume.ts ever changes.
-const RESUME_MARKDOWN = generateResumeMarkdown(resumeData);
+// Sprint 10F.1: RESUME.md's content is generated from the canonical resume
+// variant (Sprint 10F.5: components/resume/variants/resumeRegistry.ts)
+// rather than hand-typed here — verified byte-identical to the Sprint 10F
+// hand-written version. Still duplicated as a literal string in
+// server/repositories/seed/workspaceSeed.ts (that seed can't import from
+// src/, same "no frontend imports" convention every backend seed file
+// already follows) — update that copy by hand if the default variant's
+// content ever changes.
+const RESUME_MARKDOWN = generateResumeMarkdown(getDefaultResumeVariant().data);
 
 /**
  * Pre-hydration seed for the workspace store. Schema-equivalent to the

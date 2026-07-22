@@ -1,9 +1,9 @@
 import React, { useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
-import { RESUME_PAGE_WIDTH_PX, RESUME_PAGE_HEIGHT_PX } from './ResumeDocument';
+import { RESUME_PAGE_WIDTH_PX, RESUME_PAGE_HEIGHT_PX } from './specification/resumeSpec';
 
 export interface ResumeSceneHandle {
-  /** Recenters tilt/parallax to their resting pose (does not touch the texture). */
+  /** Recenters tilt/parallax to their resting pose and restores the fit-to-view camera distance (does not touch the texture). */
   resetView: () => void;
 }
 
@@ -23,6 +23,30 @@ const FLOAT_AMPLITUDE = 0.045;
 const FLOAT_SPEED = 0.55;
 const MAX_TILT = 0.12;
 const TILT_EASE = 0.06;
+
+const CAMERA_FOV_DEG = 36;
+// Target fraction of the constraining viewport dimension the page should
+// fill — midpoint of the requested 80-85% range.
+const FIT_FRACTION = 0.82;
+const FALLBACK_DISTANCE = 2.9;
+
+/**
+ * "Contain"-style fit, the camera-distance equivalent of CSS
+ * object-fit: contain — computes how far back a fixed-FOV perspective
+ * camera must sit so the whole A4 page (world units) fits inside
+ * FIT_FRACTION of both the container's visible height AND width, whichever
+ * is more restrictive, so the page can never be cropped on either axis.
+ * The FOV itself never changes — only distance — so true A4 proportions
+ * and the perspective "feel" are preserved regardless of viewport size.
+ */
+function computeFitDistance(containerWidth: number, containerHeight: number): number {
+  if (containerWidth <= 0 || containerHeight <= 0) return FALLBACK_DISTANCE;
+  const aspect = containerWidth / containerHeight;
+  const halfTan = Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV_DEG) / 2);
+  const distanceForHeight = PAPER_HEIGHT / FIT_FRACTION / (2 * halfTan);
+  const distanceForWidth = PAPER_WIDTH / FIT_FRACTION / (2 * halfTan * aspect);
+  return Math.max(distanceForHeight, distanceForWidth);
+}
 
 /** A soft, blurred drop-shadow baked once into a canvas texture — cheaper than real-time shadow mapping. */
 function createShadowTexture(): THREE.CanvasTexture {
@@ -48,9 +72,15 @@ function createShadowTexture(): THREE.CanvasTexture {
  * plain framework-free modules wired through a single hook/component, and a
  * two-mesh paper-plus-shadow scene doesn't need a scene-graph abstraction on
  * top of three itself). Renders a floating A4 "paper" whose front face is
- * textured from the rasterized resume DOM (ResumeDocument.tsx via
+ * textured from the rasterized resume DOM (ResumeRenderer.tsx via
  * resumeCapture.ts). Subtle only: slow float, small mouse-parallax tilt, no
  * spin. Pauses its render loop when off-screen or the tab is hidden.
+ *
+ * Sprint 10F.2: camera distance is never hardcoded — computeFitDistance()
+ * (a "contain"-style fit, like CSS object-fit: contain) sizes it so the
+ * whole page is always visible, recomputed only on mount, on container
+ * resize, and on Reset View — never per-frame. The FOV itself is fixed, so
+ * only distance changes; true A4 proportions are never distorted.
  */
 export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>(function ResumeScene(
   { canvas, version },
@@ -62,12 +92,23 @@ export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>
   const paperMeshRef = useRef<THREE.Mesh | null>(null);
   const paperMaterialsRef = useRef<THREE.MeshStandardMaterial[] | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const runningRef = useRef(false);
   const rafRef = useRef<number | null>(null);
+  // Sprint 10F.2: last-known container size, kept in sync by the
+  // ResizeObserver below — Reset View reads this instead of re-measuring
+  // the DOM, so recomputing the fit stays a cheap, on-demand calculation
+  // rather than something done every frame.
+  const lastSizeRef = useRef({ width: 0, height: 0 });
 
   useImperativeHandle(ref, () => ({
     resetView() {
       targetTiltRef.current = { x: 0, y: 0 };
+      const camera = cameraRef.current;
+      const { width, height } = lastSizeRef.current;
+      if (camera) {
+        camera.position.z = computeFitDistance(width, height);
+      }
     },
   }));
 
@@ -77,14 +118,28 @@ export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>
     if (!container) return;
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
-    camera.position.set(0, 0, 2.9);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(CAMERA_FOV_DEG, 1, 0.1, 100);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+
+    // Synchronous initial sizing pass (before the first render, before the
+    // async ResizeObserver callback fires) so the very first frame already
+    // has correct renderer size, camera aspect, and fit distance — no
+    // flash of the wrong framing, no need to press Reset View to see the
+    // whole page. Mirrors the ResizeObserver callback below exactly.
+    const initialRect = container.getBoundingClientRect();
+    lastSizeRef.current = { width: initialRect.width, height: initialRect.height };
+    if (initialRect.width > 0 && initialRect.height > 0) {
+      renderer.setSize(initialRect.width, initialRect.height, true);
+      camera.aspect = initialRect.width / initialRect.height;
+    }
+    camera.position.set(0, 0, computeFitDistance(initialRect.width, initialRect.height));
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.75));
     const keyLight = new THREE.DirectionalLight(0xffffff, 0.55);
@@ -150,8 +205,16 @@ export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>
     const resizeObserver = new ResizeObserver((entries) => {
       const { width, height } = entries[0]?.contentRect ?? { width: 0, height: 0 };
       if (width <= 0 || height <= 0) return;
-      renderer.setSize(width, height, false);
+      lastSizeRef.current = { width, height };
+      // updateStyle=true (the default) is required: it keeps the canvas's
+      // on-page CSS box synced to the container's logical size. Passing
+      // false leaves the canvas's CSS size at its width/height attributes,
+      // which setPixelRatio scales up by devicePixelRatio — on HiDPI
+      // displays the canvas would render up to 2x larger than its
+      // container regardless of any camera fit.
+      renderer.setSize(width, height, true);
       camera.aspect = width / height;
+      camera.position.z = computeFitDistance(width, height);
       camera.updateProjectionMatrix();
     });
     resizeObserver.observe(container);
@@ -224,5 +287,5 @@ export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvas, version]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  return <div ref={containerRef} className="h-full w-full overflow-hidden" />;
 });

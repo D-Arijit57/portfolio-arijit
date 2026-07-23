@@ -16,7 +16,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mi
  * cloning first means the caller's buffer is never affected regardless of
  * what pdf.js does with the copy.
  */
-export async function renderPdfPageToCanvas(pdfBytes: ArrayBuffer, scale = 2): Promise<HTMLCanvasElement> {
+export async function renderPdfPageToCanvas(pdfBytes: ArrayBuffer, scale = 2.5): Promise<HTMLCanvasElement> {
   const transferableCopy = pdfBytes.slice(0);
   const pdf = await pdfjsLib.getDocument({ data: transferableCopy }).promise;
   const page = await pdf.getPage(1);

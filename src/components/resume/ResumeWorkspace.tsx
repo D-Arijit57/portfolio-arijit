@@ -19,15 +19,21 @@ import type { VirtualFile } from '../../types';
 const STACK_BREAKPOINT_PX = 480;
 const MIN_PANEL_PX = 240;
 
-const COMPILING_MS = 550;
-const RENDERING_MS = 550;
+// Sprint 16: replaces the old fixed COMPILING_MS/RENDERING_MS cosmetic
+// timers (1100ms of pretending work was happening in two make-believe
+// phases). The preview is now lifecycle-driven — this is a floor under the
+// *real* fetch+rasterize timeline, not an artificial delay: on a warm cache
+// the real work can resolve in under 100ms, and without a floor the
+// Assembling state (see ResumeScene.tsx) would just flicker. If the real
+// work takes longer than this, the floor does nothing — Assembling simply
+// stays active until data genuinely arrives.
+const MIN_ASSEMBLING_MS = 450;
 const READY_HOLD_MS = 450;
 
-type BuildPhase = 'idle' | 'compiling' | 'rendering' | 'ready';
+type BuildPhase = 'idle' | 'assembling' | 'ready';
 
 const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
-  compiling: 'Compiling updated preview...',
-  rendering: 'Rendering resume...',
+  assembling: 'Assembling resume...',
   ready: 'Preview ready.',
 };
 
@@ -60,6 +66,12 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
   const [phase, setPhase] = useState<BuildPhase>('idle');
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [version, setVersion] = useState(0);
+  // Sprint 16: true from mount until the first (or a refreshed) preview is
+  // actually ready — ResumeScene reads this to know whether to show the
+  // Assembling state, independent of whether `canvas` itself has changed
+  // yet. Starts true: before the very first build ever runs, the paper
+  // should already read as "assembling," not the old flat blank material.
+  const [isAssembling, setIsAssembling] = useState(true);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -83,21 +95,29 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
   };
 
   const runBuildPipeline = useCallback(() => {
-    setPhase('compiling');
-    window.setTimeout(() => {
-      setPhase('rendering');
-      window.setTimeout(async () => {
-        // Fetch the static resume PDF and render its first page for the
-        // Three.js texture — the only producer of preview pixels, no
-        // fallback needed since the static asset is always present.
-        const bytes = await fetchResumePdf();
-        const rasterized = await renderPdfPageToCanvas(bytes);
-        setCanvas(rasterized);
-        setVersion((v) => v + 1);
-        setPhase('ready');
-        window.setTimeout(() => setPhase('idle'), READY_HOLD_MS);
-      }, RENDERING_MS);
-    }, COMPILING_MS);
+    setIsAssembling(true);
+    setPhase('assembling');
+    const start = performance.now();
+    void (async () => {
+      // Fetch the static resume PDF and render its first page for the
+      // Three.js texture — the only producer of preview pixels, no
+      // fallback needed since the static asset is always present.
+      const bytes = await fetchResumePdf();
+      const rasterized = await renderPdfPageToCanvas(bytes);
+      // The floor, not a delay: only waits if the real work above finished
+      // faster than MIN_ASSEMBLING_MS. If it took longer, `remaining` is 0
+      // and we reveal the instant data is ready — Assembling never
+      // outlasts the real wait, and never gets skipped on a fast cache hit.
+      const remaining = MIN_ASSEMBLING_MS - (performance.now() - start);
+      if (remaining > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, remaining));
+      }
+      setCanvas(rasterized);
+      setVersion((v) => v + 1);
+      setIsAssembling(false);
+      setPhase('ready');
+      window.setTimeout(() => setPhase('idle'), READY_HOLD_MS);
+    })();
   }, []);
 
   const handleRevealComplete = useCallback(() => {
@@ -144,8 +164,17 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
           </AnimatePresence>
         </div>
 
-        <div className="flex-1 min-h-0 relative">
-          <ResumeScene ref={sceneRef} canvas={canvas} version={version} />
+        {/* Sprint 15 (revised): a subtle radial vignette behind the WebGL
+            canvas (which renders with alpha:true, so this shows through).
+            First pass went lighter at the center (#252526) than the edges,
+            but a light backdrop competes with a bright white paper rather
+            than framing it — inverted so the immediate surroundings stay at
+            the workspace's own base tone (#1e1e1e) and fade toward black at
+            the edges, the darkest tone already used in this app (the boot
+            terminal's bg-black), for real contrast against the paper rather
+            than just a "stage" separation. */}
+        <div className="flex-1 min-h-0 relative bg-[radial-gradient(ellipse_at_center,_#1e1e1e_0%,_#000000_85%)]">
+          <ResumeScene ref={sceneRef} canvas={canvas} version={version} isAssembling={isAssembling} />
         </div>
       </div>
     </div>

@@ -32,13 +32,29 @@ import { cn } from '../../lib/utils';
  * existing tokens is what this pass fixed, plus a matching focus-visible
  * ring (`GitHubContributionGraph`'s own convention) on every interactive
  * element, which had none before.
+ *
+ * Sprint 15 (brightening pass): cards/chips were blending into the panel
+ * background rather than reading as elevated surfaces. Rather than invent
+ * new grays, this reuses tones already established elsewhere in this app
+ * for exactly this purpose: `#454545` is `CommandPalette.tsx`/
+ * `Notifications.tsx`'s own border for floating/elevated UI; `#37373d`/
+ * `#2a2d2e` are `Explorer.tsx`'s active/hover row backgrounds; `#9d9d9d` is
+ * `EditorRenderer.tsx`'s blockquote text — a readable-but-secondary tier one
+ * step brighter than `#858585`. `#858585` itself is kept for genuinely
+ * decorative/quiet elements (the highlight tags, the bullet marker) so it
+ * still reads as intentionally muted rather than just lower-contrast.
  */
 
-const CHIP_CLASS = 'rounded-full border border-[#3c3c3c] bg-[#2d2d2d] px-2.5 py-1 font-mono text-[11px] tracking-tight text-[#9cdcfe] whitespace-nowrap';
-// Sprint 12 Phase 3: subtle shadow-based lift on hover (no translate — these
-// cards aren't clickable, so a position shift would overstate affordance;
-// a soft shadow reads as "attentively designed" without implying an action).
-const CARD_CLASS = 'rounded-lg border border-[#333333] bg-[#252526] p-4 transition-[border-color,box-shadow] duration-200 hover:border-[#3c3c3c] hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]';
+const CHIP_CLASS =
+  'rounded-full border border-[#3c3c3c] bg-[#2d2d2d] px-2.5 py-1 font-mono text-[11px] tracking-tight text-[#9cdcfe] whitespace-nowrap transition-colors hover:border-[#454545] hover:bg-[#37373d]';
+// Sprint 15: border brightened one step at rest (#333333 -> #3c3c3c, the
+// same value action buttons already default to) so cards read as distinct
+// surfaces even before any interaction, with a further step to #454545 on
+// hover (Notifications/CommandPalette's own "elevated" border) — plus a
+// small always-on shadow, not just a hover-triggered one, so the "elevated
+// from the background" feeling doesn't depend on the cursor being there.
+const CARD_CLASS =
+  'rounded-lg border border-[#3c3c3c] bg-[#252526] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.25)] transition-[border-color,box-shadow] duration-200 hover:border-[#454545] hover:shadow-[0_6px_20px_rgba(0,0,0,0.3)]';
 const FOCUS_RING = 'outline-none focus-visible:ring-1 focus-visible:ring-[#007acc]';
 // The primary Download button's own fill is `#007acc` — a flush ring in the
 // same color would be invisible against it, so it needs a ring-offset (a
@@ -61,9 +77,13 @@ function Emphasized({ text }: { text: string }) {
 
 function SectionEyebrow({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="mb-3 flex items-center gap-2">
+    <div className="mb-3.5 flex items-center gap-2.5">
       <span className="text-[#007acc]">{icon}</span>
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#858585] font-mono">{children}</h2>
+      {/* Sprint 15: strengthened via type (#858585 -> #9d9d9d, a touch more
+          letter-spacing) rather than a heavier divider — the hairline stays
+          #333333 exactly as before, per this pass's own instruction not to
+          lean on heavier dividers for hierarchy. */}
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#9d9d9d] font-mono">{children}</h2>
       <span className="h-px flex-1 bg-[#333333]" />
     </div>
   );
@@ -116,7 +136,7 @@ export function ResumeOverview({ onDownloadPdf }: ResumeOverviewProps) {
       <div className="max-w-2xl">
         <Section index={0}>
           <h1 className="text-[28px] font-semibold tracking-tight text-white leading-tight">{overview.name}</h1>
-          <p className="mt-1 text-[12.5px] font-mono uppercase tracking-wider text-[#858585]">{overview.title}</p>
+          <p className="mt-1 text-[12.5px] font-mono uppercase tracking-wider text-[#9d9d9d]">{overview.title}</p>
 
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]">
             <a href={`tel:${overview.contact.phone}`} className={cn('flex items-center gap-1.5 text-[#cccccc] hover:text-white transition-colors', FOCUS_RING)}>
@@ -168,8 +188,8 @@ export function ResumeOverview({ onDownloadPdf }: ResumeOverviewProps) {
           <div className="space-y-3">
             {overview.skills.map((group) => (
               <div key={group.category}>
-                <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-wide text-[#858585]">{group.category}</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-wide text-[#9d9d9d]">{group.category}</div>
+                <div className="flex flex-wrap gap-2">
                   {group.items.map((item) => (
                     <span key={item} className={CHIP_CLASS}>{item}</span>
                   ))}
@@ -181,19 +201,19 @@ export function ResumeOverview({ onDownloadPdf }: ResumeOverviewProps) {
 
         <Section index={3} className="mt-9">
           <SectionEyebrow icon={<FolderGit2 size={13} />}>Projects</SectionEyebrow>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {overview.featuredProjects.map((project) => (
               <div key={project.name} className={CARD_CLASS}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <h3 className="text-[14px] font-semibold text-white">{project.name}</h3>
-                  <span className="text-[11px] font-mono text-[#858585] whitespace-nowrap">
+                  <span className="text-[11px] font-mono text-[#9d9d9d] whitespace-nowrap">
                     {project.dateRange}
                     {project.link && <span> · {project.link.label}</span>}
                   </span>
                 </div>
                 <p className="mt-2 text-[12.5px] leading-relaxed text-[#cccccc]">{project.oneLiner}</p>
                 <ImpactBadges items={project.impact} />
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {project.techStack.map((tech) => (
                     <span key={tech} className={CHIP_CLASS}>{tech}</span>
                   ))}
@@ -205,22 +225,22 @@ export function ResumeOverview({ onDownloadPdf }: ResumeOverviewProps) {
 
         <Section index={4} className="mt-9">
           <SectionEyebrow icon={<Briefcase size={13} />}>Experience</SectionEyebrow>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {overview.experience.map((job) => (
               <div key={job.company} className={CARD_CLASS}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <h3 className="text-[14px] font-semibold text-white">{job.role}</h3>
-                  <span className="text-[11px] font-mono text-[#858585] whitespace-nowrap">{job.startDate} – {job.endDate}</span>
+                  <span className="text-[11px] font-mono text-[#9d9d9d] whitespace-nowrap">{job.startDate} – {job.endDate}</span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-x-3 text-[12px] text-[#cccccc]">
                   <span>{job.company}</span>
-                  <span className="text-[#858585]">{job.location}</span>
+                  <span className="text-[#9d9d9d]">{job.location}</span>
                 </div>
                 <ImpactBadges items={job.impact} />
                 <ul className="mt-3 space-y-1.5">
                   {job.highlights.map((h, i) => (
                     <li key={i} className="flex gap-2 text-[12.5px] leading-relaxed text-[#cccccc]">
-                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[#858585]" />
+                      <span className="mt-1.75 h-1 w-1 shrink-0 rounded-full bg-[#858585]" />
                       <span><Emphasized text={h} /></span>
                     </li>
                   ))}
@@ -232,12 +252,12 @@ export function ResumeOverview({ onDownloadPdf }: ResumeOverviewProps) {
 
         <Section index={5} className="mt-9">
           <SectionEyebrow icon={<GraduationCap size={13} />}>Education</SectionEyebrow>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {overview.education.map((edu) => (
               <div key={edu.institution} className={CARD_CLASS}>
                 <div className="text-[14px] font-semibold text-white">{edu.institution}</div>
                 <div className="mt-0.5 text-[12.5px] text-[#cccccc]">{edu.degree}</div>
-                <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-3 text-[11.5px] text-[#858585]">
+                <div className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-3 text-[11.5px] text-[#9d9d9d]">
                   <span>{edu.dateRange}</span>
                   <span className="font-mono">{edu.detail}</span>
                 </div>

@@ -38,8 +38,7 @@ export function getResumeVariant(id: string): ResumeVariant {
   const variant = resumeVariants.find((v) => v.id === id);
   if (!variant) {
     throw new Error(`Unknown resume variant: "${id}"`);
-  }
-  
+  }  
   return variant;
 }
 

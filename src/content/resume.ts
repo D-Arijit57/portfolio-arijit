@@ -38,6 +38,8 @@ export interface ResumeExperience {
   startDate: string;
   endDate: string;
   highlights: string[];
+  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` (e.g. "35% fewer defects") — surfaced as stat badges in the overview, not new claims. */
+  impact?: string[];
 }
 
 export interface ResumeProject {
@@ -49,6 +51,8 @@ export interface ResumeProject {
   highlights: string[];
   /** Single-line condensation of `highlights` for the overview only — derived, not new facts. */
   oneLiner: string;
+  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` — surfaced as stat badges in the overview, not new claims. */
+  impact?: string[];
 }
 
 export interface ResumeEducationEntry {
@@ -92,8 +96,8 @@ function bold(text: string): string {
 /**
  * Splits a `**bold**`-marked string into plain/bold segments — the one
  * place that interprets a resume variant's inline emphasis as JSX, reused
- * by ResumeRenderer.tsx (3D/PDF) and ResumeOverview.tsx (left panel) so
- * neither hardcodes its own `<b>` spans. Deliberately not a full markdown
+ * by ResumeOverview.tsx (left panel) so it doesn't hardcode its own `<b>`
+ * spans. Deliberately not a full markdown
  * parser: resume content only ever uses `**bold**`, nothing else needs
  * support.
  */
@@ -162,8 +166,10 @@ export interface ResumeOverviewModel {
   summary: string;
   highlights: string[];
   skills: ResumeSkillGroup[];
-  featuredProjects: { name: string; oneLiner: string; techStack: string[] }[];
-  education: { institution: string; degree: string; dateRange: string }[];
+  featuredProjects: { name: string; oneLiner: string; techStack: string[]; dateRange: string; link?: ResumeLink; impact?: string[] }[];
+  /** Sprint 12 Phase 2: added so the overview can render a real Experience section (company/role/duration/highlights) — previously only `highlights` (thematic labels) surfaced here, with the full experience array reaching only the PDF/markdown outputs. */
+  experience: { company: string; role: string; location: string; startDate: string; endDate: string; highlights: string[]; impact?: string[] }[];
+  education: { institution: string; degree: string; dateRange: string; detail: string }[];
 }
 
 const MAX_FEATURED_PROJECTS = 3;
@@ -172,8 +178,9 @@ const MAX_FEATURED_PROJECTS = 3;
  * Condensed view for the left-panel overview (ResumeOverview.tsx) — the
  * "Parser/Transformer -> Overview Model" step. Never hand-authored
  * separately from the selected variant's data: featured projects/
- * education/skills are all sliced or reshaped from the same arrays the
- * full preview reads, so they can't drift out of sync with a resume update.
+ * education/skills/experience are all sliced or reshaped from the same
+ * arrays the full preview reads, so they can't drift out of sync with a
+ * resume update.
  */
 export function getResumeOverview(data: ResumeData): ResumeOverviewModel {
   return {
@@ -187,7 +194,19 @@ export function getResumeOverview(data: ResumeData): ResumeOverviewModel {
       name: p.name,
       oneLiner: p.oneLiner,
       techStack: p.techStack,
+      dateRange: p.dateRange,
+      link: p.link,
+      impact: p.impact,
     })),
-    education: data.education.map((e) => ({ institution: e.institution, degree: e.degree, dateRange: e.dateRange })),
+    experience: data.experience.map((e) => ({
+      company: e.company,
+      role: e.role,
+      location: e.location,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      highlights: e.highlights,
+      impact: e.impact,
+    })),
+    education: data.education.map((e) => ({ institution: e.institution, degree: e.degree, dateRange: e.dateRange, detail: e.detail })),
   };
 }

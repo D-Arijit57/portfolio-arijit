@@ -4,10 +4,9 @@ import { fullstackAiResumeData } from '../data/fullstack-ai';
 /**
  * Sprint 10F.5: the Resume Registry — the one place a resume variant is
  * declared, and the one place "which resume is canonical right now" is
- * answered. ResumeRenderer.tsx never imports a specific ResumeData; every
- * consumer (Resume Workspace, the Three.js preview, the PDF export,
- * RESUME.md's generated markdown, the left-panel overview) resolves its
- * data through getDefaultResumeVariant() here instead.
+ * answered. Every consumer (the left-panel overview, RESUME.md's generated
+ * markdown) resolves its data through getDefaultResumeVariant() here
+ * instead of importing a specific ResumeData directly.
  *
  * Adding a new resume variant (AI Engineer, Backend, Software Engineer,
  * ...) is exactly two steps: add a ResumeData file under ../data/, add one
@@ -17,7 +16,7 @@ import { fullstackAiResumeData } from '../data/fullstack-ai';
 export interface ResumeVariant {
   id: string;
   displayName: string;
-  /** Filename the "Download PDF" action saves as — never hardcoded in export/resumeCapture.ts. */
+  /** Filename the "Download PDF" action saves as — matches the static asset at public/resume/. */
   downloadFilename: string;
   data: ResumeData;
   metadata?: Record<string, unknown>;
@@ -27,7 +26,7 @@ export const resumeVariants: ResumeVariant[] = [
   {
     id: 'fullstack-ai',
     displayName: 'FullStack+AI',
-    downloadFilename: 'FullStack_AI_Arijit.pdf',
+    downloadFilename: 'Arijit_Das_Resume.pdf',
     data: fullstackAiResumeData,
   },
 ];
@@ -40,6 +39,7 @@ export function getResumeVariant(id: string): ResumeVariant {
   if (!variant) {
     throw new Error(`Unknown resume variant: "${id}"`);
   }
+  
   return variant;
 }
 

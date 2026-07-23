@@ -3,15 +3,15 @@ import type { ResumeData } from '../../../content/resume';
 /**
  * Sprint 10F.5: the FullStack+AI resume variant — the portfolio's default,
  * canonical public resume (see ../variants/resumeRegistry.ts). This is a
- * data file only: presentation lives entirely in
- * ../specification/resumeSpec.ts + ../renderer/ResumeRenderer.tsx, shared
- * by every resume variant. Adding another variant (AI Engineer, Backend,
- * Software Engineer, ...) means adding a sibling file here in the same
- * shape, then one entry in the registry — nothing in this file's shape
- * is FullStack+AI-specific.
+ * data file only, consumed by ResumeOverview.tsx and RESUME.md's generated
+ * markdown (content/resume.ts's generateResumeMarkdown). Adding another
+ * variant (AI Engineer, Backend, Software Engineer, ...) means adding a
+ * sibling file here in the same shape, then one entry in the registry —
+ * nothing in this file's shape is FullStack+AI-specific.
  *
- * Content verified verbatim against the user-supplied source resume
- * (Arijit_Das_Resume.pdf) — wording, dates, and numbers are not paraphrased.
+ * Content verified verbatim against the actual resume
+ * (public/resume/Arijit_Das_Resume.pdf) — wording, dates, and numbers are
+ * not paraphrased.
  */
 export const fullstackAiResumeData: ResumeData = {
   basics: {
@@ -28,9 +28,9 @@ export const fullstackAiResumeData: ResumeData = {
 
   // Inline **bold** spans mirror the source resume's own emphasis exactly —
   // parsed by renderInlineMarkdown() (content/resume.ts) wherever this needs
-  // to render as styled text (ResumeOverview, ResumeRenderer), used as-is in
-  // the raw markdown (generateResumeMarkdown), so which terms are
-  // emphasized only has to be decided once.
+  // to render as styled text (ResumeOverview), used as-is in the raw
+  // markdown (generateResumeMarkdown), so which terms are emphasized only
+  // has to be decided once.
   summary:
     'Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack development, building ' +
     '**AI-powered applications** and developer tools. Possesses high learning velocity through shipping side ' +
@@ -66,6 +66,7 @@ export const fullstackAiResumeData: ResumeData = {
         'Integrated a **RAG pipeline** into an internal business tool, enabling natural language search across **200+ documents** and reducing lookup time from **5 mins to under 2 mins**.',
         'Contributed to the delivery of **2 AI-assisted workflow features**, collaborating with US stakeholders from requirements gathering through production rollout.',
       ],
+      impact: ['2 hrs/week saved', '35% fewer defects', '200+ docs searchable'],
     },
   ],
 
@@ -81,6 +82,7 @@ export const fullstackAiResumeData: ResumeData = {
         'Developed robust backend workflows and **API integrations** for live coding capabilities, focusing on writing readable, testable code and ensuring secure session management without leaking sensitive data.',
         'Designed an scalable scheduling system with calendar integration, applying an evaluation mindset to write simple test cases validating user roles and data synchronization across the platform.',
       ],
+      impact: ['4 languages supported'],
     },
     {
       name: 'RakshaChakra - Secure Mobile Banking',
@@ -93,6 +95,7 @@ export const fullstackAiResumeData: ResumeData = {
         'Implemented a cloud-based behavioral analytics system on **AWS EC2**, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.',
         'Built on-device ML processing to keep **95% of sensitive data** local, maintaining strict privacy standards parallel to **data safety** requirements.',
       ],
+      impact: ['92% accuracy', '95% data kept local'],
     },
   ],
 

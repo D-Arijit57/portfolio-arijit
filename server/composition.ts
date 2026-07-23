@@ -1,6 +1,6 @@
 import { InMemoryFileNodeRepository, workspaceSeed } from './repositories';
 import type { FileNodeRepository } from './repositories';
-import { FileSystemService, ResumePdfService } from './services';
+import { FileSystemService } from './services';
 
 /**
  * Composition root for the VFS layer. The single place that wires a concrete
@@ -12,9 +12,3 @@ import { FileSystemService, ResumePdfService } from './services';
  */
 export const repository: FileNodeRepository = new InMemoryFileNodeRepository(workspaceSeed);
 export const fileSystemService = new FileSystemService(repository);
-
-// Sprint 11: stateless (no repository dependency — resume variants are a
-// static in-process registry, not part of the VFS), but composed here
-// alongside fileSystemService so resume.routes.ts follows the exact same
-// "import a ready instance from composition" pattern as fs.routes.ts.
-export const resumePdfService = new ResumePdfService();

@@ -1,50 +1,29 @@
-const API_BASE_URL = 'http://localhost:4000/api';
+const RESUME_PDF_PATH = '/resume/Arijit_Das_Resume.pdf';
 
 /**
- * Sprint 11: the one place the frontend asks for the canonical resume PDF —
- * the backend's LaTeX pipeline (server/services/resume/) is the sole
- * producer of these bytes. Both the Three.js preview (via
- * preview/pdfTexture.ts, rendering these exact bytes to a canvas) and the
- * Download button (saving these exact bytes directly) call this; neither
- * regenerates or reconstructs a PDF of its own.
+ * Sprint 12: the resume PDF is now a static asset (public/resume/), not a
+ * backend-generated document — this fetch reads the file straight off the
+ * server Vite/the static host is already serving, with no API call and no
+ * runtime compilation. Used only to get bytes for the Three.js preview's
+ * texture (see preview/pdfTexture.ts); the Download button below never
+ * routes through this, since a direct browser download needs no fetch.
  */
-/**
- * Sprint 11.3: `logLabel` distinguishes callers in the console trace
- * (Download button vs. the preview's own build pipeline) without giving
- * this shared function an opinion on who's calling it. Purely additive
- * logging — no behavior change.
- */
-export async function fetchResumePdf(variantId: string, logLabel = 'ResumePdf'): Promise<ArrayBuffer> {
-  console.log(`[${logLabel}] Fetch started`, { variantId, url: `${API_BASE_URL}/resume/${variantId}.pdf` });
-  const res = await fetch(`${API_BASE_URL}/resume/${encodeURIComponent(variantId)}.pdf`);
-  console.log(`[${logLabel}] HTTP status`, { status: res.status, ok: res.ok });
-  console.log(`[${logLabel}] Content-Length`, { contentLength: res.headers.get('content-length') });
+export async function fetchResumePdf(): Promise<ArrayBuffer> {
+  const res = await fetch(RESUME_PDF_PATH);
   if (!res.ok) {
-    throw new Error(`Failed to fetch resume PDF for variant "${variantId}": ${res.status}`);
+    throw new Error(`Failed to fetch resume PDF: ${res.status}`);
   }
   return res.arrayBuffer();
 }
 
 /**
- * Saves already-fetched PDF bytes as a real file download — no jsPDF, no
- * reconstruction, the bytes are the canonical PDF as-is.
- *
- * Sprint 11.3: logging added around the click/revoke sequence only —
- * deliberately NOT touching the timing between `link.click()` and
- * `URL.revokeObjectURL(url)` itself (Sprint 11.2 already proved that
- * sequence is safe in this browser; this sprint is tracing, not fixing).
+ * Downloads the static resume PDF directly — no fetch, no blob, no
+ * ArrayBuffer to keep intact across consumers. The browser handles the
+ * download entirely from `href` + `download`.
  */
-export function saveResumePdf(pdfBytes: ArrayBuffer, fileName: string): void {
-  console.log('[Download] Blob size', { byteLength: pdfBytes.byteLength });
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  console.log('[Download] ObjectURL created', { url });
-  console.log('[Download] Download filename', { fileName });
+export function downloadResumePdf(fileName: string): void {
   const link = document.createElement('a');
-  link.href = url;
+  link.href = RESUME_PDF_PATH;
   link.download = fileName;
   link.click();
-  console.log('[Download] Anchor clicked');
-  URL.revokeObjectURL(url);
-  console.log('[Download] ObjectURL revoked', { url });
 }

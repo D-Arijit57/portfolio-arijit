@@ -4,6 +4,8 @@ import { getFileById } from '../../content/fileSystem';
 import Markdown, { type Components } from 'react-markdown';
 import { WorkHistoryViewer } from './WorkHistoryViewer';
 import { ArchitectureCanvas } from '../architecture/ArchitectureCanvas';
+import { ManifestViewer } from '../manifest/ManifestViewer';
+import { isManifestFile } from '../../manifest/fileMatch';
 import { ShikiEditor } from './ShikiEditor';
 import { TypingReveal } from '../shared/TypingReveal';
 import { ProfileStatusCard } from '../shared/ProfileStatusCard';
@@ -118,6 +120,13 @@ function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {
   // Architecture Canvas renderer. Every other file type is unaffected.
   if (file.type === 'mermaid') {
     return pane === 'right' ? <ArchitectureCanvas file={file} /> : <ShikiEditor fileId={file.id} />;
+  }
+
+  // Same pane-aware split as .mmd, for exactly one filename: manifest.json.
+  // Every other JSON file (metrics, package.json-style files, etc.) keeps
+  // rendering through the plain ShikiEditor below, unaffected.
+  if (isManifestFile(file)) {
+    return pane === 'right' ? <ManifestViewer file={file} /> : <ShikiEditor fileId={file.id} />;
   }
 
   return <ShikiEditor fileId={file.id} />;

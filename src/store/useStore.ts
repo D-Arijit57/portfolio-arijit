@@ -13,6 +13,7 @@ import { namespaceOf } from '../search/types';
 import type { SearchResult } from '../search/types';
 import { notificationService } from '../notifications/notificationService';
 import type { Notification } from '../notifications/types';
+import { isManifestFile } from '../manifest/fileMatch';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
 export type SearchStatus = 'idle' | 'searching' | 'done';
@@ -91,6 +92,17 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
  * openFile()'s own comment) rather than adding a tab, so it never grows the
  * split beyond what openToSide() explicitly created.
  */
+/**
+ * A file that owns its own permanent source/renderer split — currently
+ * mermaid (Architecture Canvas) and manifest.json (Manifest Viewer). The
+ * one shared predicate openFile()'s auto-split branch and its "leaving"
+ * reset both check, so the two can't drift apart as more file types adopt
+ * this pattern.
+ */
+function requiresDualPaneSplit(file: VirtualFile): boolean {
+  return file.type === 'mermaid' || isManifestFile(file);
+}
+
 function resolveTargetPane(state: Pick<StoreState, 'openedTabs' | 'editorSplit' | 'activeFileId'>): 'left' | 'right' {
   if (!state.editorSplit) return 'left';
 
@@ -338,46 +350,48 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // ARCHITECTURE_PLATFORM_DESIGN.md §9: a mermaid file's raw source (left)
-    // and its Architecture Canvas (right) are two views of the *same* file,
-    // not two files — ordinary navigation always (re)establishes both panes
-    // for it, the same way the README branch above always (re)establishes
-    // its Playground pairing. Generic on file.type, not on any project's id,
-    // so this applies to every current and future project's architecture.mmd
-    // with no per-project code. Checked before the onboarding-exit and
+    // ARCHITECTURE_PLATFORM_DESIGN.md §9 (mermaid) and the same pattern
+    // extended to manifest.json: a file's raw source (left) and its custom
+    // renderer (right) are two views of the *same* file, not two files —
+    // ordinary navigation always (re)establishes both panes for it, the
+    // same way the README branch above always (re)establishes its
+    // Playground pairing. `requiresDualPaneSplit` is generic on file
+    // type/name, not on any project's id, so this applies to every current
+    // and future project's architecture.mmd or manifest.json with no
+    // per-project code. Checked before the onboarding-exit and
     // existing-tab branches below so it takes priority regardless of what
     // was open before.
     const file = state.workspaceFiles.find(f => f.id === id);
-    if (file?.type === 'mermaid') {
+    if (file && requiresDualPaneSplit(file)) {
       const ts = Date.now();
       return {
         editorSplit: true,
         splitTrigger: id,
-        // Presentation tuning: the Architecture Canvas is the primary
-        // artifact, the Mermaid source is reference material — 30/70 gives
-        // the canvas clearly more room than a balanced 50/50 split would,
-        // without starving the source pane. Only the default *starting*
-        // ratio for a fresh open; a manual drag on the divider (WA-06)
-        // still overrides it for the rest of the session same as any other
-        // split.
+        // Presentation tuning: the custom renderer is the primary artifact,
+        // the raw source is reference material — 30/70 gives it clearly
+        // more room than a balanced 50/50 split would, without starving the
+        // source pane. Only the default *starting* ratio for a fresh open;
+        // a manual drag on the divider (WA-06) still overrides it for the
+        // rest of the session same as any other split.
         splitRatio: 0.3,
         openedTabs: [
-          { id: `tab-${ts}-mmd-left`, fileId: id, pane: 'left' as const },
-          { id: `tab-${ts}-mmd-right`, fileId: id, pane: 'right' as const },
+          { id: `tab-${ts}-dual-left`, fileId: id, pane: 'left' as const },
+          { id: `tab-${ts}-dual-right`, fileId: id, pane: 'right' as const },
         ],
         activeFileId: id,
       };
     }
 
-    // Leaving a mermaid split's presentation-tuned ratio (above) behind for
-    // any other file — otherwise 0.32 would silently leak into unrelated
+    // Leaving a dual-pane split's presentation-tuned ratio (above) behind
+    // for any other file — otherwise 0.3 would silently leak into unrelated
     // layouts, contradicting "other editor layouts remain unchanged." Only
-    // resets when a mermaid file was actually open; never overrides a
-    // manual drag (WA-06) made on a non-mermaid split.
-    const leavingMermaid = state.openedTabs.some(
-      t => state.workspaceFiles.find(wf => wf.id === t.fileId)?.type === 'mermaid',
-    );
-    const splitRatioReset = leavingMermaid ? { splitRatio: 0.5 } : {};
+    // resets when a mermaid/manifest file was actually open; never
+    // overrides a manual drag (WA-06) made on an unrelated split.
+    const leavingDualPaneFile = state.openedTabs.some(t => {
+      const openTabFile = state.workspaceFiles.find(wf => wf.id === t.fileId);
+      return openTabFile ? requiresDualPaneSplit(openTabFile) : false;
+    });
+    const splitRatioReset = leavingDualPaneFile ? { splitRatio: 0.5 } : {};
 
     // Leaving the README+Playground onboarding pairing for any other file
     // quietly closes Playground and returns to a single editor. Derived

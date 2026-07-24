@@ -1,6 +1,8 @@
 import { VirtualFolder, VirtualFile, ExplorerNode } from '../types';
 import { generateResumeMarkdown } from './resume';
 import { getDefaultResumeVariant } from '../components/resume/variants/resumeRegistry';
+import { modelToMermaid } from '../architecture/renderers/mermaidRenderer';
+import { cortexaArchitecture } from './architecture/cortexa';
 
 // Sprint 10F.1: RESUME.md's content is generated from the canonical resume
 // variant (Sprint 10F.5: components/resume/variants/resumeRegistry.ts)
@@ -11,6 +13,13 @@ import { getDefaultResumeVariant } from '../components/resume/variants/resumeReg
 // already follows) — update that copy by hand if the default variant's
 // content ever changes.
 const RESUME_MARKDOWN = generateResumeMarkdown(getDefaultResumeVariant().data);
+
+// ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): architecture.mmd is now
+// generated from the canonical ArchitectureModel (src/content/architecture/
+// cortexa.ts), not hand-written. Same duplication caveat as RESUME_MARKDOWN
+// above — server/repositories/seed/workspaceSeed.ts can't import from src/,
+// so its copy is a literal string kept in sync by hand.
+const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
 
 /**
  * Pre-hydration seed for the workspace store. Schema-equivalent to the
@@ -186,14 +195,7 @@ A modern approach to distributed task queuing and processing.
               name: 'architecture.mmd',
               type: 'mermaid',
               path: '/projects/Cortexa/architecture.mmd',
-              content: `graph TD
-    A[Client] -->|HTTP| B(API Gateway)
-    B --> C{Load Balancer}
-    C -->|gRPC| D[Auth Service]
-    C -->|gRPC| E[Cortexa Core]
-    E --> F[(PostgreSQL)]
-    E --> G[(Redis Cache)]
-`,
+              content: CORTEXA_ARCHITECTURE_MERMAID,
             } as VirtualFile,
             {
               id: 'cortexa_metrics',

@@ -57,6 +57,27 @@ Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack d
 - **IBM Gen AI Certification:** Completed training in generative AI technologies, demonstrating curiosity and practical exposure to LLM primitives, prompting techniques, and exploring the LLM training pipeline.
 - **Smart India Hackathon 2024:** Participated in national hackathon, demonstrating learning velocity by rapidly prototyping innovative technological solutions and experimenting with external APIs.
 `;
+
+// ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): kept textually
+// identical to src/content/workspaceSeed.ts's CORTEXA_ARCHITECTURE_MERMAID
+// (modelToMermaid(cortexaArchitecture), src/content/architecture/cortexa.ts)
+// — same duplication convention as RESUME_MARKDOWN above. Update this copy
+// by hand if cortexa.ts's ArchitectureModel ever changes.
+const CORTEXA_ARCHITECTURE_MERMAID = `graph TD
+    client[Client]
+    api_gateway(API Gateway)
+    load_balancer(Load Balancer)
+    auth_service[Auth Service]
+    cortexa_core[Cortexa Core]
+    postgres[(PostgreSQL)]
+    redis_cache[(Redis Cache)]
+    client -->|HTTP| api_gateway
+    api_gateway --> load_balancer
+    load_balancer -->|gRPC| auth_service
+    load_balancer -->|gRPC| cortexa_core
+    cortexa_core --> postgres
+    cortexa_core --> redis_cache
+`;
 export const workspaceSeed: VirtualFolder = {
   id: 'root',
   name: 'Journey',
@@ -225,14 +246,7 @@ A modern approach to distributed task queuing and processing.
               name: 'architecture.mmd',
               type: 'mermaid',
               path: '/projects/Cortexa/architecture.mmd',
-              content: `graph TD
-    A[Client] -->|HTTP| B(API Gateway)
-    B --> C{Load Balancer}
-    C -->|gRPC| D[Auth Service]
-    C -->|gRPC| E[Cortexa Core]
-    E --> F[(PostgreSQL)]
-    E --> G[(Redis Cache)]
-`,
+              content: CORTEXA_ARCHITECTURE_MERMAID,
             } as VirtualFile,
             {
               id: 'cortexa_metrics',

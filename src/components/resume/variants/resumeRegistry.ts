@@ -7,7 +7,6 @@ import { fullstackAiResumeData } from '../data/fullstack-ai';
  * answered. Every consumer (the left-panel overview, RESUME.md's generated
  * markdown) resolves its data through getDefaultResumeVariant() here
  * instead of importing a specific ResumeData directly.
- *
  * Adding a new resume variant (AI Engineer, Backend, Software Engineer,
  * ...) is exactly two steps: add a ResumeData file under ../data/, add one
  * entry to `resumeVariants` below. Nothing in renderer/, specification/,

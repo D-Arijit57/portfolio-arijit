@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { getFileById } from '../../content/fileSystem';
 import Markdown, { type Components } from 'react-markdown';
 import { WorkHistoryViewer } from './WorkHistoryViewer';
-import { MermaidViewer } from './MermaidViewer';
+import { ArchitectureCanvas } from '../architecture/ArchitectureCanvas';
 import { ShikiEditor } from './ShikiEditor';
 import { TypingReveal } from '../shared/TypingReveal';
 import { ProfileStatusCard } from '../shared/ProfileStatusCard';
@@ -76,7 +76,7 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
 
   return (
     <TypingReveal fileId={file.id} contentLength={file.content.length}>
-      {renderFileContent(file)}
+      {renderFileContent(file, pane)}
     </TypingReveal>
   );
 }
@@ -104,7 +104,7 @@ export function MarkdownFileView({ file }: { file: VirtualFile }) {
   );
 }
 
-function renderFileContent(file: VirtualFile) {
+function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {
   if (file.type === 'markdown') {
     return <MarkdownFileView file={file} />;
   }
@@ -113,8 +113,11 @@ function renderFileContent(file: VirtualFile) {
     return <WorkHistoryViewer />;
   }
 
+  // ARCHITECTURE_PLATFORM_DESIGN.md §9: .mmd is pane-aware — left shows raw
+  // source (the existing ShikiEditor, unchanged), right shows the real
+  // Architecture Canvas renderer. Every other file type is unaffected.
   if (file.type === 'mermaid') {
-    return <MermaidViewer content={file.content} />;
+    return pane === 'right' ? <ArchitectureCanvas file={file} /> : <ShikiEditor fileId={file.id} />;
   }
 
   return <ShikiEditor fileId={file.id} />;

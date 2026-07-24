@@ -324,6 +324,29 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
+    // ARCHITECTURE_PLATFORM_DESIGN.md §9: a mermaid file's raw source (left)
+    // and its Architecture Canvas (right) are two views of the *same* file,
+    // not two files — ordinary navigation always (re)establishes both panes
+    // for it, the same way the README branch above always (re)establishes
+    // its Playground pairing. Generic on file.type, not on any project's id,
+    // so this applies to every current and future project's architecture.mmd
+    // with no per-project code. Checked before the onboarding-exit and
+    // existing-tab branches below so it takes priority regardless of what
+    // was open before.
+    const file = state.workspaceFiles.find(f => f.id === id);
+    if (file?.type === 'mermaid') {
+      const ts = Date.now();
+      return {
+        editorSplit: true,
+        splitTrigger: id,
+        openedTabs: [
+          { id: `tab-${ts}-mmd-left`, fileId: id, pane: 'left' as const },
+          { id: `tab-${ts}-mmd-right`, fileId: id, pane: 'right' as const },
+        ],
+        activeFileId: id,
+      };
+    }
+
     // Leaving the README+Playground onboarding pairing for any other file
     // quietly closes Playground and returns to a single editor. Derived
     // from the current tabs rather than a stored flag, so it only fires for

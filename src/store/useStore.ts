@@ -154,6 +154,17 @@ interface StoreState {
   notificationState: {
     visible: Notification[];
   };
+  // Architecture Canvas interaction state (ARCHITECTURE_PLATFORM_DESIGN.md
+  // §7/§8, Phase 3). Transient UI state only — never duplicates
+  // ArchitectureModel data. Editor and Canvas both read/write it, the same
+  // reason searchState/terminalState/notificationState live here rather than
+  // as component-local state. "connected"/"dimmed" node and edge sets are
+  // deliberately NOT stored here — they're derived on read from these two
+  // ids (src/architecture/relationships.ts), never cached.
+  architectureState: {
+    hoveredNodeId: string | null;
+    selectedNodeId: string | null;
+  };
   // Sprint 10E.2: true from store creation until the first-load boot
   // terminal (EditorArea/BootTerminal) finishes or is skipped. Reactive
   // (unlike lib/bootSequence.ts's plain `booted` flag) because Notifications
@@ -221,6 +232,8 @@ interface StoreState {
   setCommandPaletteOpen: (isOpen: boolean) => void;
   /** Thin passthrough to notificationService.dismiss() — the store isn't a privileged caller (ARCHITECTURE.md §4). */
   dismissNotification: (id: string) => void;
+  setHoveredArchitectureNode: (id: string | null) => void;
+  setSelectedArchitectureNode: (id: string | null) => void;
   toggleEditorSplit: () => void;
   setSplitRatio: (deltaPx: number, containerWidthPx: number) => void;
   reorderTabs: (tabs: EditorTab[]) => void;
@@ -274,6 +287,7 @@ export const useStore = create<StoreState>((set, get) => ({
   commandPalette: { isOpen: false },
   searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
   notificationState: { visible: [] },
+  architectureState: { hoveredNodeId: null, selectedNodeId: null },
   bootActive: true,
   editorSplit: true,
   splitRatio: 0.5,
@@ -339,6 +353,14 @@ export const useStore = create<StoreState>((set, get) => ({
       return {
         editorSplit: true,
         splitTrigger: id,
+        // Presentation tuning: the Architecture Canvas is the primary
+        // artifact, the Mermaid source is reference material — 30/70 gives
+        // the canvas clearly more room than a balanced 50/50 split would,
+        // without starving the source pane. Only the default *starting*
+        // ratio for a fresh open; a manual drag on the divider (WA-06)
+        // still overrides it for the rest of the session same as any other
+        // split.
+        splitRatio: 0.3,
         openedTabs: [
           { id: `tab-${ts}-mmd-left`, fileId: id, pane: 'left' as const },
           { id: `tab-${ts}-mmd-right`, fileId: id, pane: 'right' as const },
@@ -346,6 +368,16 @@ export const useStore = create<StoreState>((set, get) => ({
         activeFileId: id,
       };
     }
+
+    // Leaving a mermaid split's presentation-tuned ratio (above) behind for
+    // any other file — otherwise 0.32 would silently leak into unrelated
+    // layouts, contradicting "other editor layouts remain unchanged." Only
+    // resets when a mermaid file was actually open; never overrides a
+    // manual drag (WA-06) made on a non-mermaid split.
+    const leavingMermaid = state.openedTabs.some(
+      t => state.workspaceFiles.find(wf => wf.id === t.fileId)?.type === 'mermaid',
+    );
+    const splitRatioReset = leavingMermaid ? { splitRatio: 0.5 } : {};
 
     // Leaving the README+Playground onboarding pairing for any other file
     // quietly closes Playground and returns to a single editor. Derived
@@ -359,6 +391,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (isReadmeOnboarding) {
       return {
+        ...splitRatioReset,
         editorSplit: false,
         splitTrigger: null,
         openedTabs: [{ id: `tab-${Date.now()}`, fileId: id, pane: 'left' as const }],
@@ -368,12 +401,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const existingTab = state.openedTabs.find(t => t.fileId === id);
     if (existingTab) {
-      return { activeFileId: id };
+      return { ...splitRatioReset, activeFileId: id };
     }
     const targetPane = pane ?? resolveTargetPane(state);
     const newTab = { id: `tab-${Date.now()}`, fileId: id, pane: targetPane };
     const tabsWithoutTargetPane = state.openedTabs.filter(t => t.pane !== targetPane);
     return {
+      ...splitRatioReset,
       openedTabs: [...tabsWithoutTargetPane, newTab],
       activeFileId: id,
     };
@@ -589,6 +623,14 @@ export const useStore = create<StoreState>((set, get) => ({
   dismissNotification: (id) => {
     notificationService.dismiss(id);
   },
+
+  setHoveredArchitectureNode: (id) => set((state) => ({
+    architectureState: { ...state.architectureState, hoveredNodeId: id },
+  })),
+
+  setSelectedArchitectureNode: (id) => set((state) => ({
+    architectureState: { ...state.architectureState, selectedNodeId: id },
+  })),
 
   toggleEditorSplit: () => set((state) => {
     if (state.editorSplit) {

@@ -1,23 +1,45 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize, RotateCcw } from 'lucide-react';
 import type { VirtualFile } from '../../types';
+import { useStore } from '../../store/useStore';
 import { getArchitectureModel, projectKeyFromPath } from '../../architecture/registry';
 import { CATEGORY_STYLES } from '../../architecture/categories';
+import { getNodeRelationships, visualStateForNode, visualStateForEdge } from '../../architecture/relationships';
 import { layoutModel, NODE_WIDTH, NODE_HEIGHT } from './layout';
 import { resolveIcon } from './icons';
+import { NodeDetailPopover } from './NodeDetailPopover';
 
 /**
- * The Architecture Canvas (ARCHITECTURE_PLATFORM_DESIGN.md §6.2) — the first
- * real renderer built against the Architecture Platform. Resolves its model
- * through the registry only (never imports a project model directly),
- * renders nodes/nodes styled exclusively via CATEGORY_STYLES, and never
- * touches Mermaid text. Phase 2 scope: rendering + pan/zoom/fit/reset only —
- * no hover, selection, or sync (Phase 3).
+ * The Architecture Canvas (ARCHITECTURE_PLATFORM_DESIGN.md §6.2). Phase 2
+ * built rendering + pan/zoom/fit/reset; Phase 3 adds interaction
+ * (hover/select/highlight/popover/keyboard) on top, entirely as derived
+ * visual state — ArchitectureModel is never mutated, and connected-node/edge
+ * sets are computed on read (src/architecture/relationships.ts), never
+ * cached. Hover/select state lives in the store (architectureState), the
+ * same place searchState/terminalState/notificationState already live,
+ * since Editor and Canvas both need to read/write it.
  */
 
+// MIN_SCALE only bounds *manual* zoom-out (handleWheel) — it must never
+// floor the automatic fit calculation below, or a large-enough graph would
+// be clamped up past what actually fits and clip. MAX_SCALE still caps fit
+// (a deliberate readability/perf ceiling, not a correctness concern: it
+// only means a very small graph won't stretch to fill 100%, never that a
+// large one clips).
 const MIN_SCALE = 0.25;
-const MAX_SCALE = 2;
-const FIT_MARGIN = 64;
+const MAX_SCALE = 3;
+// Proportional, not a fixed pixel margin — this is what makes fit-to-screen
+// viewport-aware instead of using an absolute value that's too generous on
+// a small container and negligible on a large one. 0.08 on each side leaves
+// the graph occupying ~84% of the viewport's binding axis after fitting
+// (1 - 2 * ratio) — near the top of the "roughly 75-85%" target, since the
+// brief calls the previous margin still too conservative. The *other* axis
+// may show more margin than that whenever the graph's aspect ratio doesn't
+// match the container's — inherent to a uniform (non-distorting) fit;
+// forcing both axes to hit the same percentage would mean stretching nodes
+// unevenly, which would look worse than extra margin on one side.
+const FIT_PADDING_RATIO = 0.08;
+const CLICK_DRAG_THRESHOLD = 4;
 
 interface Viewport {
   x: number;
@@ -25,10 +47,34 @@ interface Viewport {
   scale: number;
 }
 
+const NODE_STROKE: Record<string, number> = { default: 1.5, active: 2.5, connected: 2, dimmed: 1.5 };
+const NODE_OPACITY: Record<string, number> = { default: 1, active: 1, connected: 1, dimmed: 0.35 };
+const EDGE_COLOR: Record<string, string> = {
+  default: '#5a5a5a',
+  connected: '#cccccc',
+  dimmed: '#5a5a5a',
+};
+const EDGE_OPACITY: Record<string, number> = { default: 1, connected: 1, dimmed: 0.25 };
+const EDGE_WIDTH: Record<string, number> = { default: 1.5, connected: 2.5, dimmed: 1.5 };
+
 export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ x: 0, y: 0, scale: 1 });
-  const panState = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  const panState = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+  } | null>(null);
+
+  const { architectureState, setHoveredArchitectureNode, setSelectedArchitectureNode } = useStore();
+  const { hoveredNodeId, selectedNodeId } = architectureState;
+
+  // Set on real pan/zoom only (not the initial mount-triggered fit) — once
+  // true, the ResizeObserver below stops auto-refitting until Fit/Reset is
+  // pressed, per "never override the camera after manual interaction."
+  const hasInteractedRef = useRef(false);
 
   const model = useMemo(() => {
     const projectKey = projectKeyFromPath(file.path);
@@ -37,15 +83,32 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
 
   const layout = useMemo(() => (model ? layoutModel(model) : undefined), [model]);
 
+  // A stale node id from a different project's model must never bleed
+  // across a project switch — reset interaction state whenever the
+  // resolved model itself changes.
+  useEffect(() => {
+    setSelectedArchitectureNode(null);
+    setHoveredArchitectureNode(null);
+    hasInteractedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model]);
+
+  const activeNodeId = hoveredNodeId ?? selectedNodeId;
+  const relationships = useMemo(
+    () => (model ? getNodeRelationships(model, activeNodeId) : undefined),
+    [model, activeNodeId],
+  );
+
   const fitToScreen = () => {
     const container = containerRef.current;
     if (!container || !layout || layout.width === 0 || layout.height === 0) return;
-    const availableWidth = container.clientWidth - FIT_MARGIN * 2;
-    const availableHeight = container.clientHeight - FIT_MARGIN * 2;
-    const scale = Math.min(
-      MAX_SCALE,
-      Math.max(MIN_SCALE, Math.min(availableWidth / layout.width, availableHeight / layout.height)),
-    );
+    const availableWidth = container.clientWidth * (1 - FIT_PADDING_RATIO * 2);
+    const availableHeight = container.clientHeight * (1 - FIT_PADDING_RATIO * 2);
+    // Maximize, don't minimize: the largest scale that satisfies both
+    // dimensions, capped only by MAX_SCALE — never floored by MIN_SCALE,
+    // so a graph that genuinely needs to shrink further to avoid clipping
+    // always can.
+    const scale = Math.min(MAX_SCALE, availableWidth / layout.width, availableHeight / layout.height);
     setViewport({
       scale,
       x: (container.clientWidth - layout.width * scale) / 2,
@@ -53,9 +116,18 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     });
   };
 
+  const fitToScreenManual = () => {
+    // The explicit "Fit" button re-arms auto-refitting on resize, same as a
+    // fresh open — an intentional Fit click is the user asking to return to
+    // the computed framing, not a one-off exception to it.
+    hasInteractedRef.current = false;
+    fitToScreen();
+  };
+
   const resetView = () => {
     const container = containerRef.current;
     if (!container || !layout) return;
+    hasInteractedRef.current = false;
     setViewport({
       scale: 1,
       x: (container.clientWidth - layout.width) / 2,
@@ -68,9 +140,37 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout]);
 
+  // The pane hosting this canvas animates its width (SplitEditorArea's
+  // motion.div, 200ms transition) rather than snapping to it instantly, so
+  // the mount-time fitToScreen() above can run mid-animation and measure a
+  // too-narrow container — exactly what produced a small, off-center graph
+  // in practice. A ResizeObserver re-fits on every real size change,
+  // including the tail of that transition, converging on the correct fit
+  // once the pane settles — and doubles as the "adapt to browser resize"
+  // behavior, since it keeps firing for as long as the user hasn't taken
+  // manual control.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      if (!hasInteractedRef.current) {
+        fitToScreen();
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout]);
+
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     (event.target as Element).setPointerCapture(event.pointerId);
-    panState.current = { pointerId: event.pointerId, lastX: event.clientX, lastY: event.clientY };
+    panState.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+    };
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -79,13 +179,20 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     const dy = event.clientY - panState.current.lastY;
     panState.current.lastX = event.clientX;
     panState.current.lastY = event.clientY;
+    hasInteractedRef.current = true;
     setViewport((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
   };
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (panState.current?.pointerId === event.pointerId) {
-      panState.current = null;
+    const pan = panState.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+
+    const movedDistance = Math.hypot(event.clientX - pan.startX, event.clientY - pan.startY);
+    const clickedNode = (event.target as Element).closest('[data-architecture-node]');
+    if (movedDistance < CLICK_DRAG_THRESHOLD && !clickedNode) {
+      setSelectedArchitectureNode(null);
     }
+    panState.current = null;
   };
 
   const handleWheel = (event: React.WheelEvent<SVGSVGElement>) => {
@@ -96,6 +203,7 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     const cursorX = event.clientX - rect.left;
     const cursorY = event.clientY - rect.top;
 
+    hasInteractedRef.current = true;
     setViewport((v) => {
       const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
       const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * zoomFactor));
@@ -109,7 +217,13 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     });
   };
 
-  if (!model || !layout) {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      setSelectedArchitectureNode(null);
+    }
+  };
+
+  if (!model || !layout || !relationships) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#1e1e1e] text-[#858585] text-sm font-mono">
         No architecture model registered for this project.
@@ -117,8 +231,23 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     );
   }
 
+  const selectedNode = selectedNodeId ? model.nodes.find((n) => n.id === selectedNodeId) : undefined;
+  const selectedPosition = selectedNodeId ? layout.positions.get(selectedNodeId) : undefined;
+  const popoverScreenPosition =
+    selectedNode && selectedPosition
+      ? {
+          left: viewport.x + (selectedPosition.x + NODE_WIDTH / 2) * viewport.scale,
+          top: viewport.y + selectedPosition.y * viewport.scale,
+        }
+      : undefined;
+
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[#1e1e1e]">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden bg-[#1e1e1e]"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
       <svg
         className="h-full w-full cursor-grab active:cursor-grabbing touch-none"
         onPointerDown={handlePointerDown}
@@ -156,13 +285,14 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
             const x2 = to.x + NODE_WIDTH / 2;
             const y2 = to.y;
             const midY = (y1 + y2) / 2;
+            const edgeState = visualStateForEdge(edge.from, edge.to, relationships);
             return (
-              <g key={`${edge.from}-${edge.to}-${index}`}>
+              <g key={`${edge.from}-${edge.to}-${index}`} opacity={EDGE_OPACITY[edgeState]}>
                 <path
                   d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
                   fill="none"
-                  stroke="#5a5a5a"
-                  strokeWidth={1.5}
+                  stroke={EDGE_COLOR[edgeState]}
+                  strokeWidth={EDGE_WIDTH[edgeState]}
                   markerEnd="url(#architecture-arrow)"
                 />
                 {edge.label && (
@@ -186,27 +316,41 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
             if (!position) return null;
             const style = CATEGORY_STYLES[node.category];
             const Icon = resolveIcon(node.icon ?? style.icon) ?? resolveIcon(style.icon);
+            const nodeState = visualStateForNode(node.id, relationships);
             return (
-              <g key={node.id} transform={`translate(${position.x}, ${position.y})`}>
+              <g
+                key={node.id}
+                transform={`translate(${position.x}, ${position.y})`}
+                opacity={NODE_OPACITY[nodeState]}
+              >
                 <rect
                   width={NODE_WIDTH}
                   height={NODE_HEIGHT}
                   rx={6}
                   fill="#252526"
                   stroke={style.accentColor}
-                  strokeWidth={1.5}
+                  strokeWidth={NODE_STROKE[nodeState]}
                 />
                 <rect width={4} height={NODE_HEIGHT} fill={style.accentColor} rx={2} />
-                <foreignObject x={12} y={0} width={NODE_WIDTH - 20} height={NODE_HEIGHT}>
-                  <div className="h-full flex items-center gap-2 px-1">
+                <foreignObject x={0} y={0} width={NODE_WIDTH} height={NODE_HEIGHT}>
+                  <button
+                    type="button"
+                    data-architecture-node={node.id}
+                    className="flex h-full w-full items-center gap-2 px-3 pl-4 text-left focus:outline-none"
+                    onMouseEnter={() => setHoveredArchitectureNode(node.id)}
+                    onMouseLeave={() => setHoveredArchitectureNode(null)}
+                    onFocus={() => setHoveredArchitectureNode(node.id)}
+                    onBlur={() => setHoveredArchitectureNode(null)}
+                    onClick={() => setSelectedArchitectureNode(node.id)}
+                  >
                     {Icon && <Icon size={16} color={style.accentColor} className="shrink-0" />}
-                    <div className="min-w-0">
-                      <div className="text-[12px] text-white font-medium truncate">{node.title}</div>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[12px] font-medium text-white">{node.title}</span>
                       {node.technology && (
-                        <div className="text-[10px] text-[#858585] truncate">{node.technology}</div>
+                        <span className="block truncate text-[10px] text-[#858585]">{node.technology}</span>
                       )}
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 </foreignObject>
               </g>
             );
@@ -214,10 +358,19 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
         </g>
       </svg>
 
+      {selectedNode && popoverScreenPosition && (
+        <NodeDetailPopover
+          node={selectedNode}
+          style={CATEGORY_STYLES[selectedNode.category]}
+          screenPosition={popoverScreenPosition}
+          onClose={() => setSelectedArchitectureNode(null)}
+        />
+      )}
+
       <div className="absolute bottom-3 right-3 flex gap-1">
         <button
           type="button"
-          onClick={fitToScreen}
+          onClick={fitToScreenManual}
           title="Fit to screen"
           className="p-1.5 rounded bg-[#252526] border border-[#3c3c3c] text-[#cccccc] hover:bg-[#2d2d2d]"
         >

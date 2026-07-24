@@ -65,18 +65,39 @@ Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack d
 // by hand if cortexa.ts's ArchitectureModel ever changes.
 const CORTEXA_ARCHITECTURE_MERMAID = `graph TD
     client[Client]
-    api_gateway(API Gateway)
-    load_balancer(Load Balancer)
-    auth_service[Auth Service]
-    cortexa_core[Cortexa Core]
-    postgres[(PostgreSQL)]
-    redis_cache[(Redis Cache)]
-    client -->|HTTP| api_gateway
-    api_gateway --> load_balancer
-    load_balancer -->|gRPC| auth_service
-    load_balancer -->|gRPC| cortexa_core
-    cortexa_core --> postgres
-    cortexa_core --> redis_cache
+    dashboard[Dashboard]
+    interview_workspace[Interview Workspace]
+    scheduling_ui[Scheduling]
+    meeting_room[Meeting Room]
+    monaco_editor[Monaco Editor]
+    next_js_app[Next.js Application]
+    clerk[[Clerk]]
+    convex[(Convex)]
+    stream_video[[Stream Video]]
+    interview_scheduling[Interview Scheduling]
+    interview_lifecycle[Interview Lifecycle]
+    coding_challenge[Coding Challenge]
+    judge_pipeline[Judge Pipeline]
+    recording_management[Recording Management]
+    client --> dashboard
+    client --> interview_workspace
+    client --> scheduling_ui
+    client --> meeting_room
+    client --> monaco_editor
+    dashboard --> next_js_app
+    interview_workspace --> next_js_app
+    scheduling_ui --> next_js_app
+    meeting_room --> next_js_app
+    monaco_editor --> next_js_app
+    next_js_app -->|Auth API| clerk
+    next_js_app -->|Realtime| convex
+    next_js_app -->|Video API| stream_video
+    convex --> interview_scheduling
+    convex --> interview_lifecycle
+    convex --> coding_challenge
+    convex --> recording_management
+    coding_challenge --> judge_pipeline
+    stream_video --> recording_management
 `;
 export const workspaceSeed: VirtualFolder = {
   id: 'root',

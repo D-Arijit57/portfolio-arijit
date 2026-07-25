@@ -25,7 +25,14 @@ const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
 // RESUME_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above — kept textually
 // identical to server/repositories/seed/workspaceSeed.ts's own copy, update
 // both by hand together.
-const CORTEXA_DOC_MARKDOWN = `# Cortexa
+const CORTEXA_DOC_MARKDOWN = `---
+summary: A technical interview platform that unifies scheduling, live video, and an integrated coding environment into a single, connected workflow.
+badges: [Next.js, React, TypeScript, Clerk, Convex, Stream, Monaco Editor]
+highlights: [Real-time state via Convex subscriptions, Managed auth & RBAC via Clerk, Managed video & recording via Stream, Domain-separated business logic across 5 bounded contexts]
+metadata: [Status: Production Ready, Architecture: Service-Composed, Frontend: Next.js, Backend: Convex, Authentication: Clerk, Realtime: Stream + Convex]
+---
+
+# Cortexa
 
 ## Overview
 
@@ -33,7 +40,7 @@ Cortexa is a technical interview platform that unifies scheduling, live video, a
 
 ## Problem Statement
 
-Conducting a structured technical interview typically requires coordinating several disconnected tools: a scheduling tool to find a time slot, a video conferencing product for the live conversation, and a separate code editor or pastebin for the coding portion — often followed by manual note-taking and ad hoc code review after the fact. This fragmentation makes interviews harder to run consistently, harder to review afterward, and leaves code evaluation entirely up to the interviewer's real-time judgment. Cortexa addresses this by keeping scheduling, the live session, the coding workspace, and the resulting artifacts (recordings, submissions, verdicts) inside one system.
+Conducting a structured technical interview typically means coordinating several disconnected tools — a scheduler, a video call, and a separate code editor — followed by manual note-taking and ad hoc review after the fact. This fragmentation makes interviews harder to run consistently and leaves code evaluation entirely up to the interviewer's real-time judgment. Cortexa keeps scheduling, the live session, the coding workspace, and the resulting artifacts inside one connected system.
 
 ## Core Features
 
@@ -44,56 +51,12 @@ Conducting a structured technical interview typically requires coordinating seve
 - **Recording management** — interview recordings are retained and associated with their interview for later review.
 - **Authenticated access with role-based permissions** — interviewers and candidates operate under managed identity and access control.
 
-## Architecture Overview
+## Continue Exploring
 
-Cortexa is built as a Next.js application that orchestrates three managed platform services rather than hosting its own auth, database, or video infrastructure:
-
-- **Clerk** — authentication, sessions, and role-based access control.
-- **Convex** — the real-time backend: queries, mutations, actions, and the persistent state behind every business domain below.
-- **Stream** — video calls, screen sharing, and recording.
-
-Business logic is organized into five domains sitting behind Convex: **Interview Scheduling**, **Interview Lifecycle**, **Coding Challenge**, **Judge Pipeline**, and **Recording Management**. Each is a distinct architectural boundary rather than one monolithic "interview" concept — see Major Engineering Decisions below for why.
-
-This is a high-level summary; the canonical, interactive representation of the system is **architecture.mmd** in this folder. It renders as a live, explorable diagram (the Architecture Canvas) rather than a static picture, and is the source of truth for how these pieces connect — this document doesn't duplicate that detail.
-
-## Interview Workflow
-
-1. **Scheduling** — a time slot is booked through the Scheduling module, backed by the Interview Scheduling domain.
-2. **Join** — participants join the Interview Workspace, which composes the Meeting Room (video) and Monaco Editor (coding) for the session.
-3. **Live interview** — video/audio/screen sharing runs through Stream; the interview's state and participants are tracked by the Interview Lifecycle domain.
-4. **Coding** — the candidate works in Monaco Editor against a challenge defined by the Coding Challenge domain.
-5. **Submission & evaluation** — a submission is handed to the Judge Pipeline, which executes it against test cases and produces a result.
-6. **Recording & review** — the session recording is retained by Recording Management and associated with the interview for later playback.
-7. **Completion** — the Interview Lifecycle domain marks the interview complete once the above has run its course.
-
-## Technology Stack
-
-Next.js (App Router) and React on the client, TailwindCSS for styling, Clerk for auth, Convex as the real-time backend, Stream for video, and Monaco Editor for the coding workspace. See **manifest.json** in this folder for the full inventory grouped by responsibility rather than as a flat dependency list.
-
-## Major Engineering Decisions
-
-- **Convex over a hand-rolled REST API + database.** Interview state (code changes, submission status, session presence) needs to be visible to both participants immediately; Convex's real-time subscriptions provide this without a custom WebSocket layer.
-- **Clerk over a custom auth system.** Authentication, session management, and RBAC are well-solved problems; building them in-house would spend engineering effort on infrastructure instead of interview-specific functionality.
-- **Stream over a custom WebRTC stack.** Reliable video calling is a substantial engineering investment on its own; delegating it to a managed provider keeps the team focused on the interview experience rather than media transport.
-- **Monaco Editor for the coding workspace.** The same editor that powers VS Code, chosen for a coding experience candidates are already likely to be familiar with, without building an editor from scratch.
-- **Domain-separated business logic.** Interview Scheduling, Interview Lifecycle, Coding Challenge, Judge Pipeline, and Recording Management are kept as distinct boundaries rather than one large "interview" object, so each concern can be reasoned about, and potentially scaled, independently.
-- **Judge Pipeline as its own domain, decoupled from Coding Challenge.** Keeping evaluation separate from challenge authoring means the execution/sandboxing approach can evolve without changing how challenges are defined.
-
-## Managed Services
-
-| Service | Role |
-|---|---|
-| Clerk | Identity, authentication, session management, RBAC |
-| Convex | Real-time database and backend platform — queries, mutations, actions, and persistent state for every business domain |
-| Stream | Video calls, audio, screen sharing, recording |
-
-Relying on managed platforms for auth, real-time data, and video is a deliberate tradeoff: it introduces external dependencies outside Cortexa's own control, in exchange for not having to build and operate infrastructure that isn't the product's core value.
-
-## Scalability Considerations
-
-- **Video and real-time transport scale outside Cortexa's own code.** Stream and Convex are managed platforms responsible for scaling media transport and real-time subscriptions respectively; Cortexa's own scaling concern is session/state coordination on top of them, not the transport layer itself.
-- **Code execution is the most likely bottleneck under load.** Running arbitrary submitted code requires isolation per submission, and how that isolation is implemented and scaled is not yet fully specified in the current architecture (see the Judge Pipeline node's noted tradeoff in architecture.mmd) — flagged as an open question rather than a settled design.
-- **Domain separation is a scaling seam, not just an organizational one.** Because Interview Scheduling, Interview Lifecycle, Coding Challenge, Judge Pipeline, and Recording Management are already separated as distinct domains, any one of them could in principle be scaled or re-architected independently if it became a bottleneck, even though they currently share a single Convex deployment.
+- [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
+- [Technology Manifest](manifest.json) — Browse the complete categorized technology inventory.
+- [GitHub Repository](#todo-github-url) — Explore the implementation and source code.
+- [Live Demo](#todo-live-demo-url) — Experience Cortexa in action.
 `;
 
 // Manifest Viewer (Engineering Manifest Explorer): every top-level key

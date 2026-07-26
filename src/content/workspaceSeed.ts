@@ -55,8 +55,8 @@ Conducting a structured technical interview typically means coordinating several
 
 - [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
 - [Technology Manifest](manifest.json) — Browse the complete categorized technology inventory.
-- [GitHub Repository](#todo-github-url) — Explore the implementation and source code.
-- [Live Demo](#todo-live-demo-url) — Experience Cortexa in action.
+- [GitHub Repository](https://github.com/D-Arijit57) — Explore the implementation and source code.
+- [Live Demo](https://cortexa-eight.vercel.app/) — Experience Cortexa in action.
 `;
 
 // Manifest Viewer (Engineering Manifest Explorer): every top-level key
@@ -67,31 +67,90 @@ Conducting a structured technical interview typically means coordinating several
 // future addition is exactly the shape the brief's example showed.
 const CORTEXA_MANIFEST_JSON = `{
   "project": "Cortexa",
-  "description": "High-level inventory of the core technologies and services powering the platform.",
+  "description": "High-level inventory of the core technologies and services that power the Cortexa platform.",
   "frontend": [
-    { "technology": "Next.js (App Router)", "role": "Framework" },
-    { "technology": "React", "role": "Library" },
-    { "technology": "TailwindCSS", "role": "Styling" }
+    {
+      "technology": "Next.js",
+      "role": "Application Framework",
+      "description": "React framework with App Router, Server Components and Route Handlers.",
+      "tags": ["Core"]
+    },
+    {
+      "technology": "React",
+      "role": "UI Library",
+      "description": "Component-based UI library for building interactive user interfaces.",
+      "tags": ["Core"]
+    },
+    {
+      "technology": "TypeScript",
+      "role": "Type System",
+      "description": "Static typing across the entire frontend and backend codebase.",
+      "tags": ["Core"]
+    },
+    {
+      "technology": "Tailwind CSS",
+      "role": "Styling System",
+      "description": "Utility-first CSS framework for rapid and consistent UI development.",
+      "tags": ["Core"]
+    },
+    {
+      "technology": "shadcn/ui + Radix UI",
+      "role": "UI Components",
+      "description": "Accessible, unstyled primitives composed into the app's design system.",
+      "tags": ["Core"]
+    }
   ],
   "backendAndData": [
-    { "technology": "Next.js (App Router)", "role": "Orchestration" },
-    { "technology": "Convex", "role": "Realtime Database" }
+    {
+      "technology": "Convex",
+      "role": "Backend Platform",
+      "description": "Real-time backend platform with database, serverless functions, and live synchronization.",
+      "tags": ["Database", "Realtime", "Queries", "Mutations", "Actions"]
+    }
   ],
   "authentication": [
-    { "technology": "Clerk", "role": "Authentication" }
+    {
+      "technology": "Clerk",
+      "role": "Identity Platform",
+      "description": "Authentication, user management, sessions and role-based access control.",
+      "tags": ["Authentication", "Sessions", "RBAC", "JWT"]
+    }
   ],
   "communication": [
-    { "technology": "Stream", "role": "Video & Audio" }
+    {
+      "technology": "Stream",
+      "role": "Media Infrastructure",
+      "description": "Managed video SDK powering live interviews with audio, video, screen sharing and recording.",
+      "tags": ["Video", "Audio", "Screen Sharing", "Recordings"]
+    }
   ],
   "developerExperience": [
-    { "technology": "Monaco Editor", "role": "Editor" },
-    { "technology": "Next.js tooling", "role": "Tooling" }
+    {
+      "technology": "Monaco Editor",
+      "role": "Code Editor",
+      "description": "In-browser code editor with multi-language support and live code execution.",
+      "tags": ["Multi-language", "Code Execution", "Hot Reload"]
+    }
   ],
   "deployment": [
-    { "technology": "Next.js Application", "role": "Single Deployable App" },
-    { "technology": "Clerk", "role": "Managed Service" },
-    { "technology": "Convex", "role": "Managed Service" },
-    { "technology": "Stream", "role": "Managed Service" }
+    {
+      "technology": "Vercel",
+      "role": "Frontend Hosting",
+      "description": "Hosting and global delivery for the Next.js application.",
+      "tags": ["Managed Service"]
+    },
+    {
+      "technology": "Convex Cloud",
+      "role": "Backend Hosting",
+      "description": "Serverless backend platform with automatic scaling.",
+      "tags": ["Managed Service"]
+    },
+    {
+      "technology": "Stream Cloud",
+      "role": "Media Infrastructure",
+      "description": "Global media infrastructure for real-time communication.",
+      "tags": ["Managed Service"]
+    }
   ]
 }
 `;

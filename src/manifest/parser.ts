@@ -21,12 +21,14 @@ function humanizeKey(key: string): string {
 }
 
 function isManifestTechnology(value: unknown): value is ManifestTechnology {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as Record<string, unknown>).technology === 'string' &&
-    typeof (value as Record<string, unknown>).role === 'string'
-  );
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+
+  if (typeof v.technology !== 'string' || typeof v.role !== 'string') return false;
+  if (v.description !== undefined && typeof v.description !== 'string') return false;
+  if (v.tags !== undefined && !(Array.isArray(v.tags) && v.tags.every((t) => typeof t === 'string'))) return false;
+
+  return true;
 }
 
 export function parseManifest(raw: string): ManifestModel | undefined {

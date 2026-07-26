@@ -4,10 +4,7 @@ import { resolveTechLogo } from '../../documentation/techLogos';
 import { colorForString } from '../../manifest/colorHash';
 
 /**
- * Hero-specific technology badge: larger and logo-bearing, unlike the
- * compact ManifestBadge used inside Manifest Viewer cards (which stays
- * untouched — this is a deliberately separate component rather than a
- * shared one, since the two now have different visual jobs). Renders the
+ * Hero-specific technology badge: larger and logo-bearing. Renders the
  * technology's official mark (src/documentation/techLogos.ts) when one
  * exists; falls back to a generic icon in the same deterministic hash
  * color the rest of the workspace uses for unrecognized strings, so a

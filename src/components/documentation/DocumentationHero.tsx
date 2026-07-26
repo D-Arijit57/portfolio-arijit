@@ -7,8 +7,7 @@ import type { DocumentationFrontmatter } from '../../documentation/types';
  * Title + one-sentence summary + technology badges, all sourced from the
  * document itself (H1 for title, frontmatter for summary/badges) — never
  * hardcoded per project. Badges use the Hero-specific TechBadge (larger,
- * logo-bearing) rather than the compact ManifestBadge used in Manifest
- * Viewer cards — the two components now serve visibly different jobs.
+ * logo-bearing).
  */
 export function DocumentationHero({ title, frontmatter }: { title: string; frontmatter: DocumentationFrontmatter }) {
   const summary = typeof frontmatter.summary === 'string' ? frontmatter.summary : undefined;

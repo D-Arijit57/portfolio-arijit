@@ -58,11 +58,15 @@ function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {
     return pane === 'right' ? <ArchitectureCanvas file={file} /> : <ShikiEditor fileId={file.id} />;
   }
 
-  // Same pane-aware split as .mmd, for exactly one filename: manifest.json.
-  // Every other JSON file (metrics, package.json-style files, etc.) keeps
-  // rendering through the plain ShikiEditor below, unaffected.
+  // Manifest Viewer v2: manifest.json is a single rendered file, never raw
+  // JSON, in either pane — its raw source is an internal implementation
+  // detail (see useStore's requiresDualPaneSplit branch, which now pairs it
+  // with its project's architecture.mmd in the other pane instead of
+  // showing manifest.json's own source). Every other JSON file (metrics,
+  // package.json-style files, etc.) keeps rendering through the plain
+  // ShikiEditor below, unaffected.
   if (isManifestFile(file)) {
-    return pane === 'right' ? <ManifestViewer file={file} /> : <ShikiEditor fileId={file.id} />;
+    return <ManifestViewer file={file} />;
   }
 
   return <ShikiEditor fileId={file.id} />;

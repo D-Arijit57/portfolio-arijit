@@ -134,8 +134,8 @@ Conducting a structured technical interview typically means coordinating several
 
 - [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
 - [Technology Manifest](manifest.json) — Browse the complete categorized technology inventory.
-- [GitHub Repository](#todo-github-url) — Explore the implementation and source code.
-- [Live Demo](#todo-live-demo-url) — Experience Cortexa in action.
+- [GitHub Repository](https://github.com/D-Arijit57) — Explore the implementation and source code.
+- [Live Demo](https://cortexa-eight.vercel.app/) — Experience Cortexa in action.
 `;
 
 // Manifest Viewer (Engineering Manifest Explorer): every top-level key

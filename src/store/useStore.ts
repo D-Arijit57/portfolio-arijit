@@ -364,6 +364,50 @@ export const useStore = create<StoreState>((set, get) => ({
     const file = state.workspaceFiles.find(f => f.id === id);
     if (file && requiresDualPaneSplit(file)) {
       const ts = Date.now();
+
+      // Manifest Viewer v2: manifest.json is a single-file presentation —
+      // it never shows its own raw JSON (EditorRenderer renders it as the
+      // Technology Dashboard in every pane), so it doesn't pair with itself
+      // the way .mmd does below. Instead it pairs with its project's own
+      // architecture.mmd, resolved the same basePath-relative sibling
+      // lookup LinkCardGrid's resolveLinkTarget uses for a "Continue
+      // Exploring" link — inlined against `state.workspaceFiles` (already
+      // in scope) rather than imported, since resolveLinkTarget pulls in
+      // content/fileSystem.ts, which reads useStore.getState() at module
+      // load and would form an import cycle with this file. So this works
+      // for any future project's manifest with zero per-project code, and
+      // degrades to a single pane if that project has no architecture.mmd
+      // yet.
+      if (isManifestFile(file)) {
+        const basePath = file.path.slice(0, file.path.lastIndexOf('/'));
+        const architecturePath = `${basePath}/architecture.mmd`.replace(/\/+/g, '/');
+        const architectureFile = state.workspaceFiles.find(f => f.path === architecturePath);
+
+        if (architectureFile) {
+          return {
+            editorSplit: true,
+            // The side file owns the split, same as the README/Playground
+            // pairing above — closing the Architecture Canvas tab collapses
+            // back to a single dashboard pane.
+            splitTrigger: architectureFile.id,
+            splitRatio: 0.5,
+            openedTabs: [
+              { id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const },
+              { id: `tab-${ts}-architecture`, fileId: architectureFile.id, pane: 'right' as const },
+            ],
+            activeFileId: id,
+          };
+        }
+
+        return {
+          editorSplit: false,
+          splitTrigger: null,
+          splitRatio: 0.5,
+          openedTabs: [{ id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const }],
+          activeFileId: id,
+        };
+      }
+
       return {
         editorSplit: true,
         splitTrigger: id,

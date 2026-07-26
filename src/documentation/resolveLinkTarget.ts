@@ -11,7 +11,7 @@ const EXTERNAL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
  * Resolves a link-card href (documentation/linkCards.ts) against the
  * current document's own folder — the same "relative to this file" rule a
  * real filesystem link would use. A bare filename like `architecture.mmd`
- * or `manifest.json` resolves to that sibling VirtualFile generically (no
+ * or `manifest.yaml` resolves to that sibling VirtualFile generically (no
  * hardcoded project/file ids); a `scheme://` URL is always external. A
  * relative name that doesn't match any sibling file degrades to
  * 'unresolved' — still rendered as a link (see LinkCardGrid), just without

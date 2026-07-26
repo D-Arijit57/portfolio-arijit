@@ -3,7 +3,7 @@ import React from 'react';
 export function ManifestHeader({ project, description }: { project: string; description: string }) {
   return (
     <div className="mb-6">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-[#858585]">
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-[#569cd6]">
         Technology Manifest
       </div>
       <h1 className="mt-1 text-2xl font-semibold text-white">{project}</h1>

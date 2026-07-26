@@ -54,7 +54,7 @@ Conducting a structured technical interview typically means coordinating several
 ## Continue Exploring
 
 - [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
-- [Technology Manifest](manifest.json) — Browse the complete categorized technology inventory.
+- [Technology Manifest](manifest.yaml) — Browse the complete categorized technology inventory.
 - [GitHub Repository](https://github.com/D-Arijit57) — Explore the implementation and source code.
 - [Live Demo](https://cortexa-eight.vercel.app/) — Experience Cortexa in action.
 `;
@@ -65,7 +65,14 @@ Conducting a structured technical interview typically means coordinating several
 // is the entire mechanism for a new card to appear, with zero renderer
 // changes. No "stack" wrapper — categories are flat top-level keys, so a
 // future addition is exactly the shape the brief's example showed.
-const CORTEXA_MANIFEST_JSON = `{
+//
+// The file is named/typed manifest.yaml (see the virtual file entry
+// below) but this text stays JSON-flow-style rather than YAML block
+// style — JSON is a valid subset of YAML 1.2, so parseManifest()'s
+// JSON.parse() keeps working unchanged. It's never shown raw either way
+// (ManifestViewer always renders the parsed model, never this source
+// text), so the flow-style form costs nothing and avoids a parser rewrite.
+const CORTEXA_MANIFEST_YAML = `{
   "project": "Cortexa",
   "description": "High-level inventory of the core technologies and services that power the Cortexa platform.",
   "frontend": [
@@ -329,10 +336,10 @@ export const workHistory: WorkExperience[] = [
             } as VirtualFile,
             {
               id: 'cortexa_manifest',
-              name: 'manifest.json',
-              type: 'json',
-              path: '/projects/Cortexa/manifest.json',
-              content: CORTEXA_MANIFEST_JSON,
+              name: 'manifest.yaml',
+              type: 'yaml',
+              path: '/projects/Cortexa/manifest.yaml',
+              content: CORTEXA_MANIFEST_YAML,
             } as VirtualFile,
           ],
         } as VirtualFolder,

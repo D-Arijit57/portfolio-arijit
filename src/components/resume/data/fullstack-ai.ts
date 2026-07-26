@@ -89,7 +89,7 @@ export const fullstackAiResumeData: ResumeData = {
       techStack: ['Python', 'Machine Learning', 'AWS', 'Flutter'],
       link: { label: 'GitHub' },
       dateRange: 'Jun - Jul 2025',
-      oneLiner: 'Python fraud-detection backend at 92% accuracy, with on-device ML keeping 95% of sensitive data local.',
+      oneLiner: 'Python fraud-detection  backend at 92% accuracy, with on-device ML keeping 95% of sensitive data local.',
       highlights: [
         'Developed a **Python-based** fraud detection backend, evaluating machine learning models against expected behavior and achieving **92% accuracy** in identifying suspicious transactions.',
         'Implemented a cloud-based behavioral analytics system on **AWS EC2**, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.',

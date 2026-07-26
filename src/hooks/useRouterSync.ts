@@ -22,7 +22,7 @@ export function resolveUrlPathToFile(pathname: string) {
            fPath === normalizedPath + '.sh' ||
            fPath === normalizedPath + '/readme.md' ||
            fPath === normalizedPath + '/profile.md' ||
-           fPath === normalizedPath + '/work_history.ts' ||
+           fPath === normalizedPath + '/work_history.yaml' ||
            fPath === normalizedPath + '/contact.sh';
   });
 }

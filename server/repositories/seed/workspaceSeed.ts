@@ -100,6 +100,30 @@ const CORTEXA_ARCHITECTURE_MERMAID = `graph TD
     stream_video --> recording_management
 `;
 
+// Career Roadmap redesign: kept textually identical to
+// src/content/workspaceSeed.ts's own WORK_HISTORY_YAML
+// (workHistoryToYaml(workHistory), src/content/workHistory.ts) — same
+// duplication convention as CORTEXA_ARCHITECTURE_MERMAID above. Update this
+// copy by hand if workHistory.ts's WorkExperience[] ever changes.
+const WORK_HISTORY_YAML = `# Work History
+
+experiences:
+  - company: "American Chase"
+    role: "Software Engineer"
+    startDate: "2025-03"
+    endDate: "Present"
+    location: "Indore, MP"
+    tech: ["OpenAI API", "LangChain", "RAG", "Node.js", "Express.js"]
+    highlights:
+      - Developed an LLM-powered document workflow using OpenAI API and LangChain, automating key-field extraction and saving 2 hrs/week for a US operations team.
+
+      - Resolved 5+ production defects in a Node.js/Express backend, reducing recurring issues by 35% through root-cause analysis and improved logging.
+
+      - Integrated a RAG pipeline into an internal business tool, enabling natural language search across 200+ documents and reducing lookup time from 5 mins to under 2 mins.
+
+      - Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.
+`;
+
 // Hand-authored project documentation, kept textually identical to
 // src/content/workspaceSeed.ts's own copy — same duplication convention as
 // RESUME_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above. Update both by
@@ -346,40 +370,10 @@ Hello! I'm a software engineer passionate about building scalable, high-performa
       children: [
         {
           id: 'work_history',
-          name: 'work_history.ts',
-          type: 'typescript',
-          path: '/experience/work_history.ts',
-          content: `export interface WorkExperience {
-  company: string;
-  role: string;
-  startDate: string;
-  endDate: string | 'Present';
-  highlights: string[];
-}
-
-export const workHistory: WorkExperience[] = [
-  {
-    company: 'TechNova Solutions',
-    role: 'Senior Frontend Engineer',
-    startDate: '2021-03',
-    endDate: 'Present',
-    highlights: [
-      'Led migration of legacy monolithic app to React/TypeScript micro-frontends.',
-      'Mentored 4 junior developers and established CI/CD best practices.'
-    ]
-  },
-  {
-    company: 'NextGen AI',
-    role: 'Full Stack Developer',
-    startDate: '2019-06',
-    endDate: '2021-02',
-    highlights: [
-      'Developed real-time collaboration features using WebSockets.',
-      'Optimized database queries reducing latency by 40%.'
-    ]
-  }
-];
-`,
+          name: 'work_history.yaml',
+          type: 'yaml',
+          path: '/experience/work_history.yaml',
+          content: WORK_HISTORY_YAML,
         } as VirtualFile,
       ],
     } as VirtualFolder,

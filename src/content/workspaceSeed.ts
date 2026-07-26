@@ -3,6 +3,8 @@ import { generateResumeMarkdown } from './resume';
 import { getDefaultResumeVariant } from '../components/resume/variants/resumeRegistry';
 import { modelToMermaid } from '../architecture/renderers/mermaidRenderer';
 import { cortexaArchitecture } from './architecture/cortexa';
+import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
+import { workHistory } from './workHistory';
 
 // Sprint 10F.1: RESUME.md's content is generated from the canonical resume
 // variant (Sprint 10F.5: components/resume/variants/resumeRegistry.ts)
@@ -20,6 +22,16 @@ const RESUME_MARKDOWN = generateResumeMarkdown(getDefaultResumeVariant().data);
 // above — server/repositories/seed/workspaceSeed.ts can't import from src/,
 // so its copy is a literal string kept in sync by hand.
 const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
+
+// Career Roadmap redesign: work_history.yaml's displayed source is
+// generated from the canonical WorkExperience[] (src/content/workHistory.ts),
+// the same relationship CORTEXA_ARCHITECTURE_MERMAID has with
+// cortexaArchitecture above — the Career Roadmap panel imports that array
+// directly rather than parsing this text back, so there's exactly one place
+// the data lives. Same duplication caveat as the others — server/
+// repositories/seed/workspaceSeed.ts can't import from src/, so its copy is
+// a literal string kept in sync by hand.
+const WORK_HISTORY_YAML = workHistoryToYaml(workHistory);
 
 // Hand-authored project documentation, same duplication convention as
 // RESUME_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above — kept textually
@@ -273,40 +285,10 @@ Hello! I'm a software engineer passionate about building scalable, high-performa
       children: [
         {
           id: 'work_history',
-          name: 'work_history.ts',
-          type: 'typescript',
-          path: '/experience/work_history.ts',
-          content: `export interface WorkExperience {
-  company: string;
-  role: string;
-  startDate: string;
-  endDate: string | 'Present';
-  highlights: string[];
-}
-
-export const workHistory: WorkExperience[] = [
-  {
-    company: 'TechNova Solutions',
-    role: 'Senior Frontend Engineer',
-    startDate: '2021-03',
-    endDate: 'Present',
-    highlights: [
-      'Led migration of legacy monolithic app to React/TypeScript micro-frontends.',
-      'Mentored 4 junior developers and established CI/CD best practices.'
-    ]
-  },
-  {
-    company: 'NextGen AI',
-    role: 'Full Stack Developer',
-    startDate: '2019-06',
-    endDate: '2021-02',
-    highlights: [
-      'Developed real-time collaboration features using WebSockets.',
-      'Optimized database queries reducing latency by 40%.'
-    ]
-  }
-];
-`,
+          name: 'work_history.yaml',
+          type: 'yaml',
+          path: '/experience/work_history.yaml',
+          content: WORK_HISTORY_YAML,
         } as VirtualFile,
       ],
     } as VirtualFolder,

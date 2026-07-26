@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { getFileById } from '../../content/fileSystem';
-import { codeToHtml } from 'shiki';
 import { cn } from '../../lib/utils';
 import { ResizeHandle } from '../shared/ResizeHandle';
+import { workHistory } from '../../content/workHistory';
+import { CareerRoadmap } from '../experience/CareerRoadmap';
+import { WorkHistoryYamlBlock } from '../experience/WorkHistoryYamlBlock';
 
 // WA-09: below this container width (not viewport width — this is what
 // actually narrows inside a split pane) the two columns stack vertically
@@ -16,8 +18,6 @@ const MIN_PANEL_PX = 240;
 
 export function WorkHistoryViewer() {
   const file = getFileById('work_history');
-  const [html, setHtml] = React.useState('');
-  const [activeJob, setActiveJob] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isNarrow, setIsNarrow] = useState(false);
   // Sprint 10C: draggable divider ratio (0-1, fraction given to the code
@@ -25,13 +25,6 @@ export function WorkHistoryViewer() {
   // persist beyond its own mount, unlike the store-owned splitRatio which
   // spans the whole workspace.
   const [ratio, setRatio] = useState(0.5);
-
-  React.useEffect(() => {
-    if (file) {
-      codeToHtml(file.content, { lang: 'ts', theme: 'dark-plus' })
-        .then(setHtml);
-    }
-  }, [file]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -56,46 +49,23 @@ export function WorkHistoryViewer() {
     });
   };
 
-  const jobs = [
-    {
-      company: 'TechNova Solutions',
-      role: 'Senior Frontend Engineer',
-      startDate: '2021-03',
-      endDate: 'Present',
-      highlights: [
-        'Led migration of legacy monolithic app to React/TypeScript micro-frontends.',
-        'Mentored 4 junior developers and established CI/CD best practices.'
-      ],
-      lineStart: 10,
-      lineEnd: 20
-    },
-    {
-      company: 'NextGen AI',
-      role: 'Full Stack Developer',
-      startDate: '2019-06',
-      endDate: '2021-02',
-      highlights: [
-        'Developed real-time collaboration features using WebSockets.',
-        'Optimized database queries reducing latency by 40%.'
-      ],
-      lineStart: 21,
-      lineEnd: 30
-    }
-  ];
-
   return (
     <div ref={containerRef} className={cn('flex h-full w-full min-h-0', isNarrow && 'flex-col')}>
       <div
         style={isNarrow ? undefined : { width: `${ratio * 100}%` }}
         className={cn(
-          'overflow-auto bg-[#1e1e1e] p-4 text-[14px] font-mono border-[#333333] relative min-w-0 min-h-0',
+          'overflow-y-auto overflow-x-hidden bg-[#1e1e1e] p-4 border-[#333333] relative min-w-0 min-h-0',
           isNarrow ? 'w-full h-1/2 border-b' : 'shrink-0 border-r'
         )}
       >
-        <div
-          dangerouslySetInnerHTML={{ __html: html }}
-          className="[&>pre]:!bg-transparent [&>pre]:whitespace-pre pointer-events-none w-max"
-        />
+        {file && (
+          <div className="pointer-events-none">
+            <WorkHistoryYamlBlock
+              code={file.content}
+              lang={file.type === 'typescript' ? 'ts' : file.type}
+            />
+          </div>
+        )}
       </div>
 
       {!isNarrow && <ResizeHandle direction="horizontal" onResize={handleResize} />}
@@ -106,27 +76,7 @@ export function WorkHistoryViewer() {
           isNarrow ? 'w-full h-1/2' : 'flex-1'
         )}
       >
-        <h2 className="text-xl font-semibold text-white mb-8">Career Roadmap</h2>
-        <div className="relative border-l-2 border-[#333333] ml-4 space-y-8 max-w-prose">
-          {jobs.map((job, idx) => (
-            <div
-              key={idx}
-              className="relative pl-6 cursor-pointer group"
-              onMouseEnter={() => setActiveJob(idx)}
-              onMouseLeave={() => setActiveJob(null)}
-            >
-              <div className={`absolute -left-[9px] top-1 w-4 h-4 rounded-full border-2 transition-colors ${activeJob === idx ? 'bg-[#007acc] border-[#007acc]' : 'bg-[#252526] border-[#333333] group-hover:border-[#007acc]'}`} />
-              <div className="text-xs text-[#858585] mb-1">{job.startDate} — {job.endDate}</div>
-              <div className={`text-base font-medium transition-colors ${activeJob === idx ? 'text-[#007acc]' : 'text-white'}`}>
-                {job.role}
-              </div>
-              <div className="text-[13px] text-[#cccccc] mb-2">{job.company}</div>
-              <ul className="list-disc list-inside text-[13px] text-[#858585] space-y-1">
-                {job.highlights.map((h, i) => <li key={i}>{h}</li>)}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <CareerRoadmap experiences={workHistory} />
       </div>
     </div>
   );

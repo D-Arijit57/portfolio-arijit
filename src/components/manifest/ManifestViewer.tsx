@@ -3,6 +3,7 @@ import type { VirtualFile } from '../../types';
 import { parseManifest } from '../../manifest/parser';
 import { ManifestHeader } from './ManifestHeader';
 import { ManifestSection } from './ManifestSection';
+import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 
 /**
  * The Manifest Viewer — a dedicated renderer for manifest.json, the same
@@ -28,6 +29,14 @@ import { ManifestSection } from './ManifestSection';
 export function ManifestViewer({ file }: { file: VirtualFile }) {
   const model = useMemo(() => parseManifest(file.content), [file.content]);
 
+  // Hooks run unconditionally, ahead of the empty-state early return below —
+  // an empty/missing model just means unitCount 0, which useFileRevealSequence
+  // already treats as "nothing to reveal."
+  const sequence = useFileRevealSequence({
+    fileId: file.id,
+    unitCount: model?.categories.length ?? 0,
+  });
+
   if (!model || model.categories.length === 0) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[#1e1e1e] text-sm font-mono text-[#858585]">
@@ -37,13 +46,16 @@ export function ManifestViewer({ file }: { file: VirtualFile }) {
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-6">
+    <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-6">
       <ManifestHeader project={model.project} description={model.description} />
       <div className="space-y-4">
-        {model.categories.map((category) => (
-          <ManifestSection key={category.key} category={category} />
+        {model.categories.map((category, index) => (
+          <ManifestSection key={category.key} category={category} unitIndex={index} sequence={sequence} />
         ))}
       </div>
+      {sequence.showCursor && (
+        <span className="typing-reveal-cursor mt-4 inline-block h-[15px] w-[7px] bg-[#cccccc]" />
+      )}
     </div>
   );
 }

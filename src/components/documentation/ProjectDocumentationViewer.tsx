@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { motion } from 'motion/react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { VirtualFile } from '../../types';
@@ -10,6 +11,7 @@ import { MetadataRow } from './MetadataRow';
 import { DocumentationSidebar } from './DocumentationSidebar';
 import { DocumentationSection } from './DocumentationSection';
 import { createDocumentationComponents } from './documentationComponents';
+import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 
 /**
  * The Project Documentation Viewer — a dedicated renderer for project
@@ -30,24 +32,51 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
   const basePath = file.path.slice(0, file.path.lastIndexOf('/'));
   const components = useMemo(() => createDocumentationComponents(basePath), [basePath]);
 
+  // Intro (if present) is unit 0; every section's unit index shifts by one
+  // to make room for it — one shared reveal sequence spans the whole doc.
+  const introOffset = model.intro ? 1 : 0;
+  const sequence = useFileRevealSequence({
+    fileId: file.id,
+    unitCount: model.sections.length + introOffset,
+  });
+
   if (model.sections.length === 0 && !model.intro) {
     return <MarkdownFileView file={file} />;
   }
 
   return (
     <DocumentationLayout
+      containerRef={sequence.containerRef as React.RefObject<HTMLDivElement>}
       hero={<DocumentationHero title={model.title} frontmatter={model.frontmatter} />}
       metadata={<MetadataRow frontmatter={model.frontmatter} />}
       main={
         <>
           {model.intro && (
-            <Markdown remarkPlugins={[remarkGfm]} components={components}>
-              {model.intro}
-            </Markdown>
+            <motion.div
+              initial="hidden"
+              animate="visible"
+              custom={0}
+              variants={sequence.unitVariants}
+              transition={sequence.isComplete ? { duration: 0 } : undefined}
+              onAnimationComplete={sequence.isLastUnit(0) ? sequence.onLastUnitComplete : undefined}
+            >
+              <Markdown remarkPlugins={[remarkGfm]} components={components}>
+                {model.intro}
+              </Markdown>
+            </motion.div>
           )}
           {model.sections.map((section, index) => (
-            <DocumentationSection key={section.id} section={section} index={index} components={components} />
+            <DocumentationSection
+              key={section.id}
+              section={section}
+              unitIndex={index + introOffset}
+              components={components}
+              sequence={sequence}
+            />
           ))}
+          {sequence.showCursor && (
+            <span className="typing-reveal-cursor inline-block w-[7px] h-[15px] bg-[#cccccc] mt-2" />
+          )}
         </>
       }
       sidebar={<DocumentationSidebar frontmatter={model.frontmatter} sections={model.sections} />}

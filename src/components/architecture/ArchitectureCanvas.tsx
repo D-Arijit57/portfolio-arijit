@@ -1,14 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize, RotateCcw, Download } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Maximize, RotateCcw, Download, Activity, Sparkles, Route } from 'lucide-react';
 import type { VirtualFile } from '../../types';
 import { useStore } from '../../store/useStore';
 import { getArchitectureModel, projectKeyFromPath } from '../../architecture/registry';
 import { CATEGORY_STYLES } from '../../architecture/categories';
-import { getNodeRelationships, visualStateForNode, visualStateForEdge } from '../../architecture/relationships';
 import { layoutModel, NODE_WIDTH, NODE_HEIGHT } from './layout';
 import { resolveIcon } from './icons';
 import { NodeDetailPopover } from './NodeDetailPopover';
 import { Minimap } from './Minimap';
+import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
+import { getFullDependencyPath, visualStateForNode, visualStateForEdge, edgeKey } from './dependencyPath';
+import { motionConfigForEdge } from './edgeCommunication';
+import { EdgePacketTrail, EdgeFlowAnimation } from './EdgePacket';
+import { TRACE_WORKFLOWS, useTraceStepper } from './traceWorkflows';
+import { hashStringToIndex } from '../../manifest/colorHash';
+import { prefersReducedMotion } from '../../lib/typingReveal';
+
+type CanvasMode = 'normal' | 'demo' | 'trace';
 
 /**
  * The Architecture Canvas (ARCHITECTURE_PLATFORM_DESIGN.md §6.2). Phase 2
@@ -50,14 +59,26 @@ interface Viewport {
 }
 
 const NODE_STROKE: Record<string, number> = { default: 1.5, active: 2.5, connected: 2, dimmed: 1.5 };
-const NODE_OPACITY: Record<string, number> = { default: 1, active: 1, connected: 1, dimmed: 0.35 };
+// Architecture Canvas 2.0: dimmed lowered from 0.35/0.25 to 0.2 (the
+// brief's "~20%"), and the highlighted set is now the full transitive
+// dependency path (dependencyPath.ts), not just 1-hop neighbors.
+const NODE_OPACITY: Record<string, number> = { default: 1, active: 1, connected: 1, dimmed: 0.2 };
 const EDGE_COLOR: Record<string, string> = {
   default: '#5a5a5a',
   connected: '#cccccc',
   dimmed: '#5a5a5a',
 };
-const EDGE_OPACITY: Record<string, number> = { default: 1, connected: 1, dimmed: 0.25 };
+const EDGE_OPACITY: Record<string, number> = { default: 1, connected: 1, dimmed: 0.2 };
 const EDGE_WIDTH: Record<string, number> = { default: 1.5, connected: 2.5, dimmed: 1.5 };
+// Post-reveal, state-driven opacity changes (hover/select/trace dimming)
+// need their own small eased transition — reusing revealSequence's own
+// `{duration:0}` post-reveal short-circuit (meant for reveal choreography
+// only) made every opacity change after the mount reveal snap instantly,
+// including today's hover-dim.
+const STATE_TRANSITION = { duration: 0.15, ease: 'easeInOut' as const };
+const HEARTBEAT_MIN_DURATION_S = 3;
+const HEARTBEAT_MAX_DURATION_S = 5;
+const HEARTBEAT_DELAY_WINDOW_S = 5;
 
 export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,10 +118,40 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
   }, [model]);
 
   const activeNodeId = hoveredNodeId ?? selectedNodeId;
-  const relationships = useMemo(
-    () => (model ? getNodeRelationships(model, activeNodeId) : undefined),
+  const hoverOrSelectPath = useMemo(
+    () => (model ? getFullDependencyPath(model, activeNodeId) : undefined),
     [model, activeNodeId],
   );
+
+  // Architecture Canvas 2.0: Normal / Demo / Trace. Local to this
+  // component — nothing outside it needs to read mode, unlike hover/select
+  // (store comment: Editor also needs those). Demo only changes packet
+  // density/speed (edgeCommunication.ts's scaleForDemoMode); Trace drives
+  // node/edge highlighting from a timer instead of the mouse, reusing the
+  // exact same PathState/opacity pipeline hover already uses.
+  const [mode, setMode] = useState<CanvasMode>('normal');
+  const [selectedTraceName, setSelectedTraceName] = useState<string>(Object.keys(TRACE_WORKFLOWS)[0]);
+  const traceWorkflow = TRACE_WORKFLOWS[selectedTraceName] ?? [];
+  // Hovering/selecting a node takes precedence over an in-progress trace —
+  // the user is inspecting something, so the trace timer pauses in place
+  // (not resets) and resumes once activeNodeId clears.
+  const traceStepper = useTraceStepper(traceWorkflow, model, mode === 'trace' && !activeNodeId);
+  const relationships = !activeNodeId && mode === 'trace' ? traceStepper.pathState : hoverOrSelectPath;
+
+  const reduceMotion = useMemo(() => prefersReducedMotion(), []);
+
+  // Nodes reveal first, then edges — unit indices [0, nodeCount) for nodes,
+  // [nodeCount, nodeCount+edgeCount) for edges, independent of paint order
+  // (edges are still drawn behind nodes in the SVG below). No cursor here:
+  // a diagram has no coherent "end of document" position, unlike every
+  // text-based renderer. Reuses this component's existing pan/zoom
+  // containerRef rather than adding a second ref.
+  const revealSequence = useFileRevealSequence({
+    fileId: file.id,
+    unitCount: model ? model.nodes.length + model.edges.length : 0,
+    containerRef,
+    enabled: Boolean(model && layout),
+  });
 
   const fitToScreen = () => {
     const container = containerRef.current;
@@ -276,15 +327,16 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     );
   }
 
+  // Slide-in side panel no longer needs a world-position-derived screen
+  // anchor (see NodeDetailPopover.tsx) — Inputs/Outputs are purely derived
+  // from model.edges, no data-model change.
   const selectedNode = selectedNodeId ? model.nodes.find((n) => n.id === selectedNodeId) : undefined;
-  const selectedPosition = selectedNodeId ? layout.positions.get(selectedNodeId) : undefined;
-  const popoverScreenPosition =
-    selectedNode && selectedPosition
-      ? {
-          left: viewport.x + (selectedPosition.x + NODE_WIDTH / 2) * viewport.scale,
-          top: viewport.y + selectedPosition.y * viewport.scale,
-        }
-      : undefined;
+  const selectedNodeInputs = selectedNode
+    ? model.edges.filter((e) => e.to === selectedNode.id).map((e) => model.nodes.find((n) => n.id === e.from)?.title ?? e.from)
+    : [];
+  const selectedNodeOutputs = selectedNode
+    ? model.edges.filter((e) => e.from === selectedNode.id).map((e) => model.nodes.find((n) => n.id === e.to)?.title ?? e.to)
+    : [];
 
   const currentZoomPercent = Math.round(viewport.scale * 100);
   const zoomOptions = Array.from(new Set([...ZOOM_PRESETS, currentZoomPercent])).sort((a, b) => a - b);
@@ -329,6 +381,29 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
           <span>Reset</span>
         </button>
 
+        <div className="mx-1 h-4 w-px bg-[#3c3c3c]" />
+
+        <div className="flex items-center gap-0.5 rounded border border-[#3c3c3c] p-0.5">
+          <ModeButton mode="normal" activeMode={mode} onClick={setMode} icon={<Activity size={12} />} label="Normal" />
+          <ModeButton mode="demo" activeMode={mode} onClick={setMode} icon={<Sparkles size={12} />} label="Demo" />
+          <ModeButton mode="trace" activeMode={mode} onClick={setMode} icon={<Route size={12} />} label="Trace" />
+        </div>
+
+        {mode === 'trace' && (
+          <select
+            value={selectedTraceName}
+            onChange={(e) => setSelectedTraceName(e.target.value)}
+            title="Trace workflow"
+            className="rounded border border-[#3c3c3c] bg-[#1e1e1e] px-1.5 py-1 text-[12px] text-[#cccccc] outline-none"
+          >
+            {Object.keys(TRACE_WORKFLOWS).map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+
         <div className="flex-1" />
 
         <button
@@ -353,6 +428,11 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
           onWheel={handleWheel}
         >
           <defs>
+            {/* Architecture Canvas 2.0: one shared keyframe block for every
+                node's heartbeat glow — extremely subtle (opacity 0 -> 0.6 ->
+                0), per-node phase offset via inline animationDelay so 15
+                nodes never glow in lockstep. */}
+            <style>{'@keyframes arch-heartbeat { 0%, 100% { opacity: 0; } 50% { opacity: 0.6; } }'}</style>
             <pattern id="architecture-grid" width={24} height={24} patternUnits="userSpaceOnUse">
               <circle cx={1} cy={1} r={1} fill="#333333" />
             </pattern>
@@ -382,15 +462,48 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
               const y2 = to.y;
               const midY = (y1 + y2) / 2;
               const edgeState = visualStateForEdge(edge.from, edge.to, relationships);
+              const unitIndex = model.nodes.length + index;
+              // Edges animate to their hover/select-state-driven target
+              // opacity (EDGE_OPACITY[edgeState]), not the shared variants'
+              // flat 1 — so dimming still works once the reveal settles.
+              // Only the timing (delay/duration/ease) comes from the shared
+              // unitVariants; the opacity target itself is edge-specific.
+              // Post-reveal, state-driven changes get STATE_TRANSITION's
+              // small ease instead of a hard instant snap.
+              const edgeTransition = revealSequence.isComplete
+                ? STATE_TRANSITION
+                : revealSequence.getUnitTransition(unitIndex);
+              const pathId = `arch-edge-${edge.from}-${edge.to}-${index}`;
+              const motionConfig = motionConfigForEdge(edge.from, edge.to, mode === 'demo');
+              const thisEdgeKey = edgeKey(edge.from, edge.to);
+              const isJustTraversed = mode === 'trace' && !activeNodeId && traceStepper.justTraversedEdgeKey === thisEdgeKey;
               return (
-                <g key={`${edge.from}-${edge.to}-${index}`} opacity={EDGE_OPACITY[edgeState]}>
+                <motion.g
+                  key={`${edge.from}-${edge.to}-${index}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: EDGE_OPACITY[edgeState] }}
+                  transition={edgeTransition}
+                  onAnimationComplete={revealSequence.isLastUnit(unitIndex) ? revealSequence.onLastUnitComplete : undefined}
+                >
                   <path
+                    id={pathId}
                     d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
                     fill="none"
                     stroke={EDGE_COLOR[edgeState]}
                     strokeWidth={EDGE_WIDTH[edgeState]}
+                    strokeDasharray={
+                      motionConfig.mode === 'flow' ? `${motionConfig.dashLength} ${motionConfig.gapLength}` : undefined
+                    }
                     markerEnd="url(#architecture-arrow)"
-                  />
+                  >
+                    {!reduceMotion && motionConfig.mode === 'flow' && <EdgeFlowAnimation config={motionConfig} />}
+                  </path>
+                  {!reduceMotion && motionConfig.mode === 'packets' && (
+                    <EdgePacketTrail pathId={pathId} config={motionConfig} />
+                  )}
+                  {!reduceMotion && isJustTraversed && motionConfig.mode === 'packets' && (
+                    <EdgePacketTrail key={traceStepper.currentStep} pathId={pathId} config={motionConfig} repeatOnce />
+                  )}
                   {edge.label && (
                     <text
                       x={(x1 + x2) / 2}
@@ -398,27 +511,66 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
                       textAnchor="middle"
                       fill="#858585"
                       fontSize={11}
-                      fontFamily="monospace"
+                      fontFamily="var(--font-mono)"
                     >
                       {edge.label}
                     </text>
                   )}
-                </g>
+                </motion.g>
               );
             })}
 
-            {model.nodes.map((node) => {
+            {model.nodes.map((node, nodeIndex) => {
               const position = layout.positions.get(node.id);
               if (!position) return null;
               const style = CATEGORY_STYLES[node.category];
               const Icon = resolveIcon(node.icon ?? style.icon) ?? resolveIcon(style.icon);
               const nodeState = visualStateForNode(node.id, relationships);
+              // Same pattern as edges above: timing from the shared
+              // variants, opacity target stays this node's own
+              // hover/select-driven value rather than the variants' flat 1.
+              // The translate transform is static per node (its layout
+              // position never changes), so it stays a plain SVG attribute
+              // rather than something Motion needs to animate. Post-reveal
+              // state changes get STATE_TRANSITION's small ease.
+              const nodeTransition = revealSequence.isComplete
+                ? STATE_TRANSITION
+                : revealSequence.getUnitTransition(nodeIndex);
+              // Heartbeat: deterministic per-node delay/duration (via the
+              // same hashStringToIndex() src/manifest/colorHash.ts already
+              // establishes) so 15 nodes don't glow in lockstep — computed
+              // once per render, not Math.random() (which would restart the
+              // CSS animation on every re-render).
+              const heartbeatDelayS = (hashStringToIndex(node.id, 47) / 47) * HEARTBEAT_DELAY_WINDOW_S;
+              const heartbeatDurationS =
+                HEARTBEAT_MIN_DURATION_S +
+                (hashStringToIndex(`${node.id}:duration`, 23) / 23) * (HEARTBEAT_MAX_DURATION_S - HEARTBEAT_MIN_DURATION_S);
               return (
-                <g
+                <motion.g
                   key={node.id}
                   transform={`translate(${position.x}, ${position.y})`}
-                  opacity={NODE_OPACITY[nodeState]}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: NODE_OPACITY[nodeState] }}
+                  transition={nodeTransition}
+                  onAnimationComplete={
+                    revealSequence.isLastUnit(nodeIndex) ? revealSequence.onLastUnitComplete : undefined
+                  }
                 >
+                  {!reduceMotion && (
+                    <rect
+                      width={NODE_WIDTH}
+                      height={NODE_HEIGHT}
+                      rx={6}
+                      fill="none"
+                      stroke={style.accentColor}
+                      strokeWidth={2}
+                      opacity={0}
+                      style={{
+                        animation: `arch-heartbeat ${heartbeatDurationS}s ease-in-out infinite`,
+                        animationDelay: `${heartbeatDelayS}s`,
+                      }}
+                    />
+                  )}
                   <rect
                     width={NODE_WIDTH}
                     height={NODE_HEIGHT}
@@ -448,20 +600,19 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
                       </span>
                     </button>
                   </foreignObject>
-                </g>
+                </motion.g>
               );
             })}
           </g>
         </svg>
 
-        {selectedNode && popoverScreenPosition && (
-          <NodeDetailPopover
-            node={selectedNode}
-            style={CATEGORY_STYLES[selectedNode.category]}
-            screenPosition={popoverScreenPosition}
-            onClose={() => setSelectedArchitectureNode(null)}
-          />
-        )}
+        <NodeDetailPopover
+          node={selectedNode}
+          style={selectedNode ? CATEGORY_STYLES[selectedNode.category] : undefined}
+          inputs={selectedNodeInputs}
+          outputs={selectedNodeOutputs}
+          onClose={() => setSelectedArchitectureNode(null)}
+        />
 
         <div className="absolute bottom-3 right-3">
           <Minimap
@@ -474,5 +625,36 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ModeButton({
+  mode,
+  activeMode,
+  onClick,
+  icon,
+  label,
+}: {
+  mode: CanvasMode;
+  activeMode: CanvasMode;
+  onClick: (mode: CanvasMode) => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  const active = mode === activeMode;
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(mode)}
+      title={label}
+      className={
+        active
+          ? 'flex items-center gap-1 rounded px-2 py-0.5 bg-[#007acc] text-white'
+          : 'flex items-center gap-1 rounded px-2 py-0.5 text-[#cccccc] hover:bg-[#2d2d2d]'
+      }
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }

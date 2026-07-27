@@ -8,7 +8,7 @@ export function ImpactMetrics({ items }: { items: ImpactMetric[] }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-8 font-mono">
+    <div className="mt-8">
       <h4 className="text-[13px] font-semibold text-white">Impact at a Glance</h4>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {items.map((item, i) => {

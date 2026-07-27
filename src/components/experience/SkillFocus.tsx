@@ -7,7 +7,7 @@ export function SkillFocus({ items }: { items: SkillFocusItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="mt-8 font-mono">
+    <div className="mt-8">
       <h4 className="text-[13px] font-semibold text-white">Skill Focus</h4>
       <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
         {items.map((item, i) => (

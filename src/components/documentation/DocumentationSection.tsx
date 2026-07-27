@@ -4,32 +4,43 @@ import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { DocumentationSectionModel } from '../../documentation/types';
 import { resolveSectionVisual } from '../../documentation/sectionIcons';
+import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 
 /**
  * One H2-level documentation section: icon + heading + divider, then the
  * section's own markdown body rendered through the shared components map.
- * Sections stagger in with ManifestCard's exact motion timing for visual
- * consistency with the Manifest Viewer. `components` is built once by
- * ProjectDocumentationViewer (createDocumentationComponents, closed over
- * the document's basePath) and passed down rather than rebuilt per section.
+ * `components` is built once by ProjectDocumentationViewer
+ * (createDocumentationComponents, closed over the document's basePath) and
+ * passed down rather than rebuilt per section.
+ *
+ * Sprint: Workspace-Wide File Opening Animation System — stagger now comes
+ * from the shared useFileRevealSequence engine (`sequence`/`unitIndex`)
+ * instead of a bare `index * 0.04`, which used to replay on every remount
+ * (e.g. revisiting a previously-viewed project doc tab within the same
+ * session) since it had no session-gating of its own.
  */
 export function DocumentationSection({
   section,
-  index,
+  unitIndex,
   components,
+  sequence,
 }: {
   section: DocumentationSectionModel;
-  index: number;
+  unitIndex: number;
   components: Components;
+  sequence: FileRevealSequenceResult;
 }) {
   const { icon: Icon, accentColor } = resolveSectionVisual(section.heading);
 
   return (
     <motion.section
       id={section.id}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, delay: index * 0.04, ease: 'easeOut' }}
+      initial="hidden"
+      animate="visible"
+      custom={unitIndex}
+      variants={sequence.unitVariants}
+      transition={sequence.isComplete ? { duration: 0 } : undefined}
+      onAnimationComplete={sequence.isLastUnit(unitIndex) ? sequence.onLastUnitComplete : undefined}
       className="scroll-mt-8 pt-8 first:pt-0"
     >
       <div className="mb-4 flex items-center gap-2.5">

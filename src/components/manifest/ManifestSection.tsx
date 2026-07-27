@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { ChevronDown, Copy, Check, Component } from 'lucide-react';
 import type { ManifestCategory } from '../../manifest/types';
 import { buildCategoryYaml } from '../../manifest/yamlFormat';
@@ -6,6 +7,7 @@ import { resolveTechLogo } from '../../documentation/techLogos';
 import { colorForString } from '../../manifest/colorHash';
 import { cn } from '../../lib/utils';
 import { ManifestYamlBlock } from './ManifestYamlBlock';
+import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 
 /** A technology's official brand mark in the section header's logo row; falls back to a generic icon in the same deterministic hash color used everywhere else in the workspace for a technology without a shipped logo. */
 function TechLogo({ technology }: { technology: string }) {
@@ -33,7 +35,15 @@ function TechLogo({ technology }: { technology: string }) {
  * Always spans the full width of its container; the container itself is
  * what makes it fill a narrow split pane or a wide full-editor view.
  */
-export function ManifestSection({ category }: { category: ManifestCategory }) {
+export function ManifestSection({
+  category,
+  unitIndex,
+  sequence,
+}: {
+  category: ManifestCategory;
+  unitIndex: number;
+  sequence: FileRevealSequenceResult;
+}) {
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
   const yaml = useMemo(() => buildCategoryYaml(category), [category]);
@@ -46,7 +56,14 @@ export function ManifestSection({ category }: { category: ManifestCategory }) {
   };
 
   return (
-    <section className="w-full overflow-hidden rounded-md border border-[#3c3c3c] bg-[#1e1e1e]">
+    <motion.section
+      initial="hidden"
+      animate="visible"
+      custom={unitIndex}
+      variants={sequence.unitVariants}
+      transition={sequence.isComplete ? { duration: 0 } : undefined}
+      onAnimationComplete={sequence.isLastUnit(unitIndex) ? sequence.onLastUnitComplete : undefined}
+      className="w-full overflow-hidden rounded-md border border-[#3c3c3c] bg-[#1e1e1e]">
       <div className="flex items-center gap-3 px-4 py-3">
         <button
           type="button"
@@ -82,6 +99,6 @@ export function ManifestSection({ category }: { category: ManifestCategory }) {
           <ManifestYamlBlock code={yaml} />
         </div>
       )}
-    </section>
+    </motion.section>
   );
 }

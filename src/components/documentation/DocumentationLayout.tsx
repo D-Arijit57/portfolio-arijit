@@ -13,14 +13,20 @@ export function DocumentationLayout({
   metadata,
   main,
   sidebar,
+  containerRef,
 }: {
   hero: React.ReactNode;
   metadata?: React.ReactNode;
   main: React.ReactNode;
   sidebar: React.ReactNode;
+  /** Sprint: Workspace-Wide File Opening Animation System — lets the reveal
+   * engine's interruption listeners attach to the same scroll container
+   * TableOfContents/ReadingProgress already key off of, instead of a second
+   * ref. Optional so every other caller (none currently) stays unaffected. */
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <div data-doc-scroll-root className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-8">
+    <div data-doc-scroll-root ref={containerRef} className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-8">
       <div className="mx-auto max-w-5xl">
         {hero}
         {metadata}

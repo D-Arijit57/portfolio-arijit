@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { codeToHtml } from 'shiki';
 import { useStore } from '../../store/useStore';
+import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 
 interface RenderedLine {
   html: string;
@@ -50,8 +52,22 @@ function computeGuideIndentUnits(rawLines: string[], indentUnits: number[]): num
  * nested YAML, and (b) apply a CSS hanging indent per row so a wrapped
  * highlight's continuation lines align just past its "- " marker instead
  * of falling back to the container's left edge.
+ *
+ * Sprint: Workspace-Wide File Opening Animation System — `sequence` (built
+ * once by WorkHistoryViewer, one unit per source line, matching this
+ * component's existing one-row-per-line rendering exactly rather than
+ * grouping rows the way useShikiRevealHighlight does for editable files)
+ * staggers each row in; a trailing cursor row appears once complete.
  */
-export function WorkHistoryYamlBlock({ code, lang }: { code: string; lang: string }) {
+export function WorkHistoryYamlBlock({
+  code,
+  lang,
+  sequence,
+}: {
+  code: string;
+  lang: string;
+  sequence: FileRevealSequenceResult;
+}) {
   const editorTheme = useStore((state) => state.editorTheme);
   const [lines, setLines] = useState<RenderedLine[] | null>(null);
 
@@ -104,7 +120,7 @@ export function WorkHistoryYamlBlock({ code, lang }: { code: string; lang: strin
   if (!lines) return null;
 
   return (
-    <div className="font-mono text-[14px] leading-[1.7]">
+    <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="font-mono text-[14px] leading-[1.7]">
       {lines.map((line, i) => {
         // VS Code doesn't draw a guide for the column-0 boundary, only
         // between nested scopes — a depth-N line gets N-1 guides.
@@ -118,7 +134,16 @@ export function WorkHistoryYamlBlock({ code, lang }: { code: string; lang: strin
         const hangCh = line.indentUnits * 2 + (line.isListItem ? 2 : 0);
 
         return (
-          <div key={i} className="relative">
+          <motion.div
+            key={i}
+            className="relative"
+            initial="hidden"
+            animate="visible"
+            custom={i}
+            variants={sequence.unitVariants}
+            transition={sequence.isComplete ? { duration: 0 } : undefined}
+            onAnimationComplete={sequence.isLastUnit(i) ? sequence.onLastUnitComplete : undefined}
+          >
             {Array.from({ length: guideCount }, (_, g) => (
               <span
                 key={g}
@@ -132,9 +157,12 @@ export function WorkHistoryYamlBlock({ code, lang }: { code: string; lang: strin
               className="whitespace-pre-wrap break-words"
               dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
             />
-          </div>
+          </motion.div>
         );
       })}
+      {sequence.showCursor && (
+        <span className="typing-reveal-cursor inline-block w-[7px] h-[15px] bg-[#cccccc] align-text-bottom" />
+      )}
     </div>
   );
 }

@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { codeToHtml } from 'shiki';
 import { useStore } from '../../store/useStore';
 import { getFileById } from '../../content/fileSystem';
 import Editor from 'react-simple-code-editor';
+import { useShikiRevealHighlight } from '../../hooks/useShikiRevealHighlight';
+
+function resolveShikiLang(fileType: string): string {
+  if (fileType === 'typescript') return 'ts';
+  if (fileType === 'shell') return 'bash';
+  if (fileType === 'markdown') return 'md';
+  return fileType;
+}
 
 export function ShikiEditor({ fileId }: { fileId: string }) {
   const file = getFileById(fileId);
@@ -16,30 +23,15 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
   // no draft exists for this fileId, the editor falls back to the last
   // confirmed backend content (workspaceFiles, via getFileById).
   const content = draft !== undefined ? draft : file?.content ?? '';
-  const [highlighted, setHighlighted] = useState<string>('');
+  const [isFocused, setIsFocused] = useState(false);
 
-  useEffect(() => {
-    if (!file) return;
-
-    let lang: string = file.type;
-    if (lang === 'typescript') lang = 'ts';
-    if (lang === 'shell') lang = 'bash';
-    if (lang === 'markdown') lang = 'md';
-
-    codeToHtml(content, {
-      lang: lang as any,
-      theme: editorTheme
-    }).then((fullHtml) => {
-      const match = fullHtml.match(/<code>([\s\S]*?)<\/code>/);
-      if (match && match[1]) {
-        setHighlighted(match[1]);
-      } else {
-        setHighlighted(content);
-      }
-    }).catch(() => {
-      setHighlighted(content);
-    });
-  }, [content, file, editorTheme]);
+  const { highlightNode, containerRef, isComplete } = useShikiRevealHighlight({
+    fileId,
+    code: content,
+    lang: file ? resolveShikiLang(file.type) : 'text',
+    theme: editorTheme,
+    enabled: Boolean(file),
+  });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -54,15 +46,39 @@ export function ShikiEditor({ fileId }: { fileId: string }) {
 
   if (!file) return null;
 
+  // The decorative resting cursor only makes sense once revealed and while
+  // the user isn't actually editing — a real browser caret takes over the
+  // instant the textarea is focused, and showing both at once would read as
+  // a bug. Only assembled in that resting state; every other render (mid-
+  // reveal, or focused/editing) keeps passing highlightNode straight
+  // through, so steady-state typing cost is unchanged from before this
+  // sprint.
+  const highlightWithCursor =
+    isComplete && !isFocused
+      ? [
+          typeof highlightNode === 'string' ? (
+            <span key="code" dangerouslySetInnerHTML={{ __html: highlightNode }} />
+          ) : (
+            highlightNode
+          ),
+          <span
+            key="cursor"
+            className="typing-reveal-cursor inline-block w-[7px] h-[15px] bg-[#cccccc] align-text-bottom"
+          />,
+        ]
+      : highlightNode;
+
   return (
-    <div className="h-full w-full bg-[#1e1e1e] overflow-y-auto font-mono text-[14px]">
+    <div ref={containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full bg-[#1e1e1e] overflow-y-auto font-mono text-[14px]">
       <Editor
         value={content}
         onValueChange={(value) => setDraftContent(fileId, value)}
-        highlight={() => highlighted}
+        highlight={() => highlightWithCursor}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         padding={16}
         style={{
-          fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+          fontFamily: "var(--font-mono)",
           minHeight: '100%',
           backgroundColor: '#1e1e1e'
         }}

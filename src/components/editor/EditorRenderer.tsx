@@ -9,7 +9,6 @@ import { isProjectDocFile } from '../../documentation/fileMatch';
 import { ProjectDocumentationViewer } from '../documentation/ProjectDocumentationViewer';
 import { MarkdownFileView } from './MarkdownFileView';
 import { ShikiEditor } from './ShikiEditor';
-import { TypingReveal } from '../shared/TypingReveal';
 import { ResumeWorkspace } from '../resume/ResumeWorkspace';
 import type { VirtualFile } from '../../types';
 
@@ -26,17 +25,18 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
 
   // Sprint 10F: RESUME.md owns its own internal synchronized split (markdown
   // source + 3D preview) and its own typing-reveal sequencing (see
-  // ResumeWorkspace.tsx) — it deliberately bypasses the generic single-clip
-  // TypingReveal wrap below, unlike work_history which stays inside it.
+  // ResumeWorkspace.tsx) — untouched by the Workspace-Wide File Opening
+  // Animation System sprint, which drives every other renderer below.
   if (file.id === 'resume') {
     return <ResumeWorkspace file={file} />;
   }
 
-  return (
-    <TypingReveal fileId={file.id} contentLength={file.content.length}>
-      {renderFileContent(file, pane)}
-    </TypingReveal>
-  );
+  // Sprint: Workspace-Wide File Opening Animation System — each renderer
+  // now drives its own reveal internally via useFileRevealSequence
+  // (block-by-block for markdown, per-line for code/YAML, node-then-edge
+  // for Mermaid, per-category for the Manifest Viewer), replacing the old
+  // one-size-fits-all TypingReveal clip-path wrap that used to sit here.
+  return renderFileContent(file, pane);
 }
 
 function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {

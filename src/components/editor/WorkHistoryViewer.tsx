@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getFileById } from '../../content/fileSystem';
 import { cn } from '../../lib/utils';
 import { workHistory } from '../../content/workHistory';
 import { CareerRoadmap } from '../experience/CareerRoadmap';
 import { WorkHistoryYamlBlock } from '../experience/WorkHistoryYamlBlock';
+import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 
 // WA-09: below this container width (not viewport width — this is what
 // actually narrows inside a split pane) the two columns stack vertically
@@ -14,6 +15,15 @@ export function WorkHistoryViewer() {
   const file = getFileById('work_history');
   const containerRef = useRef<HTMLDivElement>(null);
   const [isNarrow, setIsNarrow] = useState(false);
+
+  const lineCount = useMemo(() => (file ? file.content.split('\n').length : 0), [file]);
+  // Reuses this component's existing ResizeObserver ref for the reveal
+  // engine's interruption listeners too, rather than adding a second one.
+  const sequence = useFileRevealSequence({
+    fileId: 'work_history',
+    unitCount: lineCount,
+    containerRef,
+  });
 
   useEffect(() => {
     const el = containerRef.current;
@@ -39,6 +49,7 @@ export function WorkHistoryViewer() {
             <WorkHistoryYamlBlock
               code={file.content}
               lang={file.type === 'typescript' ? 'ts' : file.type}
+              sequence={sequence}
             />
           </div>
         )}

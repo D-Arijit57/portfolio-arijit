@@ -70,11 +70,19 @@ export function CareerRoadmap({ experiences }: { experiences: WorkExperience[] }
                   <div className="mb-3 text-[12px] font-medium text-[#858585]">
                     {exp.startDate} — {exp.endDate}
                   </div>
-                  <ExperienceCard experience={exp} index={index} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.06, ease: 'easeOut' }}
+                    whileHover={{ y: -2 }}
+                    className="w-full rounded-md border border-[#3c3c3c] bg-[#1e1e1e] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
+                  >
+                    <ExperienceCard experience={exp} index={index} />
 
-                  {exp.impact && <ImpactMetrics items={exp.impact} />}
+                    {exp.impact && <ImpactMetrics items={exp.impact} />}
 
-                  {exp.skills && <SkillFocus items={exp.skills} />}
+                    {exp.skills && <SkillFocus items={exp.skills} />}
+                  </motion.div>
                 </div>
               );
             })}

@@ -5,8 +5,8 @@
  * Viewer (src/manifest/types.ts), applied to work history instead.
  */
 
-/** Subtle accent palette every dashboard section picks from — never a full colored background, just an icon/value/border tint. */
-export type DashboardAccent = 'blue' | 'green' | 'purple' | 'orange';
+/** Subtle accent palette every dashboard section picks from — never a full colored background, just an icon/border tint. */
+export type DashboardAccent = 'blue' | 'green' | 'purple' | 'yellow';
 
 export interface ImpactMetric {
   /** Key into src/components/experience/dashboardIcons.ts's icon map. */

@@ -24,10 +24,10 @@ export const workHistory: WorkExperience[] = [
       'Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.',
     ],
     impact: [
-      { icon: 'clock', value: '2 hrs/week', label: 'Time Saved', accent: 'green' },
-      { icon: 'database', value: '200+', label: 'Documents Indexed', accent: 'green' },
-      { icon: 'bug', value: '5+', label: 'Issues Resolved', accent: 'orange' },
-      { icon: 'rocket', value: '2', label: 'AI Features Delivered', accent: 'purple' },
+      { icon: 'clock', value: '2 hrs/week', label: 'Saved', accent: 'blue' },
+      { icon: 'file', value: '200+', label: 'Documents Indexed', accent: 'yellow' },
+      { icon: 'error', value: '5+', label: 'Issues Resolved', accent: 'yellow' },
+      { icon: 'sparkles', value: '2', label: 'AI Features Delivered', accent: 'purple' },
     ],
     skills: [
       { label: 'AI Engineering', percent: 85 },

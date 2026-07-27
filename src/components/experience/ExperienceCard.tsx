@@ -20,23 +20,24 @@ function resolveCompanyLogo(company: string): string | undefined {
   return COMPANY_LOGOS[company.trim().toLowerCase()];
 }
 
+/**
+ * The experience card's header content only — logo, name, role, location,
+ * external link, tech pills. Deliberately not its own bordered card
+ * anymore: CareerRoadmap.tsx wraps this together with ImpactMetrics and
+ * SkillFocus inside one shared card, so the whole experience reads as a
+ * single component instead of several stacked boxes.
+ */
 export function ExperienceCard({ experience, index }: { experience: WorkExperience; index: number }) {
   const logo = resolveCompanyLogo(experience.company);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.06, ease: 'easeOut' }}
-      whileHover={{ y: -2 }}
-      className="relative w-full rounded-md border border-[#3c3c3c] bg-[#1e1e1e] p-5 shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-shadow hover:shadow-[0_4px_14px_rgba(0,0,0,0.35)]"
-    >
+    <div className="relative w-full">
       <a
         href={experience.companyUrl}
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open ${experience.company}'s website`}
-        className="absolute right-4 top-4 rounded p-1 text-[#858585] transition-colors hover:bg-[#2a2d2e] hover:text-[#cccccc]"
+        className="absolute right-0 top-0 rounded p-1 text-[#858585] transition-colors hover:bg-[#2a2d2e] hover:text-[#cccccc]"
       >
         <ExternalLink size={15} />
       </a>
@@ -74,6 +75,6 @@ export function ExperienceCard({ experience, index }: { experience: WorkExperien
           ))}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

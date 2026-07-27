@@ -1,4 +1,4 @@
-import { Clock, Database, Bug, Rocket, Sparkles, type LucideIcon } from 'lucide-react';
+import { Clock, FileText, CircleAlert, Sparkles, type LucideIcon } from 'lucide-react';
 import type { DashboardAccent } from '../../experience/types';
 
 /**
@@ -10,19 +10,19 @@ import type { DashboardAccent } from '../../experience/types';
  */
 const DASHBOARD_ICONS: Record<string, LucideIcon> = {
   clock: Clock,
-  database: Database,
-  bug: Bug,
-  rocket: Rocket,
+  file: FileText,
+  error: CircleAlert,
+  sparkles: Sparkles,
 };
 
 export function resolveDashboardIcon(key: string): LucideIcon {
   return DASHBOARD_ICONS[key] ?? Sparkles;
 }
 
-/** Subtle accent colors — icons/values/borders only, never a full card background (see the redesign brief's "avoid large colorful backgrounds"). */
+/** Subtle accent colors — icon and border tint only, never a filled card background (see the redesign brief's "no colorful backgrounds"). */
 export const ACCENT_COLORS: Record<DashboardAccent, string> = {
   blue: '#3b82f6',
   green: '#4ade80',
   purple: '#c084fc',
-  orange: '#fb923c',
+  yellow: '#eab308',
 };

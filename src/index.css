@@ -23,3 +23,16 @@
     opacity: 0;
   }
 }
+
+/* Scroll stays functional, the track/thumb just doesn't render — used
+   wherever a native scrollbar would look out of place next to the rest of
+   the workspace's own chrome (e.g. WorkHistoryViewer's two side-by-side
+   panels). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

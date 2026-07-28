@@ -74,9 +74,6 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
               sequence={sequence}
             />
           ))}
-          {sequence.showCursor && (
-            <span className="typing-reveal-cursor inline-block w-[7px] h-[15px] bg-[#cccccc] mt-2" />
-          )}
         </>
       }
       sidebar={<DocumentationSidebar frontmatter={model.frontmatter} sections={model.sections} />}

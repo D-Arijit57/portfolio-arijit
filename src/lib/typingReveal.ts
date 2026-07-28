@@ -1,18 +1,11 @@
-// Sprint 10D.1 (Intelligent File Opening Animation): the single source of
-// truth for *which* files get the typing-reveal effect and *whether* a given
-// fileId has already played it this session. Kept as a pure, framework-free
-// module — same pattern as the search index / notification queue — so
-// future files opt in with a one-line addition to the Set below, without
-// touching EditorRenderer or any of the renderers it dispatches to.
-
-export const TYPING_REVEAL_FILE_IDS = new Set([
-  'readme',
-  'work_history',
-  'contact_sh',
-  'skills_frontend',
-  'skills_backend',
-  'resume',
-]);
+// Sprint 10D.1 (Intelligent File Opening Animation): originally paired with
+// TYPING_REVEAL_FILE_IDS (a fileId allowlist) and useTypingReveal.ts's
+// clip-path wipe — both retired by the markdown typography & animation
+// redesign (ResumeWorkspace.tsx, the allowlist's last real member, now uses
+// useFileRevealSequence directly). This module's session-gating primitives
+// outlived that system: they're the shared "has this fileId's reveal played
+// this session" bookkeeping every later reveal engine (useFileRevealSequence,
+// lib/bootSequence.ts, GitHubContributionGraph.tsx) still builds on.
 
 // Session-local bookkeeping — resets on a real page refresh, same pattern as
 // useStore.ts's notifiedGeneratedNamespaces. Not store state: nothing

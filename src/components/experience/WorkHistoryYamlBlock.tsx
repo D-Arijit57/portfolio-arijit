@@ -1,8 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import { codeToHtml } from 'shiki';
 import { useStore } from '../../store/useStore';
 import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
+import { parseLineToCharTokens, type CharToken } from '../../lib/shikiLineReveal';
+
+// Markdown typography & animation redesign: work_history.yaml is a
+// programming/data file, not documentation — it types in character-by-
+// character like every other source file now, instead of fading in whole
+// rows. Each row still enters at its own row-level moment (sequence's
+// existing per-line stagger, unchanged — the "row sliding up" already read
+// well), and its own characters type out in a small fixed step starting
+// from that same moment, decoupled from the shared sequence's own
+// even-spacing formula (a work_history.yaml row is short enough that a
+// flat local step reads as calm, deliberate typing without needing the
+// full jitter/grouping machinery useShikiRevealHighlight uses for whole
+// files).
+const LOCAL_CHAR_STEP_S = 0.02;
 
 interface RenderedLine {
   html: string;
@@ -117,7 +131,14 @@ export function WorkHistoryYamlBlock({
     };
   }, [code, lang, editorTheme]);
 
+  const lineTokens = useMemo<CharToken[][]>(
+    () => (lines ? lines.map((line) => parseLineToCharTokens(line.html)) : []),
+    [lines],
+  );
+
   if (!lines) return null;
+
+  const lastLineIndex = lines.length - 1;
 
   return (
     <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="font-mono text-[14px] leading-[1.7]">
@@ -132,6 +153,13 @@ export function WorkHistoryYamlBlock({
         // already part of `line.html` itself; only wrapped rows are
         // actually shifted by padding-left.
         const hangCh = line.indentUnits * 2 + (line.isListItem ? 2 : 0);
+        const tokens = lineTokens[i] ?? [];
+        const rowDelay = sequence.getUnitDelaySeconds(i);
+        // A blank last line has no character to carry the "fully revealed"
+        // signal (see the per-character onAnimationComplete below) — the
+        // row's own fade-in is the only animation that ever completes for
+        // it, so it has to own the signal in that one case.
+        const isLastLineBlank = i === lastLineIndex && tokens.length === 0;
 
         return (
           <motion.div
@@ -142,7 +170,7 @@ export function WorkHistoryYamlBlock({
             custom={i}
             variants={sequence.unitVariants}
             transition={sequence.isComplete ? { duration: 0 } : undefined}
-            onAnimationComplete={sequence.isLastUnit(i) ? sequence.onLastUnitComplete : undefined}
+            onAnimationComplete={isLastLineBlank ? sequence.onLastUnitComplete : undefined}
           >
             {Array.from({ length: guideCount }, (_, g) => (
               <span
@@ -152,11 +180,36 @@ export function WorkHistoryYamlBlock({
                 style={{ left: `${(g + 1) * 2}ch` }}
               />
             ))}
-            <div
-              style={{ paddingLeft: `${hangCh}ch`, textIndent: `-${hangCh}ch` }}
-              className="whitespace-pre-wrap break-words"
-              dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
-            />
+            {sequence.isComplete ? (
+              <div
+                style={{ paddingLeft: `${hangCh}ch`, textIndent: `-${hangCh}ch` }}
+                className="whitespace-pre-wrap break-words"
+                dangerouslySetInnerHTML={{ __html: line.html || '&nbsp;' }}
+              />
+            ) : (
+              <div
+                style={{ paddingLeft: `${hangCh}ch`, textIndent: `-${hangCh}ch` }}
+                className="whitespace-pre-wrap break-words"
+              >
+                {tokens.length === 0
+                  ? ' '
+                  : tokens.map((token, ci) => {
+                      const isLastChar = i === lastLineIndex && ci === tokens.length - 1;
+                      return (
+                        <motion.span
+                          key={ci}
+                          style={{ color: token.color }}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.15, delay: rowDelay + ci * LOCAL_CHAR_STEP_S, ease: 'easeOut' }}
+                          onAnimationComplete={isLastChar ? sequence.onLastUnitComplete : undefined}
+                        >
+                          {token.char}
+                        </motion.span>
+                      );
+                    })}
+              </div>
+            )}
           </motion.div>
         );
       })}

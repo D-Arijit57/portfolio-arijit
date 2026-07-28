@@ -26,7 +26,16 @@ export function DocumentationLayout({
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <div data-doc-scroll-root ref={containerRef} className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-8">
+    <div
+      data-doc-scroll-root
+      ref={containerRef}
+      className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-8 font-sans"
+      // Markdown typography redesign: Inter, scoped to this project-doc
+      // subtree only (see MarkdownFileView.tsx's identical override) —
+      // covers hero/metadata/main/sidebar alike, so the whole documentation
+      // page reads as one consistent system.
+      style={{ '--font-sans': "'Inter', ui-sans-serif, system-ui, sans-serif" } as React.CSSProperties}
+    >
       <div className="mx-auto max-w-5xl">
         {hero}
         {metadata}

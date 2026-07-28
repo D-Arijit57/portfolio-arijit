@@ -1,5 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { VirtualFile } from '../../types';
 import { useFileRevealSequence, type FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 import { estimateMarkdownBlockCount } from '../../lib/markdownBlockCount';
@@ -42,12 +43,22 @@ export function MarkdownFileView({ file }: { file: VirtualFile }) {
     <div
       ref={sequence.containerRef as React.RefObject<HTMLDivElement>}
       className="h-full overflow-y-auto bg-[#1e1e1e] p-8 text-[#cccccc]"
+      // Markdown typography redesign: Inter for prose, scoped to this
+      // subtree only via a local --font-sans override — Tailwind's
+      // `font-sans` utility reads var(--font-sans) (index.css's @theme
+      // block), so this changes every descendant's sans-serif font without
+      // touching the app-wide theme (the rest of the IDE chrome, and this
+      // page's own monospace/code, stay on Geist Sans/Geist Mono).
+      style={{ '--font-sans': "'Inter', ui-sans-serif, system-ui, sans-serif" } as React.CSSProperties}
     >
-      <div className={`${containerWidthClass} font-sans [&>h1]:text-3xl [&>h1]:font-bold [&>h1]:border-b [&>h1]:border-[#3c3c3c] [&>h1]:pb-2 [&>h1]:text-white [&>h1]:mb-4 [&>h2]:text-2xl [&>h2]:font-semibold [&>h2]:text-white [&>h2]:mb-4 [&>h2]:mt-8 [&>p]:mb-4 [&>p]:leading-relaxed [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4 [&>ul>li]:mb-2 [&>blockquote]:my-4 [&>blockquote]:border-l-2 [&>blockquote]:border-[#3c3c3c] [&>blockquote]:bg-[#252526] [&>blockquote]:px-4 [&>blockquote]:py-2 [&>blockquote]:italic [&>blockquote]:text-[13px] [&>blockquote]:text-[#9d9d9d] [&>blockquote>p]:mb-0 [&>pre]:bg-[#1e1e1e] [&>pre]:p-4 [&>pre]:rounded-md [&>pre]:border [&>pre]:border-[#333333] [&>pre]:my-4 [&>pre>code]:font-mono [&>pre>code]:text-[13px] [&_code:not(pre>code)]:bg-[#333333] [&_code:not(pre>code)]:px-1.5 [&_code:not(pre>code)]:py-0.5 [&_code:not(pre>code)]:rounded [&_code:not(pre>code)]:text-white [&_strong]:text-white [&_a]:text-[#007acc] [&_a]:hover:underline`}>
-        <Markdown components={markdownComponents}>{file.content}</Markdown>
-        {sequence.showCursor && (
-          <span className="typing-reveal-cursor inline-block w-[7px] h-[15px] bg-[#cccccc] align-text-bottom" />
-        )}
+      {/* Portfolio Polish Sprint: typography now lives entirely on
+          createRevealMarkdownComponents' own per-tag classNames (shared
+          PROSE_CLASSNAMES), not on selectors here — this wrapper only owns
+          reading width and base font. */}
+      <div className={`${containerWidthClass} font-sans`}>
+        <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          {file.content}
+        </Markdown>
       </div>
     </div>
   );

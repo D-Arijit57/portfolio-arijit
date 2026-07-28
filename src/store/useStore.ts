@@ -93,14 +93,21 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
  * split beyond what openToSide() explicitly created.
  */
 /**
- * A file that owns its own permanent source/renderer split — currently
- * mermaid (Architecture Canvas) and manifest.json (Manifest Viewer). The
- * one shared predicate openFile()'s auto-split branch and its "leaving"
- * reset both check, so the two can't drift apart as more file types adopt
- * this pattern.
+ * A file that owns its own permanent source/renderer split — currently only
+ * manifest.json (Manifest Viewer), which pairs with its project's
+ * architecture.mmd sibling. The one shared predicate openFile()'s auto-split
+ * branch and its "leaving" reset both check, so the two can't drift apart as
+ * more file types adopt this pattern.
+ *
+ * Portfolio Polish Sprint (Architecture full-screen): mermaid used to be in
+ * this set too, self-mirroring into a raw-source-left/canvas-right split
+ * (ARCHITECTURE_PLATFORM_DESIGN.md §9, since revised) — removed so
+ * architecture.mmd behaves like an ordinary file for pane placement (see the
+ * dedicated mermaid branch in openFile() below), never exposing raw Mermaid
+ * source in either pane.
  */
 function requiresDualPaneSplit(file: VirtualFile): boolean {
-  return file.type === 'mermaid' || isManifestFile(file);
+  return isManifestFile(file);
 }
 
 function resolveTargetPane(state: Pick<StoreState, 'openedTabs' | 'editorSplit' | 'activeFileId'>): 'left' | 'right' {
@@ -350,78 +357,91 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // ARCHITECTURE_PLATFORM_DESIGN.md §9 (mermaid) and the same pattern
-    // extended to manifest.json: a file's raw source (left) and its custom
-    // renderer (right) are two views of the *same* file, not two files —
-    // ordinary navigation always (re)establishes both panes for it, the
-    // same way the README branch above always (re)establishes its
-    // Playground pairing. `requiresDualPaneSplit` is generic on file
-    // type/name, not on any project's id, so this applies to every current
-    // and future project's architecture.mmd or manifest.json with no
-    // per-project code. Checked before the onboarding-exit and
-    // existing-tab branches below so it takes priority regardless of what
-    // was open before.
+    // Manifest Viewer v2 (ARCHITECTURE_PLATFORM_DESIGN.md §9): manifest.json
+    // is a single-file presentation — it never shows its own raw JSON
+    // (EditorRenderer renders it as the Technology Dashboard in every pane)
+    // — so ordinary navigation always (re)establishes its pairing with the
+    // project's own architecture.mmd, the same way the README branch above
+    // always (re)establishes its Playground pairing. Checked before the
+    // onboarding-exit and existing-tab branches below so it takes priority
+    // regardless of what was open before.
     const file = state.workspaceFiles.find(f => f.id === id);
     if (file && requiresDualPaneSplit(file)) {
       const ts = Date.now();
 
-      // Manifest Viewer v2: manifest.json is a single-file presentation —
-      // it never shows its own raw JSON (EditorRenderer renders it as the
-      // Technology Dashboard in every pane), so it doesn't pair with itself
-      // the way .mmd does below. Instead it pairs with its project's own
-      // architecture.mmd, resolved the same basePath-relative sibling
-      // lookup LinkCardGrid's resolveLinkTarget uses for a "Continue
-      // Exploring" link — inlined against `state.workspaceFiles` (already
-      // in scope) rather than imported, since resolveLinkTarget pulls in
-      // content/fileSystem.ts, which reads useStore.getState() at module
-      // load and would form an import cycle with this file. So this works
-      // for any future project's manifest with zero per-project code, and
-      // degrades to a single pane if that project has no architecture.mmd
-      // yet.
-      if (isManifestFile(file)) {
-        const basePath = file.path.slice(0, file.path.lastIndexOf('/'));
-        const architecturePath = `${basePath}/architecture.mmd`.replace(/\/+/g, '/');
-        const architectureFile = state.workspaceFiles.find(f => f.path === architecturePath);
+      // Resolved the same basePath-relative sibling lookup LinkCardGrid's
+      // resolveLinkTarget uses for a "Continue Exploring" link — inlined
+      // against `state.workspaceFiles` (already in scope) rather than
+      // imported, since resolveLinkTarget pulls in content/fileSystem.ts,
+      // which reads useStore.getState() at module load and would form an
+      // import cycle with this file. So this works for any future project's
+      // manifest with zero per-project code, and degrades to a single pane
+      // if that project has no architecture.mmd yet.
+      const basePath = file.path.slice(0, file.path.lastIndexOf('/'));
+      const architecturePath = `${basePath}/architecture.mmd`.replace(/\/+/g, '/');
+      const architectureFile = state.workspaceFiles.find(f => f.path === architecturePath);
 
-        if (architectureFile) {
-          return {
-            editorSplit: true,
-            // The side file owns the split, same as the README/Playground
-            // pairing above — closing the Architecture Canvas tab collapses
-            // back to a single dashboard pane.
-            splitTrigger: architectureFile.id,
-            splitRatio: 0.5,
-            openedTabs: [
-              { id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const },
-              { id: `tab-${ts}-architecture`, fileId: architectureFile.id, pane: 'right' as const },
-            ],
-            activeFileId: id,
-          };
-        }
-
+      if (architectureFile) {
         return {
-          editorSplit: false,
-          splitTrigger: null,
+          editorSplit: true,
+          // The side file owns the split, same as the README/Playground
+          // pairing above — closing the Architecture Canvas tab collapses
+          // back to a single dashboard pane.
+          splitTrigger: architectureFile.id,
           splitRatio: 0.5,
-          openedTabs: [{ id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const }],
+          openedTabs: [
+            { id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const },
+            { id: `tab-${ts}-architecture`, fileId: architectureFile.id, pane: 'right' as const },
+          ],
           activeFileId: id,
         };
       }
 
       return {
+        editorSplit: false,
+        splitTrigger: null,
+        splitRatio: 0.5,
+        openedTabs: [{ id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const }],
+        activeFileId: id,
+      };
+    }
+
+    // Portfolio Polish Sprint (Architecture full-screen): architecture.mmd is
+    // a dedicated full-screen visualization, never a raw-source/canvas
+    // mirror (that self-split lived here until this sprint — see
+    // ARCHITECTURE_PLATFORM_DESIGN.md §9's revision note). Opening it takes
+    // over the whole editor area when nothing else is open; when another
+    // file is already open, it splits beside that file instead of replacing
+    // it — the same "beside whatever's active" placement openToSide() uses
+    // below, so the existing file is never displaced. EditorRenderer always
+    // renders the Architecture Canvas for a mermaid file regardless of which
+    // pane it lands in, so the user never sees raw Mermaid source.
+    if (file && file.type === 'mermaid') {
+      const existingMermaidTab = state.openedTabs.find(t => t.fileId === id);
+      if (existingMermaidTab) {
+        return { activeFileId: id };
+      }
+
+      const ts = Date.now();
+      if (state.openedTabs.length === 0) {
+        return {
+          editorSplit: false,
+          splitTrigger: null,
+          openedTabs: [{ id: `tab-${ts}-architecture`, fileId: id, pane: 'left' as const }],
+          activeFileId: id,
+        };
+      }
+
+      const activeTab = state.openedTabs.find(t => t.fileId === state.activeFileId);
+      const currentPane = activeTab?.pane ?? 'left';
+      const sidePane: 'left' | 'right' = currentPane === 'left' ? 'right' : 'left';
+      const tabsWithoutSidePane = state.openedTabs.filter(t => t.pane !== sidePane);
+
+      return {
         editorSplit: true,
-        splitTrigger: id,
-        // Presentation tuning: the custom renderer is the primary artifact,
-        // the raw source is reference material — 30/70 gives it clearly
-        // more room than a balanced 50/50 split would, without starving the
-        // source pane. Only the default *starting* ratio for a fresh open;
-        // a manual drag on the divider (WA-06) still overrides it for the
-        // rest of the session same as any other split.
-        splitRatio: 0.3,
-        openedTabs: [
-          { id: `tab-${ts}-dual-left`, fileId: id, pane: 'left' as const },
-          { id: `tab-${ts}-dual-right`, fileId: id, pane: 'right' as const },
-        ],
+        splitTrigger: state.editorSplit ? state.splitTrigger : id,
+        splitRatio: state.editorSplit ? state.splitRatio : 0.5,
+        openedTabs: [...tabsWithoutSidePane, { id: `tab-${ts}-architecture`, fileId: id, pane: sidePane }],
         activeFileId: id,
       };
     }
@@ -429,8 +449,8 @@ export const useStore = create<StoreState>((set, get) => ({
     // Leaving a dual-pane split's presentation-tuned ratio (above) behind
     // for any other file — otherwise 0.3 would silently leak into unrelated
     // layouts, contradicting "other editor layouts remain unchanged." Only
-    // resets when a mermaid/manifest file was actually open; never
-    // overrides a manual drag (WA-06) made on an unrelated split.
+    // resets when a manifest file was actually open; never overrides a
+    // manual drag (WA-06) made on an unrelated split.
     const leavingDualPaneFile = state.openedTabs.some(t => {
       const openTabFile = state.workspaceFiles.find(wf => wf.id === t.fileId);
       return openTabFile ? requiresDualPaneSplit(openTabFile) : false;

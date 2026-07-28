@@ -6,6 +6,16 @@
 @import "@fontsource/geist-mono/500.css";
 @import "@fontsource/geist-mono/600.css";
 @import "@fontsource/geist-mono/700.css";
+/* Markdown typography redesign: Inter, scoped to markdown prose only (see
+   MarkdownFileView.tsx / DocumentationLayout.tsx's local --font-sans
+   override) — registering the font faces here doesn't touch --font-sans
+   below, so the rest of the IDE chrome (tabs, explorer, terminal, etc.)
+   stays on Geist Sans, and all monospace/code stays on Geist Mono
+   everywhere, markdown included. */
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
 @import "tailwindcss";
 
 @theme {

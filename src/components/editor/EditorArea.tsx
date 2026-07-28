@@ -5,14 +5,17 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { EditorRenderer } from './EditorRenderer';
 import { SplitEditorArea } from './SplitEditorArea';
 import { BootTerminal } from '../shell/BootTerminal';
-import { hasBooted, prefersReducedMotion } from '../../lib/bootSequence';
+import { shouldRunOnboarding } from '../../lib/onboardingScope';
 
 export function EditorArea() {
   const { editorSplit, setBootActive } = useStore();
   // Lazy-initialized once per EditorArea mount (i.e. once per page load) —
   // switching tabs, reopening README, etc. never remount EditorArea, so the
-  // boot terminal never replays mid-session. See lib/bootSequence.ts.
-  const [booting, setBooting] = useState(() => !hasBooted() && !prefersReducedMotion());
+  // boot terminal never replays mid-session. Portfolio UX Sprint: also
+  // scoped to a README landing — shouldRunOnboarding() folds in the entry
+  // route check alongside the existing hasBooted()/prefersReducedMotion()
+  // gates (see lib/onboardingScope.ts / lib/bootSequence.ts).
+  const [booting, setBooting] = useState(() => shouldRunOnboarding());
 
   // Sprint 10E.2: mirrors `booting` into the store's bootActive flag (see
   // useStore.ts) so Notifications can suppress toasts for the same window,

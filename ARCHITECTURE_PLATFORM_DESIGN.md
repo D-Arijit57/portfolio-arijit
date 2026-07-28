@@ -10,6 +10,8 @@ No code is defined here. Interface and method descriptions are contracts to impl
 
 **Revision note (2026-07-25, Phase 1 implementation)**: Phase 1 (§13) built the data layer, category registry, Architecture Registry, Cortexa's canonical model, and the Mermaid renderer — no code changes to §1–§15's frozen decisions were required. Two documentation refinements were added based on what implementation surfaced: §6.1 and §5 now state explicitly why `workspaceSeed.ts` calls `modelToMermaid()` directly rather than through the registry (an authoring-time/runtime distinction implicit in the original text but not stated outright), and §9 now notes a real duplication site — `server/repositories/seed/workspaceSeed.ts` — discovered during implementation, not mentioned in §1's original grounding. Neither changes any frozen contract; both are clarifications of what was already true. Re-frozen as of 2026-07-25.
 
+**Revision note (2026-07-29, Portfolio Polish Sprint)**: §9's pane-aware split (raw Mermaid source in the left `ShikiEditor`, Architecture Canvas in the right pane) is superseded. Per the sprint brief, a portfolio visitor must never see raw Mermaid source — `architecture.mmd` is now a dedicated full-screen visualization: `EditorRenderer.tsx` renders the Architecture Canvas for `file.type === 'mermaid'` in *every* pane, and `useStore.ts`'s `openFile()` no longer self-mirrors it into a permanent dual-pane split (that behavior is now exclusive to manifest.json, which still pairs with its project's architecture.mmd). Opening `architecture.mmd` alone takes the full editor area; opening it while another file is open splits beside that file (mirroring `openToSide()`'s placement) instead of replacing it. The tab keeps its `architecture.mmd` title, Mermaid icon, and breadcrumb (`EditorTabs.tsx`/`Breadcrumbs.tsx` are unaffected — both are generic on `file.type`/`file.path`, not on how the active pane renders the file). No change to the renderer itself (§6.2), the domain model, or the toolbar/zoom/mode controls — only to which pane(s) show it and what those panes render. Re-frozen as of 2026-07-29.
+
 ## Non-Goals
 
 The Architecture Platform is explicitly not intended to become:
@@ -225,7 +227,7 @@ No concern above has two owners.
 
 ## 9. Workspace Integration
 
-`EditorRenderer.tsx` becomes pane-aware for `.mmd` files (it currently is not — §1): left pane renders the existing `ShikiEditor` (raw source — syntax highlighting, minimap, folding, all already implemented, unchanged), right pane renders `ArchitectureCanvas`. This replaces `MermaidViewer.tsx` entirely; nothing else in `EditorRenderer` changes for other file types.
+**Superseded by the 2026-07-29 revision note above.** As originally written, this section had `EditorRenderer.tsx` become pane-aware for `.mmd` files: left pane rendering the existing `ShikiEditor` (raw source), right pane rendering `ArchitectureCanvas`. The Portfolio Polish Sprint replaced that with a single rule — every pane renders `ArchitectureCanvas` for `file.type === 'mermaid'`, full stop, so a portfolio visitor never sees raw Mermaid source. This still replaces `MermaidViewer.tsx` entirely; nothing else in `EditorRenderer` changes for other file types.
 
 Per-project file layout stays exactly what the brief specifies:
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import type { Components } from 'react-markdown';
 import { ProfileStatusCard } from '../shared/ProfileStatusCard';
 import { ProfileSidebar } from '../shared/ProfileSidebar';
 import { TechStackPills } from '../shared/TechStackPills';
@@ -30,21 +29,3 @@ export function widgetForLanguage(className: string | undefined): React.Componen
   const match = /language-([\w-]+)/.exec(className ?? '');
   return match ? MARKDOWN_WIDGETS[match[1]] : undefined;
 }
-
-/** `pre`/`code` overrides that dispatch fenced widget blocks; spread into any Components map that wants MARKDOWN_WIDGETS support. */
-export const widgetAwareComponents: Pick<Components, 'pre' | 'code'> = {
-  pre({ children }) {
-    const child = React.isValidElement<{ className?: string }>(children) ? children : null;
-    if (child && widgetForLanguage(child.props.className)) {
-      return <>{children}</>;
-    }
-    return <pre>{children}</pre>;
-  },
-  code({ className, children }) {
-    const Widget = widgetForLanguage(className);
-    if (Widget) {
-      return <Widget />;
-    }
-    return <code className={className}>{children}</code>;
-  },
-};

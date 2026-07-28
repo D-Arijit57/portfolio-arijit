@@ -206,6 +206,12 @@ Feel free to explore the files and learn more about my background.
 # Try running this command below:
 npm run about
 \`\`\`
+
+> **Quick Start**
+>
+> This workspace is interactive.
+>
+> Run \`help\` in the terminal below to begin exploring the portfolio.
 `,
     } as VirtualFile,
     {

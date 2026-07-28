@@ -2,7 +2,11 @@ import React, { createContext, useContext, type RefObject } from 'react';
 import { motion } from 'motion/react';
 import type { Components } from 'react-markdown';
 import type { FileRevealSequenceResult } from '../../../hooks/useFileRevealSequence';
-import { widgetAwareComponents, widgetForLanguage } from '../../documentation/documentationWidgets';
+import { widgetForLanguage } from '../../documentation/documentationWidgets';
+import { CodeBlock } from '../../markdown/CodeBlock';
+import { InlineCode } from '../../markdown/InlineCode';
+import { PROSE_CLASSNAMES } from '../../markdown/proseClassNames';
+import { getFenceCodeClassName, fenceLanguageFromClassName, isFencedLanguageClassName } from '../../markdown/fenceLanguage';
 
 /** Set by every top-level reveal block before rendering its children, so a
  * paragraph inside a blockquote (etc.) renders bare instead of claiming its
@@ -10,7 +14,7 @@ import { widgetAwareComponents, widgetForLanguage } from '../../documentation/do
  * blockquote+paragraph as two. */
 export const RevealNestingContext = createContext(false);
 
-type BlockTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p' | 'ul' | 'ol' | 'blockquote';
+type BlockTag = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'p' | 'ul' | 'ol' | 'blockquote' | 'hr';
 
 const MOTION_TAG: Record<BlockTag, any> = {
   h1: motion.h1,
@@ -23,19 +27,21 @@ const MOTION_TAG: Record<BlockTag, any> = {
   ul: motion.ul,
   ol: motion.ol,
   blockquote: motion.blockquote,
+  hr: motion.hr,
 };
 
 /**
  * Builds a react-markdown Components map that reveals top-level blocks
- * (headings, paragraphs, lists, blockquotes, fences) one at a time via
- * useFileRevealSequence, instead of MarkdownFileView's old blanket
+ * (headings, paragraphs, lists, blockquotes, rules, tables, fences) one at a
+ * time via useFileRevealSequence, instead of MarkdownFileView's old blanket
  * clip-path wipe.
  *
- * Every override is a real substitution of the block's own tag
- * (motion.h1 still renders a literal <h1>, motion.pre a literal <pre>) —
- * never an added wrapper div — so MarkdownFileView's existing
- * `[&>h1]`/`[&>p]`/`[&>pre]`/etc. direct-child Tailwind selectors keep
- * matching exactly as before.
+ * Portfolio Polish Sprint: every block now also carries its styling —
+ * PROSE_CLASSNAMES (src/components/markdown/proseClassNames.ts), the same
+ * shared classNames the Project Documentation Viewer's
+ * documentationComponents.tsx uses — directly on the substituted tag, so
+ * MarkdownFileView's typography matches every other markdown surface
+ * exactly rather than relying on a parent container's own CSS selectors.
  *
  * `sequenceRef` (not `sequence` directly) is what lets these block
  * components stay referentially stable across re-renders — the caller
@@ -54,11 +60,12 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
   function revealBlock(tag: BlockTag) {
     const Tag = MOTION_TAG[tag];
     const Plain = tag as any;
+    const className = PROSE_CLASSNAMES[tag];
 
     return function RevealBlockComponent({ children }: { children?: React.ReactNode }) {
       const insideBlock = useContext(RevealNestingContext);
       if (insideBlock) {
-        return <Plain>{children}</Plain>;
+        return <Plain className={className}>{children}</Plain>;
       }
 
       const i = index++;
@@ -67,7 +74,7 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
       if (sequence.isComplete) {
         return (
           <RevealNestingContext.Provider value={true}>
-            <Plain>{children}</Plain>
+            <Plain className={className}>{children}</Plain>
           </RevealNestingContext.Provider>
         );
       }
@@ -75,6 +82,7 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
       return (
         <RevealNestingContext.Provider value={true}>
           <Tag
+            className={className}
             initial="hidden"
             animate="visible"
             custom={i}
@@ -88,45 +96,73 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
     };
   }
 
-  function isWidgetFence(children: React.ReactNode): boolean {
-    const child = React.isValidElement<{ className?: string }>(children) ? children : null;
-    return child ? Boolean(widgetForLanguage(child.props.className)) : false;
-  }
-
-  function RevealPre({ children }: { children?: React.ReactNode }) {
+  function RevealTable({ children }: { children?: React.ReactNode }) {
     const insideBlock = useContext(RevealNestingContext);
-    // Mirrors widgetAwareComponents.pre's own widget-vs-plain-fence check —
-    // duplicated rather than delegated to avoid calling that component as a
-    // bare function outside JSX.
-    const isWidget = isWidgetFence(children);
+    const renderTable = () => (
+      <div className={PROSE_CLASSNAMES.tableWrapper}>
+        <table className={PROSE_CLASSNAMES.table}>{children}</table>
+      </div>
+    );
 
     if (insideBlock) {
-      return isWidget ? <>{children}</> : <pre>{children}</pre>;
+      return renderTable();
     }
 
     const i = index++;
     const sequence = sequenceRef.current;
 
     if (sequence.isComplete) {
-      return (
-        <RevealNestingContext.Provider value={true}>
-          {isWidget ? <>{children}</> : <pre>{children}</pre>}
-        </RevealNestingContext.Provider>
-      );
+      return <RevealNestingContext.Provider value={true}>{renderTable()}</RevealNestingContext.Provider>;
     }
 
-    const Wrapper = isWidget ? motion.div : motion.pre;
     return (
       <RevealNestingContext.Provider value={true}>
-        <Wrapper
+        <motion.div
           initial="hidden"
           animate="visible"
           custom={i}
           variants={sequence.unitVariants}
           onAnimationComplete={sequence.isLastUnit(i) ? sequence.onLastUnitComplete : undefined}
         >
-          {children}
-        </Wrapper>
+          {renderTable()}
+        </motion.div>
+      </RevealNestingContext.Provider>
+    );
+  }
+
+  function RevealPre({ node, children }: { node?: unknown; children?: React.ReactNode }) {
+    const insideBlock = useContext(RevealNestingContext);
+    // Node-based (not children-based) so this stays correct regardless of
+    // what the `code` component override below renders its children as —
+    // mirrors documentationComponents.tsx's own `pre` override.
+    const classNameStr = getFenceCodeClassName(node);
+    const isWidget = Boolean(widgetForLanguage(classNameStr));
+    const language = fenceLanguageFromClassName(classNameStr);
+
+    const renderFence = () => (isWidget ? <>{children}</> : <CodeBlock language={language}>{children}</CodeBlock>);
+
+    if (insideBlock) {
+      return renderFence();
+    }
+
+    const i = index++;
+    const sequence = sequenceRef.current;
+
+    if (sequence.isComplete) {
+      return <RevealNestingContext.Provider value={true}>{renderFence()}</RevealNestingContext.Provider>;
+    }
+
+    return (
+      <RevealNestingContext.Provider value={true}>
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          custom={i}
+          variants={sequence.unitVariants}
+          onAnimationComplete={sequence.isLastUnit(i) ? sequence.onLastUnitComplete : undefined}
+        >
+          {renderFence()}
+        </motion.div>
       </RevealNestingContext.Provider>
     );
   }
@@ -142,7 +178,55 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
     ul: revealBlock('ul'),
     ol: revealBlock('ol'),
     blockquote: revealBlock('blockquote'),
+    hr: revealBlock('hr'),
+    table: RevealTable,
     pre: RevealPre,
-    code: widgetAwareComponents.code,
+    // Every element below sits inside an already-revealed top-level block
+    // (a list item, a table cell, a sentence) — none of them claim their own
+    // reveal index, the same tier `code` already occupied before this
+    // sprint; they only add the shared prose styling.
+    li({ children }) {
+      return <li className={PROSE_CLASSNAMES.li}>{children}</li>;
+    },
+    a({ href, children }) {
+      return (
+        <a href={href} className={PROSE_CLASSNAMES.a} target="_blank" rel="noreferrer">
+          {children}
+        </a>
+      );
+    },
+    strong({ children }) {
+      return <strong className={PROSE_CLASSNAMES.strong}>{children}</strong>;
+    },
+    em({ children }) {
+      return <em className={PROSE_CLASSNAMES.em}>{children}</em>;
+    },
+    img({ src, alt }) {
+      return <img src={src} alt={alt} className={PROSE_CLASSNAMES.img} />;
+    },
+    thead({ children }) {
+      return <thead className={PROSE_CLASSNAMES.thead}>{children}</thead>;
+    },
+    tbody({ children }) {
+      return <tbody className={PROSE_CLASSNAMES.tbody}>{children}</tbody>;
+    },
+    tr({ children }) {
+      return <tr className={PROSE_CLASSNAMES.tr}>{children}</tr>;
+    },
+    th({ children }) {
+      return <th className={PROSE_CLASSNAMES.th}>{children}</th>;
+    },
+    td({ children }) {
+      return <td className={PROSE_CLASSNAMES.td}>{children}</td>;
+    },
+    code({ className, children }) {
+      const Widget = widgetForLanguage(className);
+      if (Widget) return <Widget />;
+      // Fenced code (a `language-*` className) is fully handled by the
+      // `pre` override above (CodeBlock) — stay a bare passthrough so its
+      // content isn't double-wrapped in an inline-code pill.
+      if (isFencedLanguageClassName(className)) return <>{children}</>;
+      return <InlineCode>{children}</InlineCode>;
+    },
   };
 }

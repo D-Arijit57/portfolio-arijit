@@ -7,14 +7,11 @@ import type { HastLikeNode } from '../../documentation/hastLike';
 import { FeatureGrid } from './FeatureGrid';
 import { LinkCardGrid } from './LinkCardGrid';
 import { Callout } from './Callout';
-import { CodeBlock } from './CodeBlock';
+import { CodeBlock } from '../markdown/CodeBlock';
+import { InlineCode } from '../markdown/InlineCode';
+import { PROSE_CLASSNAMES } from '../markdown/proseClassNames';
+import { getFenceCodeClassName, fenceLanguageFromClassName, isFencedLanguageClassName } from '../markdown/fenceLanguage';
 import { widgetForLanguage } from './documentationWidgets';
-
-function classNameToString(value: unknown): string | undefined {
-  if (Array.isArray(value)) return value.join(' ');
-  if (typeof value === 'string') return value;
-  return undefined;
-}
 
 /**
  * Shared react-markdown Components map for the Project Documentation
@@ -32,24 +29,49 @@ function classNameToString(value: unknown): string | undefined {
  */
 export function createDocumentationComponents(basePath: string): Components {
   return {
+    // h1/h2 are rare in section body markdown (the document's title comes
+    // from DocumentationHero, and each section's own H2 is rendered by
+    // DocumentationSection itself — see its doc comment) but kept here for
+    // parity with every other markdown surface, same shared classNames.
+    h1({ children }) {
+      return <h1 className={PROSE_CLASSNAMES.h1}>{children}</h1>;
+    },
+    h2({ children }) {
+      return <h2 className={PROSE_CLASSNAMES.h2}>{children}</h2>;
+    },
     h3({ children }) {
-      return <h3 className="mb-3 mt-6 text-[16px] font-semibold text-white">{children}</h3>;
+      return <h3 className={PROSE_CLASSNAMES.h3}>{children}</h3>;
     },
     h4({ children }) {
-      return <h4 className="mb-2 mt-4 text-[14px] font-semibold text-white">{children}</h4>;
+      return <h4 className={PROSE_CLASSNAMES.h4}>{children}</h4>;
+    },
+    h5({ children }) {
+      return <h5 className={PROSE_CLASSNAMES.h5}>{children}</h5>;
+    },
+    h6({ children }) {
+      return <h6 className={PROSE_CLASSNAMES.h6}>{children}</h6>;
     },
     p({ children }) {
-      return <p className="mb-4 leading-relaxed text-[#cccccc]">{children}</p>;
+      return <p className={PROSE_CLASSNAMES.p}>{children}</p>;
     },
     a({ href, children }) {
       return (
-        <a href={href} className="text-[#007acc] hover:underline" target="_blank" rel="noreferrer">
+        <a href={href} className={PROSE_CLASSNAMES.a} target="_blank" rel="noreferrer">
           {children}
         </a>
       );
     },
     strong({ children }) {
-      return <strong className="text-white">{children}</strong>;
+      return <strong className={PROSE_CLASSNAMES.strong}>{children}</strong>;
+    },
+    em({ children }) {
+      return <em className={PROSE_CLASSNAMES.em}>{children}</em>;
+    },
+    hr() {
+      return <hr className={PROSE_CLASSNAMES.hr} />;
+    },
+    img({ src, alt }) {
+      return <img src={src} alt={alt} className={PROSE_CLASSNAMES.img} />;
     },
     ul({ node, children }) {
       const rawNode = node as unknown as HastLikeNode | undefined;
@@ -60,65 +82,60 @@ export function createDocumentationComponents(basePath: string): Components {
       const linkItems = rawNode ? tryExtractLinkCards(rawNode) : undefined;
       if (linkItems) return <LinkCardGrid items={linkItems} basePath={basePath} />;
 
-      return <ul className="mb-4 ml-6 list-disc space-y-2 text-[#cccccc]">{children}</ul>;
+      return <ul className={PROSE_CLASSNAMES.ul}>{children}</ul>;
     },
     ol({ children }) {
-      return <ol className="mb-4 ml-6 list-decimal space-y-2 text-[#cccccc]">{children}</ol>;
+      return <ol className={PROSE_CLASSNAMES.ol}>{children}</ol>;
     },
     li({ children }) {
-      return <li className="pl-1 leading-relaxed">{children}</li>;
+      return <li className={PROSE_CLASSNAMES.li}>{children}</li>;
     },
     blockquote({ node, children }) {
       const info = node ? tryDetectCallout(node as unknown as HastLikeNode) : undefined;
       if (info) return <Callout info={info}>{children}</Callout>;
-      return (
-        <blockquote className="my-4 border-l-2 border-[#3c3c3c] bg-[#252526] px-4 py-2 text-[13px] italic text-[#9d9d9d] [&>p]:mb-0">
-          {children}
-        </blockquote>
-      );
+      return <blockquote className={PROSE_CLASSNAMES.blockquote}>{children}</blockquote>;
     },
     table({ children }) {
       return (
-        <div className="my-4 overflow-x-auto rounded-md border border-[#3c3c3c]">
-          <table className="w-full border-collapse text-[13px]">{children}</table>
+        <div className={PROSE_CLASSNAMES.tableWrapper}>
+          <table className={PROSE_CLASSNAMES.table}>{children}</table>
         </div>
       );
     },
     thead({ children }) {
-      return <thead className="bg-[#252526]">{children}</thead>;
+      return <thead className={PROSE_CLASSNAMES.thead}>{children}</thead>;
     },
     tbody({ children }) {
-      return <tbody>{children}</tbody>;
+      return <tbody className={PROSE_CLASSNAMES.tbody}>{children}</tbody>;
     },
     tr({ children }) {
-      return <tr className="border-b border-[#3c3c3c] last:border-0">{children}</tr>;
+      return <tr className={PROSE_CLASSNAMES.tr}>{children}</tr>;
     },
     th({ children }) {
-      return <th className="px-3 py-2 text-left font-semibold text-white">{children}</th>;
+      return <th className={PROSE_CLASSNAMES.th}>{children}</th>;
     },
     td({ children }) {
-      return <td className="px-3 py-2 text-[#cccccc]">{children}</td>;
+      return <td className={PROSE_CLASSNAMES.td}>{children}</td>;
     },
     pre({ node, children }) {
-      const codeNode = node?.children?.find(
-        (child): child is typeof child & { tagName: 'code' } =>
-          child.type === 'element' && (child as { tagName?: string }).tagName === 'code'
-      );
-      const classNameStr = classNameToString(
-        (codeNode as { properties?: Record<string, unknown> } | undefined)?.properties?.className
-      );
+      const classNameStr = getFenceCodeClassName(node);
 
       if (widgetForLanguage(classNameStr)) {
         return <>{children}</>;
       }
 
-      const language = /language-([\w-]+)/.exec(classNameStr ?? '')?.[1];
-      return <CodeBlock language={language}>{children}</CodeBlock>;
+      return <CodeBlock language={fenceLanguageFromClassName(classNameStr)}>{children}</CodeBlock>;
     },
     code({ className, children }) {
       const Widget = widgetForLanguage(className);
       if (Widget) return <Widget />;
-      return <>{children}</>;
+      // react-markdown calls this for both inline code and the `<code>`
+      // nested inside a fenced block's `<pre>` — stay a bare passthrough for
+      // the latter and let the `pre` override above own the fence's whole
+      // presentation (CodeBlock), rather than double-wrapping its content in
+      // an inline-code pill.
+      if (isFencedLanguageClassName(className)) return <>{children}</>;
+      return <InlineCode>{children}</InlineCode>;
     },
   };
 }

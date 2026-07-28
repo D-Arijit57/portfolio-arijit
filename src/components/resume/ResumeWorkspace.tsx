@@ -3,7 +3,7 @@ import { RefreshCw, RotateCcw, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ResizeHandle } from '../shared/ResizeHandle';
-import { TypingReveal } from '../shared/TypingReveal';
+import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 import { ResumeOverview } from './ResumeOverview';
 import { ResumeScene, type ResumeSceneHandle } from './ResumeScene';
 import { fetchResumePdf, downloadResumePdf } from './export/fetchResumePdf';
@@ -134,9 +134,9 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         style={isNarrow ? undefined : { width: `${ratio * 100}%` }}
         className={cn('min-w-0 min-h-0 border-[#333333]', isNarrow ? 'w-full h-1/2 border-b' : 'shrink-0 border-r')}
       >
-        <TypingReveal fileId={file.id} contentLength={file.content.length} onRevealComplete={handleRevealComplete}>
+        <ResumePanelReveal file={file} onRevealComplete={handleRevealComplete}>
           <ResumeOverview onDownloadPdf={handleDownloadPdf} />
-        </TypingReveal>
+        </ResumePanelReveal>
       </div>
 
       {!isNarrow && <ResizeHandle direction="horizontal" onResize={handleResize} />}
@@ -178,6 +178,63 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Markdown typography & animation redesign: replaces the old clip-path
+ * vertical-wipe TypingReveal (with its own blinking cursor) that used to
+ * wrap this panel — RESUME.md is documentation, not something being typed,
+ * so it gets the same fade-and-slide-up-into-view treatment every other
+ * markdown file uses, with no cursor at all. Reuses useFileRevealSequence
+ * directly (unitCount=1 — the whole panel is one reveal unit, since
+ * ResumeOverview's own internal layout isn't being redesigned here) rather
+ * than the shared markdown component map, since this panel isn't rendering
+ * react-markdown output. Preserves the exact same onRevealComplete contract
+ * the old TypingReveal had — fired once, whether the reveal actually played
+ * or was skipped (reduced motion / already played this session) — so the
+ * 3D preview build pipeline still kicks off at the same moment it always
+ * did.
+ */
+function ResumePanelReveal({
+  file,
+  onRevealComplete,
+  children,
+}: {
+  file: VirtualFile;
+  onRevealComplete?: () => void;
+  children: React.ReactNode;
+}) {
+  const sequence = useFileRevealSequence({ fileId: file.id, unitCount: 1 });
+  const firedRef = useRef(false);
+
+  useEffect(() => {
+    if (sequence.isComplete && !firedRef.current) {
+      firedRef.current = true;
+      onRevealComplete?.();
+    }
+  }, [sequence.isComplete, onRevealComplete]);
+
+  if (sequence.isComplete) {
+    return (
+      <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full">
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      ref={sequence.containerRef as React.RefObject<HTMLDivElement>}
+      className="h-full w-full"
+      initial="hidden"
+      animate="visible"
+      custom={0}
+      variants={sequence.unitVariants}
+      onAnimationComplete={sequence.onLastUnitComplete}
+    >
+      {children}
+    </motion.div>
   );
 }
 

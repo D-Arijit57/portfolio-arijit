@@ -36,10 +36,10 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   // (block-by-block for markdown, per-line for code/YAML, node-then-edge
   // for Mermaid, per-category for the Manifest Viewer), replacing the old
   // one-size-fits-all TypingReveal clip-path wrap that used to sit here.
-  return renderFileContent(file, pane);
+  return renderFileContent(file);
 }
 
-function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {
+function renderFileContent(file: VirtualFile) {
   // Project documentation (see documentation/fileMatch.ts: any .md directly
   // inside /projects/<Name>/) gets the rich Project Documentation Viewer;
   // every other markdown file keeps the plain MarkdownFileView, unchanged.
@@ -51,11 +51,14 @@ function renderFileContent(file: VirtualFile, pane: 'left' | 'right') {
     return <WorkHistoryViewer />;
   }
 
-  // ARCHITECTURE_PLATFORM_DESIGN.md §9: .mmd is pane-aware — left shows raw
-  // source (the existing ShikiEditor, unchanged), right shows the real
-  // Architecture Canvas renderer. Every other file type is unaffected.
+  // Portfolio Polish Sprint (Architecture full-screen): .mmd is a dedicated
+  // full-screen visualization, not a code file — every pane renders the
+  // Architecture Canvas, never the raw Mermaid source (see
+  // ARCHITECTURE_PLATFORM_DESIGN.md §9's revision note; this replaces the
+  // old pane-aware raw-source/canvas split). Every other file type is
+  // unaffected.
   if (file.type === 'mermaid') {
-    return pane === 'right' ? <ArchitectureCanvas file={file} /> : <ShikiEditor fileId={file.id} />;
+    return <ArchitectureCanvas file={file} />;
   }
 
   // Manifest Viewer v2: manifest.json is a single rendered file, never raw

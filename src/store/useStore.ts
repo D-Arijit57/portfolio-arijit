@@ -92,24 +92,6 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
  * openFile()'s own comment) rather than adding a tab, so it never grows the
  * split beyond what openToSide() explicitly created.
  */
-/**
- * A file that owns its own permanent source/renderer split — currently only
- * manifest.json (Manifest Viewer), which pairs with its project's
- * architecture.mmd sibling. The one shared predicate openFile()'s auto-split
- * branch and its "leaving" reset both check, so the two can't drift apart as
- * more file types adopt this pattern.
- *
- * Portfolio Polish Sprint (Architecture full-screen): mermaid used to be in
- * this set too, self-mirroring into a raw-source-left/canvas-right split
- * (ARCHITECTURE_PLATFORM_DESIGN.md §9, since revised) — removed so
- * architecture.mmd behaves like an ordinary file for pane placement (see the
- * dedicated mermaid branch in openFile() below), never exposing raw Mermaid
- * source in either pane.
- */
-function requiresDualPaneSplit(file: VirtualFile): boolean {
-  return isManifestFile(file);
-}
-
 function resolveTargetPane(state: Pick<StoreState, 'openedTabs' | 'editorSplit' | 'activeFileId'>): 'left' | 'right' {
   if (!state.editorSplit) return 'left';
 

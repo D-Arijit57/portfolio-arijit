@@ -1,17 +1,14 @@
 import React, { useMemo } from 'react';
 import type { VirtualFile } from '../../types';
 import { parseManifest } from '../../manifest/parser';
-import { ManifestHeader } from './ManifestHeader';
-import { ManifestSection } from './ManifestSection';
-import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
+import { ManifestConstellation } from './ManifestConstellation';
 
 /**
  * The Manifest Viewer — a dedicated renderer for manifest.json, the same
  * "structured data in, rendered view out, never the other way around"
  * philosophy as the Architecture Canvas (ARCHITECTURE_PLATFORM_DESIGN.md).
  * Renders entirely from the parsed ManifestModel; it never hardcodes a
- * category name or technology, so a new top-level key in manifest.json
- * (e.g. "observability") renders as a new card automatically.
+ * category name or technology.
  *
  * Manifest Viewer v2: this is the *only* view manifest.json ever renders —
  * there is no raw-JSON counterpart to switch to (useStore's
@@ -20,22 +17,16 @@ import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
  * lives entirely at that store/EditorRenderer wiring level, so this
  * component stays exactly as simple as before.
  *
- * Manifest YAML Viewer redesign: each category is now a full-width
- * collapsible YAML section (ManifestSection) stacked vertically, rather
- * than a multi-column grid of tiles — a single column is what makes a
- * section fill a narrow split pane or a wide full-editor view equally well,
- * instead of staying pinned to a fixed narrow column at any width.
+ * Tech Stack Constellation: ManifestConstellation now owns the entire view
+ * — its own header (title/subtitle/project switcher), the graph, and the
+ * sidebar — so this component is just parse-and-hand-off. The old
+ * ManifestHeader (project name as the page's H1) is superseded: the
+ * constellation's header leads with "Tech Stack Constellation" itself,
+ * matching the reference design, with the project name moved into the
+ * switcher on the same row.
  */
 export function ManifestViewer({ file }: { file: VirtualFile }) {
   const model = useMemo(() => parseManifest(file.content), [file.content]);
-
-  // Hooks run unconditionally, ahead of the empty-state early return below —
-  // an empty/missing model just means unitCount 0, which useFileRevealSequence
-  // already treats as "nothing to reveal."
-  const sequence = useFileRevealSequence({
-    fileId: file.id,
-    unitCount: model?.categories.length ?? 0,
-  });
 
   if (!model || model.categories.length === 0) {
     return (
@@ -45,17 +36,5 @@ export function ManifestViewer({ file }: { file: VirtualFile }) {
     );
   }
 
-  return (
-    <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-6">
-      <ManifestHeader project={model.project} description={model.description} />
-      <div className="space-y-4">
-        {model.categories.map((category, index) => (
-          <ManifestSection key={category.key} category={category} unitIndex={index} sequence={sequence} />
-        ))}
-      </div>
-      {sequence.showCursor && (
-        <span className="typing-reveal-cursor mt-4 inline-block h-[15px] w-[7px] bg-[#cccccc]" />
-      )}
-    </div>
-  );
+  return <ManifestConstellation model={model} fileId={file.id} />;
 }

@@ -20,6 +20,17 @@ function humanizeKey(key: string): string {
   return spaced.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const IMPORTANCE_VALUES = new Set(['primary', 'secondary', 'supporting']);
+
+function isLayoutHint(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  if (v.depth !== undefined && typeof v.depth !== 'number') return false;
+  if (v.orbit !== undefined && typeof v.orbit !== 'number') return false;
+  if (v.angle !== undefined && typeof v.angle !== 'number') return false;
+  return true;
+}
+
 function isManifestTechnology(value: unknown): value is ManifestTechnology {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -27,6 +38,8 @@ function isManifestTechnology(value: unknown): value is ManifestTechnology {
   if (typeof v.technology !== 'string' || typeof v.role !== 'string') return false;
   if (v.description !== undefined && typeof v.description !== 'string') return false;
   if (v.tags !== undefined && !(Array.isArray(v.tags) && v.tags.every((t) => typeof t === 'string'))) return false;
+  if (v.importance !== undefined && !IMPORTANCE_VALUES.has(v.importance as string)) return false;
+  if (v.layoutHint !== undefined && !isLayoutHint(v.layoutHint)) return false;
 
   return true;
 }

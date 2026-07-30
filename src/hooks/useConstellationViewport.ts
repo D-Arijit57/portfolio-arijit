@@ -29,6 +29,16 @@ const MAX_SCALE = 3;
 // constraining axis, squarely in the "70-80% hero" range with comfortable
 // margins on all sides.
 const FIT_PADDING_RATIO = 0.13;
+// The authored layout's bounding box is roughly square, while the actual
+// drawable canvas (editor pane minus header/terminal) is a wide letterbox
+// shape — pure "contain" fit (scale bound by whichever axis is smaller)
+// leaves the composition reading as a small island in empty space on the
+// non-constraining axis. This biases toward "cover" (scale bound by the
+// LARGER axis) instead, capped so it never crops more than a modest
+// fraction beyond the contain scale — a hero visualization is allowed to
+// bleed past the frame's top/bottom a little, but shouldn't crop stars
+// out of an already-tight composition.
+const COVER_BOOST = 0.55;
 const CLICK_DRAG_THRESHOLD = 4;
 const INSTANT_TRANSITION: ViewportTransition = { duration: 0 };
 const FOCUS_TRANSITION: ViewportTransition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
@@ -52,7 +62,9 @@ export function useConstellationViewport(layout: { width: number; height: number
     if (!container || layout.width === 0 || layout.height === 0) return;
     const availableWidth = container.clientWidth * (1 - FIT_PADDING_RATIO * 2);
     const availableHeight = container.clientHeight * (1 - FIT_PADDING_RATIO * 2);
-    const scale = Math.min(MAX_SCALE, availableWidth / layout.width, availableHeight / layout.height);
+    const containScale = Math.min(availableWidth / layout.width, availableHeight / layout.height);
+    const coverScale = Math.max(availableWidth / layout.width, availableHeight / layout.height);
+    const scale = Math.min(MAX_SCALE, coverScale, containScale * (1 + COVER_BOOST));
     // Layout positions are already shifted so (0,0)-(width,height) is the
     // bounding box — center that box in the container. A floating corner
     // card (the legend/detail card) doesn't reserve dedicated space, so

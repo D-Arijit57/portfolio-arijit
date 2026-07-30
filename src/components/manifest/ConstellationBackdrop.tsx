@@ -48,8 +48,9 @@ export function ConstellationBackdrop({ viewportX, viewportY }: ConstellationBac
         style={{ mixBlendMode: 'screen' }}
         transform={`translate(${viewportX * 0.015} ${viewportY * 0.015})`}
       >
-        <ellipse cx="28%" cy="24%" rx={360} ry={240} fill="#2b3a7a" opacity={0.09} filter="url(#constellation-nebula-blur)" />
-        <ellipse cx="76%" cy="72%" rx={420} ry={280} fill="#5a2f74" opacity={0.07} filter="url(#constellation-nebula-blur)" />
+        <ellipse cx="24%" cy="22%" rx={520} ry={340} fill="#3d52a8" opacity={0.26} filter="url(#constellation-nebula-blur)" />
+        <ellipse cx="78%" cy="74%" rx={580} ry={380} fill="#7d3f9e" opacity={0.22} filter="url(#constellation-nebula-blur)" />
+        <ellipse cx="50%" cy="90%" rx={460} ry={260} fill="#1f5f8b" opacity={0.16} filter="url(#constellation-nebula-blur)" />
       </g>
 
       {/* Ambient star field — a slightly stronger parallax drift than the

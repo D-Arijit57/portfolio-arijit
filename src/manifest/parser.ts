@@ -22,13 +22,10 @@ function humanizeKey(key: string): string {
 
 const IMPORTANCE_VALUES = new Set(['primary', 'secondary', 'supporting']);
 
-function isLayoutHint(value: unknown): boolean {
+function isPosition(value: unknown): boolean {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
-  if (v.depth !== undefined && typeof v.depth !== 'number') return false;
-  if (v.orbit !== undefined && typeof v.orbit !== 'number') return false;
-  if (v.angle !== undefined && typeof v.angle !== 'number') return false;
-  return true;
+  return typeof v.x === 'number' && typeof v.y === 'number';
 }
 
 function isManifestTechnology(value: unknown): value is ManifestTechnology {
@@ -39,7 +36,10 @@ function isManifestTechnology(value: unknown): value is ManifestTechnology {
   if (v.description !== undefined && typeof v.description !== 'string') return false;
   if (v.tags !== undefined && !(Array.isArray(v.tags) && v.tags.every((t) => typeof t === 'string'))) return false;
   if (v.importance !== undefined && !IMPORTANCE_VALUES.has(v.importance as string)) return false;
-  if (v.layoutHint !== undefined && !isLayoutHint(v.layoutHint)) return false;
+  if (v.position !== undefined && !isPosition(v.position)) return false;
+  if (v.connectsTo !== undefined && !(Array.isArray(v.connectsTo) && v.connectsTo.every((t) => typeof t === 'string'))) {
+    return false;
+  }
 
   return true;
 }

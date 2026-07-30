@@ -341,44 +341,20 @@ export const useStore = create<StoreState>((set, get) => ({
 
     // Manifest Viewer v2 (ARCHITECTURE_PLATFORM_DESIGN.md §9): manifest.json
     // is a single-file presentation — it never shows its own raw JSON
-    // (EditorRenderer renders it as the Technology Dashboard in every pane)
-    // — so ordinary navigation always (re)establishes its pairing with the
-    // project's own architecture.mmd, the same way the README branch above
-    // always (re)establishes its Playground pairing. Checked before the
-    // onboarding-exit and existing-tab branches below so it takes priority
-    // regardless of what was open before.
+    // (EditorRenderer renders it as the Tech Stack Constellation in every
+    // pane). Tech Stack Constellation redesign: this used to auto-pair with
+    // the project's own architecture.mmd in a 50/50 split; the constellation
+    // now needs the full editor width to read as a real night-sky
+    // composition (per FIT_PADDING_RATIO/SIDEBAR_WIDTH in
+    // ManifestConstellation.tsx), so opening a manifest file always forces a
+    // single full-width pane — closing out of *any* existing split,
+    // including a manual one — never split alongside anything, at any
+    // circumstance. Checked before the onboarding-exit and existing-tab
+    // branches below so it takes priority regardless of what was open
+    // before.
     const file = state.workspaceFiles.find(f => f.id === id);
-    if (file && requiresDualPaneSplit(file)) {
+    if (file && isManifestFile(file)) {
       const ts = Date.now();
-
-      // Resolved the same basePath-relative sibling lookup LinkCardGrid's
-      // resolveLinkTarget uses for a "Continue Exploring" link — inlined
-      // against `state.workspaceFiles` (already in scope) rather than
-      // imported, since resolveLinkTarget pulls in content/fileSystem.ts,
-      // which reads useStore.getState() at module load and would form an
-      // import cycle with this file. So this works for any future project's
-      // manifest with zero per-project code, and degrades to a single pane
-      // if that project has no architecture.mmd yet.
-      const basePath = file.path.slice(0, file.path.lastIndexOf('/'));
-      const architecturePath = `${basePath}/architecture.mmd`.replace(/\/+/g, '/');
-      const architectureFile = state.workspaceFiles.find(f => f.path === architecturePath);
-
-      if (architectureFile) {
-        return {
-          editorSplit: true,
-          // The side file owns the split, same as the README/Playground
-          // pairing above — closing the Architecture Canvas tab collapses
-          // back to a single dashboard pane.
-          splitTrigger: architectureFile.id,
-          splitRatio: 0.5,
-          openedTabs: [
-            { id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const },
-            { id: `tab-${ts}-architecture`, fileId: architectureFile.id, pane: 'right' as const },
-          ],
-          activeFileId: id,
-        };
-      }
-
       return {
         editorSplit: false,
         splitTrigger: null,
@@ -428,17 +404,6 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // Leaving a dual-pane split's presentation-tuned ratio (above) behind
-    // for any other file — otherwise 0.3 would silently leak into unrelated
-    // layouts, contradicting "other editor layouts remain unchanged." Only
-    // resets when a manifest file was actually open; never overrides a
-    // manual drag (WA-06) made on an unrelated split.
-    const leavingDualPaneFile = state.openedTabs.some(t => {
-      const openTabFile = state.workspaceFiles.find(wf => wf.id === t.fileId);
-      return openTabFile ? requiresDualPaneSplit(openTabFile) : false;
-    });
-    const splitRatioReset = leavingDualPaneFile ? { splitRatio: 0.5 } : {};
-
     // Leaving the README+Playground onboarding pairing for any other file
     // quietly closes Playground and returns to a single editor. Derived
     // from the current tabs rather than a stored flag, so it only fires for
@@ -451,7 +416,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
     if (isReadmeOnboarding) {
       return {
-        ...splitRatioReset,
         editorSplit: false,
         splitTrigger: null,
         openedTabs: [{ id: `tab-${Date.now()}`, fileId: id, pane: 'left' as const }],
@@ -461,13 +425,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
     const existingTab = state.openedTabs.find(t => t.fileId === id);
     if (existingTab) {
-      return { ...splitRatioReset, activeFileId: id };
+      return { activeFileId: id };
     }
     const targetPane = pane ?? resolveTargetPane(state);
     const newTab = { id: `tab-${Date.now()}`, fileId: id, pane: targetPane };
     const tabsWithoutTargetPane = state.openedTabs.filter(t => t.pane !== targetPane);
     return {
-      ...splitRatioReset,
       openedTabs: [...tabsWithoutTargetPane, newTab],
       activeFileId: id,
     };

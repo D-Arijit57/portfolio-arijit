@@ -1,22 +1,22 @@
-import type { ConstellationGraph, ConstellationNode, ConstellationTier } from './constellationGraph';
+import type { ConstellationGraph, ConstellationTier } from './constellationGraph';
 import { hashStringToIndex } from './colorHash';
 
 /**
- * Curated layout engine for the Tech Stack Constellation. Not force-
- * directed, not randomly placed — a real algorithm (angular arcs sized by
- * category, so nodes never overlap) that respects each technology's
- * optional `layoutHint` (angle/orbit) when the manifest provides one, and
- * otherwise generates an intelligent, category-clustered default. Every
- * remaining degree of freedom (small position jitter) is deterministic,
- * hashed from the node's own id — never Math.random() — so the same
- * project always renders the same constellation.
- *
- * Two levels only, mirroring buildConstellationGraph()'s star-with-local-
- * branches topology: root-level nodes sit on one main ring around the
- * center; a node whose parent is itself a ring node (not the center) sits
- * a short branch further out, continuing in roughly the same outward
- * direction — the only source of "depth" here, and it falls out of
- * category structure, never hardcoded per project.
+ * Layout resolver for the Tech Stack Constellation — deliberately NOT a
+ * force-directed or radial/angular generator. "Data-driven" here means
+ * hand-authored: each technology may carry an explicit `position` (see
+ * ManifestPosition in types.ts) as normalized [0, 1] coordinates, and this
+ * module's only job is to scale those authored anchors into a fixed
+ * world-space (never regenerated per render, independent of the current
+ * viewport size), fall back to a plain deterministic default for anything
+ * unpositioned, then compute the bounding box that *actually gets used*
+ * (authored positions don't need to span the full 0-1 square) so the
+ * renderer's own viewport-fit step (useConstellationViewport) can center
+ * and scale that box into whatever screen it's shown on — the same
+ * relative composition reproduces on any viewport size because only the
+ * fit transform changes, never the underlying world-space positions
+ * (which is also what keeps interactive pan/zoom cheap: it's just a
+ * transform on top of a stable layout, not a layout recompute).
  */
 
 export interface ConstellationPosition {
@@ -36,116 +36,43 @@ export const TIER_RADIUS: Record<ConstellationTier, number> = {
   supporting: 21,
 };
 
-const MAIN_RING_RADIUS = 195;
-const LOCAL_BRANCH_LENGTH = 92;
-const RADIUS_JITTER = 0.16; // +/- fraction
-const ANGLE_JITTER_FRACTION = 0.3; // fraction of a node's own slice
-const BRANCH_LOCAL_SPREAD = (60 * Math.PI) / 180;
-const LAYOUT_MARGIN = 80;
+// Normalized [0,1] authored coordinates are scaled into this fixed
+// world-space before anything else (radii, margins, fallback spacing
+// below) is applied — an arbitrary but stable reference size, not a pixel
+// dimension of any real viewport.
+const NORMALIZED_SCALE = 1000;
 
-function jitterUnit(seed: string): number {
-  return hashStringToIndex(seed, 10007) / 10007;
-}
+const LAYOUT_MARGIN = 60;
+// Every node renders a title + subtitle beneath it (ManifestConstellation.tsx:
+// y = radius+17 and radius+31, plus the subtitle's own line height) that the
+// node's own TIER_RADIUS doesn't account for — without this, a composition
+// that fills most of the canvas clips that label text against whatever sits
+// below the canvas (the terminal panel).
+const LABEL_HEIGHT = 46;
+// Fallback spacing (world-space units) for a manifest that authored no
+// positions at all.
+const FALLBACK_STEP_X = 170;
+const FALLBACK_BASE_Y = 300;
+const FALLBACK_Y_JITTER = 110;
 
-function radiusJitter(seed: string, base: number): number {
-  const multiplier = 1 + (jitterUnit(`${seed}:len`) - 0.5) * 2 * RADIUS_JITTER;
-  return base * multiplier;
-}
-
-export function layoutConstellation(graph: ConstellationGraph): ConstellationLayoutResult {
+export function resolveConstellationLayout(graph: ConstellationGraph): ConstellationLayoutResult {
   const positions = new Map<string, ConstellationPosition>();
-  if (!graph.rootId) {
+  if (graph.nodes.length === 0) {
     return { positions, width: 0, height: 0 };
   }
 
-  positions.set(graph.rootId, { x: 0, y: 0 });
+  graph.nodes.forEach((node, index) => {
+    if (node.position) {
+      positions.set(node.id, { x: node.position.x * NORMALIZED_SCALE, y: node.position.y * NORMALIZED_SCALE });
+      return;
+    }
+    // Deterministic (hashed from the node's own id, never Math.random())
+    // horizontal-flow default for a technology with no authored anchor.
+    const jitter = (hashStringToIndex(`${node.id}:y`, 1000) / 1000 - 0.5) * 2 * FALLBACK_Y_JITTER;
+    positions.set(node.id, { x: LAYOUT_MARGIN + index * FALLBACK_STEP_X, y: FALLBACK_BASE_Y + jitter });
+  });
 
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
-  const rootEdges = graph.edges.filter((e) => e.from === graph.rootId);
-  const branchEdges = graph.edges.filter((e) => e.from !== graph.rootId);
-
-  // Root-level nodes cluster by category into contiguous arcs (sized by
-  // how many root-level nodes that category contributes), so same-category
-  // technologies land near each other — a believable star-map cluster
-  // rather than an interleaved ring.
-  const rootLevelNodes = rootEdges.map((e) => nodeById.get(e.to)).filter((n): n is ConstellationNode => Boolean(n));
-  const byCategory = new Map<number, ConstellationNode[]>();
-  for (const node of rootLevelNodes) {
-    const list = byCategory.get(node.categoryIndex) ?? [];
-    list.push(node);
-    byCategory.set(node.categoryIndex, list);
-  }
-  const categoryOrder = [...byCategory.keys()].sort((a, b) => a - b);
-  const totalRootLevel = rootLevelNodes.length || 1;
-
-  const rootOffset = (hashStringToIndex(graph.project, 360) * Math.PI) / 180;
-  let cursor = rootOffset;
-
-  for (const categoryIndex of categoryOrder) {
-    const group = byCategory.get(categoryIndex) ?? [];
-    const arcSpan = (group.length / totalRootLevel) * 2 * Math.PI;
-    const arcStart = cursor;
-    cursor += arcSpan;
-
-    group.forEach((node, indexInGroup) => {
-      const explicitAngle = node.layoutHint?.angle;
-      const orbitMultiplier = node.layoutHint?.orbit ? Math.max(0.4, node.layoutHint.orbit) : 1;
-
-      let angle: number;
-      if (explicitAngle !== undefined) {
-        angle = (explicitAngle * Math.PI) / 180;
-      } else {
-        const slice = arcSpan / group.length;
-        const within = arcStart + (indexInGroup + 0.5) * slice;
-        angle = within + (jitterUnit(`${node.id}:angle`) - 0.5) * slice * ANGLE_JITTER_FRACTION;
-      }
-
-      const radius = radiusJitter(node.id, MAIN_RING_RADIUS) * orbitMultiplier;
-      positions.set(node.id, { x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
-    });
-  }
-
-  // Branch (second-level) nodes — a category with more than one
-  // technology beyond its own entry — sit a short reach further out from
-  // their already-placed parent, continuing outward from the center
-  // rather than doubling back toward it.
-  const branchByParent = new Map<string, string[]>();
-  for (const edge of branchEdges) {
-    const list = branchByParent.get(edge.from) ?? [];
-    list.push(edge.to);
-    branchByParent.set(edge.from, list);
-  }
-
-  for (const [parentId, childIds] of branchByParent) {
-    const parentPos = positions.get(parentId);
-    if (!parentPos) continue;
-    const parentAngle = Math.atan2(parentPos.y, parentPos.x);
-
-    childIds.forEach((childId, index) => {
-      const node = nodeById.get(childId);
-      if (!node) return;
-      const explicitAngle = node.layoutHint?.angle;
-      const orbitMultiplier = node.layoutHint?.orbit ? Math.max(0.4, node.layoutHint.orbit) : 1;
-
-      let angle: number;
-      if (explicitAngle !== undefined) {
-        angle = (explicitAngle * Math.PI) / 180;
-      } else {
-        const within =
-          childIds.length === 1
-            ? parentAngle
-            : parentAngle - BRANCH_LOCAL_SPREAD / 2 + (index / (childIds.length - 1)) * BRANCH_LOCAL_SPREAD;
-        angle = within + (jitterUnit(`${node.id}:angle`) - 0.5) * 0.25;
-      }
-
-      const branchLength = radiusJitter(node.id, LOCAL_BRANCH_LENGTH) * orbitMultiplier;
-      positions.set(node.id, {
-        x: parentPos.x + branchLength * Math.cos(angle),
-        y: parentPos.y + branchLength * Math.sin(angle),
-      });
-    });
-  }
-
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -156,7 +83,7 @@ export function layoutConstellation(graph: ConstellationGraph): ConstellationLay
     minX = Math.min(minX, pos.x - radius);
     minY = Math.min(minY, pos.y - radius);
     maxX = Math.max(maxX, pos.x + radius);
-    maxY = Math.max(maxY, pos.y + radius);
+    maxY = Math.max(maxY, pos.y + radius + LABEL_HEIGHT);
   }
 
   const width = maxX - minX + LAYOUT_MARGIN * 2;

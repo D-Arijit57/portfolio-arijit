@@ -176,6 +176,29 @@ Conducting a structured technical interview typically means coordinating several
 // JSON.parse() keeps working unchanged. It's never shown raw either way
 // (ManifestViewer always renders the parsed model, never this source
 // text), so the flow-style form costs nothing and avoids a parser rewrite.
+//
+// Tech Stack Constellation topology (`position`/`connectsTo` below): the
+// actual Sagittarius constellation, not "inspired by" it — 12 real,
+// named Sagittarius stars (the 8-star Teapot asterism plus 4 more real
+// stars traditionally placed around it: Albaldah, Alnasl already counted,
+// Eta Sagittarii, Omicron Sagittarii, Polis), positioned per their real
+// relative sky arrangement (normalized [0,1], see ManifestPosition in
+// src/manifest/types.ts) so the silhouette is recognizably the Teapot +
+// bow even with every label removed. Each technology is assigned to a
+// star by real apparent-magnitude rank matched against tech importance —
+// the brightest real star (Kaus Australis, mag 1.85) carries the most
+// important technology (Next.js, the app framework everything else runs
+// on), the next-brightest (Nunki, Ascella, Kaus Media) carry the three
+// secondary technologies (Clerk, Convex, React), and the remaining 8
+// dimmer stars carry the 8 supporting technologies, also in brightness
+// order. `connectsTo` is the real Teapot line pattern (the ring of 7
+// asterism lines plus the spout and the 4 satellite-star connections)
+// re-expressed with the assigned technology names and directed as a
+// spanning tree rooted at Clerk (one edge — the ring's closing segment —
+// is omitted to break the asterism's natural cycle into a buildable
+// dependency order; every other real connection line is present). See
+// src/manifest/constellationGraph.ts / constellationLayout.ts for how
+// this authored data drives the renderer.
 const CORTEXA_MANIFEST_YAML = `{
   "project": "Cortexa",
   "description": "High-level inventory of the core technologies and services that power the Cortexa platform.",
@@ -184,31 +207,44 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Next.js",
       "role": "Application Framework",
       "description": "React framework with App Router, Server Components and Route Handlers.",
-      "tags": ["Core"]
+      "tags": ["Core"],
+      "importance": "primary",
+      "position": { "x": 0.36, "y": 0.60 },
+      "connectsTo": ["React", "shadcn/ui + Radix UI"]
     },
     {
       "technology": "React",
       "role": "UI Library",
       "description": "Component-based UI library for building interactive user interfaces.",
-      "tags": ["Core"]
+      "tags": ["Core"],
+      "importance": "secondary",
+      "position": { "x": 0.26, "y": 0.34 },
+      "connectsTo": ["TypeScript", "Tailwind CSS"]
     },
     {
       "technology": "TypeScript",
       "role": "Type System",
       "description": "Static typing across the entire frontend and backend codebase.",
-      "tags": ["Core"]
+      "tags": ["Core"],
+      "importance": "supporting",
+      "position": { "x": 0.40, "y": 0.06 },
+      "connectsTo": ["Stream"]
     },
     {
       "technology": "Tailwind CSS",
       "role": "Styling System",
       "description": "Utility-first CSS framework for rapid and consistent UI development.",
-      "tags": ["Core"]
+      "tags": ["Core"],
+      "importance": "supporting",
+      "position": { "x": 0.02, "y": 0.46 }
     },
     {
       "technology": "shadcn/ui + Radix UI",
       "role": "UI Components",
       "description": "Accessible, unstyled primitives composed into the app's design system.",
-      "tags": ["Core"]
+      "tags": ["Core"],
+      "importance": "supporting",
+      "position": { "x": 0.42, "y": 0.82 }
     }
   ],
   "backendAndData": [
@@ -216,7 +252,10 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Convex",
       "role": "Backend Platform",
       "description": "Real-time backend platform with database, serverless functions, and live synchronization.",
-      "tags": ["Database", "Realtime", "Queries", "Mutations", "Actions"]
+      "tags": ["Database", "Realtime", "Queries", "Mutations", "Actions"],
+      "importance": "secondary",
+      "position": { "x": 0.84, "y": 0.50 },
+      "connectsTo": ["Vercel"]
     }
   ],
   "authentication": [
@@ -224,7 +263,10 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Clerk",
       "role": "Identity Platform",
       "description": "Authentication, user management, sessions and role-based access control.",
-      "tags": ["Authentication", "Sessions", "RBAC", "JWT"]
+      "tags": ["Authentication", "Sessions", "RBAC", "JWT"],
+      "importance": "secondary",
+      "position": { "x": 0.80, "y": 0.26 },
+      "connectsTo": ["Convex", "Monaco Editor", "Convex Cloud"]
     }
   ],
   "communication": [
@@ -232,7 +274,10 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Stream",
       "role": "Media Infrastructure",
       "description": "Managed video SDK powering live interviews with audio, video, screen sharing and recording.",
-      "tags": ["Video", "Audio", "Screen Sharing", "Recordings"]
+      "tags": ["Video", "Audio", "Screen Sharing", "Recordings"],
+      "importance": "supporting",
+      "position": { "x": 0.50, "y": -0.08 },
+      "connectsTo": ["Stream Cloud"]
     }
   ],
   "developerExperience": [
@@ -240,7 +285,9 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Monaco Editor",
       "role": "Code Editor",
       "description": "In-browser code editor with multi-language support and live code execution.",
-      "tags": ["Multi-language", "Code Execution", "Hot Reload"]
+      "tags": ["Multi-language", "Code Execution", "Hot Reload"],
+      "importance": "supporting",
+      "position": { "x": 0.58, "y": 0.12 }
     }
   ],
   "deployment": [
@@ -248,19 +295,26 @@ const CORTEXA_MANIFEST_YAML = `{
       "technology": "Vercel",
       "role": "Frontend Hosting",
       "description": "Hosting and global delivery for the Next.js application.",
-      "tags": ["Managed Service"]
+      "tags": ["Managed Service"],
+      "importance": "supporting",
+      "position": { "x": 0.60, "y": 0.62 },
+      "connectsTo": ["Next.js"]
     },
     {
       "technology": "Convex Cloud",
       "role": "Backend Hosting",
       "description": "Serverless backend platform with automatic scaling.",
-      "tags": ["Managed Service"]
+      "tags": ["Managed Service"],
+      "importance": "supporting",
+      "position": { "x": 0.94, "y": 0.14 }
     },
     {
       "technology": "Stream Cloud",
       "role": "Media Infrastructure",
       "description": "Global media infrastructure for real-time communication.",
-      "tags": ["Managed Service"]
+      "tags": ["Managed Service"],
+      "importance": "supporting",
+      "position": { "x": 0.30, "y": -0.14 }
     }
   ]
 }

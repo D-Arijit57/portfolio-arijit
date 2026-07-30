@@ -1,31 +1,21 @@
-import type { ManifestModel } from './types';
+import type { ManifestModel, ManifestPosition } from './types';
 
 /**
  * Tech Stack Constellation — graph data derived from a ManifestModel. Pure
  * function, same "structured data in, model out" philosophy as
  * parseManifest() itself: never hardcodes a project, category, or
- * technology. Deliberately independent of src/architecture/.
+ * technology.
  *
- * Topology: a star, not a deep dependency tree — the manifest's primary
- * technology (see tier rules below) sits at the center, and every
- * category's own "entry" technology connects directly to it. A category
- * with more than one technology gets one small local branch: its other
- * technologies connect to that category's own entry, not to the center.
- * For a project like Cortexa, where the primary technology's own category
- * (frontend) is also the center, this collapses to almost every node
- * connecting directly to the center — matching the reference's mostly-
- * direct-to-hub composition — while a category with several technologies
- * (deployment: Vercel + Convex Cloud + Stream Cloud) still reads as its
- * own small cluster rather than three more spokes crowding the center.
- * This falls out of category structure automatically; nothing here is
- * Cortexa-specific.
- *
- * Curated hierarchy: each technology may set an explicit `importance`
- * ('primary' | 'secondary' | 'supporting') in the manifest. Absent that,
- * a sensible default applies — the manifest's first technology overall is
- * primary (the center), each category's first technology is secondary,
- * everything else is supporting. "If hints exist, respect them; if not,
- * generate intelligent defaults."
+ * Topology is authored, not inferred: each technology's optional
+ * `connectsTo` names the technologies it visually connects to and precedes
+ * in the construction sequence (see constellationReveal.ts's topological
+ * sort). This is what lets a project's constellation read as a real,
+ * asymmetric, hand-mapped star chart — an apex, a convergence point, two
+ * diverging rails, a closing chain — instead of a hub-and-spoke graph
+ * mechanically generated from category membership. A manifest that
+ * authors no `connectsTo` anywhere (an older-style or minimal manifest)
+ * falls back to a simple declaration-order chain across all technologies,
+ * so nothing crashes and something reasonable still renders.
  */
 
 const CONSTELLATION_PALETTE = [
@@ -45,12 +35,6 @@ function constellationColorForCategory(categoryIndex: number): string {
 
 export type ConstellationTier = 'primary' | 'secondary' | 'supporting';
 
-export interface ConstellationLayoutHint {
-  depth?: number;
-  orbit?: number;
-  angle?: number;
-}
-
 export interface ConstellationNode {
   id: string;
   technology: string;
@@ -62,7 +46,8 @@ export interface ConstellationNode {
   categoryIndex: number;
   color: string;
   tier: ConstellationTier;
-  layoutHint?: ConstellationLayoutHint;
+  /** Hand-authored anchor point, if the manifest provides one. */
+  position?: ManifestPosition;
 }
 
 export interface ConstellationEdge {
@@ -82,7 +67,6 @@ export interface ConstellationGraph {
   description: string;
   nodes: ConstellationNode[];
   edges: ConstellationEdge[];
-  rootId: string | undefined;
   /** In manifest-authored order — used for the Legend and the Architecture Flow list. */
   categories: ConstellationCategorySummary[];
 }
@@ -90,19 +74,18 @@ export interface ConstellationGraph {
 export function buildConstellationGraph(model: ManifestModel): ConstellationGraph {
   const nodes: ConstellationNode[] = [];
   const categories: ConstellationCategorySummary[] = [];
+  const idByName = new Map<string, string>();
 
   model.categories.forEach((category, categoryIndex) => {
     const color = constellationColorForCategory(categoryIndex);
     categories.push({ key: category.key, label: category.title, color, count: category.technologies.length });
 
-    category.technologies.forEach((tech, techIndex) => {
-      const isFirstOverall = categoryIndex === 0 && techIndex === 0;
-      const isCategoryEntry = techIndex === 0;
-      const tier: ConstellationTier =
-        tech.importance ?? (isFirstOverall ? 'primary' : isCategoryEntry ? 'secondary' : 'supporting');
+    category.technologies.forEach((tech) => {
+      const id = `tech:${category.key}:${tech.technology}`;
+      idByName.set(tech.technology, id);
 
       nodes.push({
-        id: `tech:${category.key}:${tech.technology}`,
+        id,
         technology: tech.technology,
         role: tech.role,
         description: tech.description,
@@ -111,37 +94,32 @@ export function buildConstellationGraph(model: ManifestModel): ConstellationGrap
         categoryLabel: category.title,
         categoryIndex,
         color,
-        tier,
-        layoutHint: tech.layoutHint,
+        tier: tech.importance ?? 'supporting',
+        position: tech.position,
       });
     });
   });
 
-  // The center: whichever node an explicit `importance: 'primary'` marks
-  // (first one found, if the data marks more than one), else the first
-  // technology in the manifest.
-  const rootId = nodes.find((n) => n.tier === 'primary')?.id ?? nodes[0]?.id;
-
-  const edges: ConstellationEdge[] = [];
-  if (rootId) {
-    const nodesByCategory = new Map<string, ConstellationNode[]>();
-    for (const node of nodes) {
-      const list = nodesByCategory.get(node.categoryKey) ?? [];
-      list.push(node);
-      nodesByCategory.set(node.categoryKey, list);
-    }
-
-    for (const categoryNodes of nodesByCategory.values()) {
-      const entry = categoryNodes.find((n) => n.tier !== 'supporting') ?? categoryNodes[0];
-      if (entry.id !== rootId) {
-        edges.push({ from: rootId, to: entry.id });
+  const authoredEdges: ConstellationEdge[] = [];
+  model.categories.forEach((category) => {
+    category.technologies.forEach((tech) => {
+      const fromId = idByName.get(tech.technology);
+      if (!fromId || !tech.connectsTo) return;
+      for (const targetName of tech.connectsTo) {
+        const toId = idByName.get(targetName);
+        if (toId) authoredEdges.push({ from: fromId, to: toId });
       }
-      for (const node of categoryNodes) {
-        if (node.id === entry.id) continue;
-        edges.push({ from: entry.id, to: node.id });
-      }
-    }
-  }
+    });
+  });
 
-  return { project: model.project, description: model.description, nodes, edges, rootId, categories };
+  // Fallback for a manifest with no authored topology at all: chain every
+  // node in declaration order, so a bare-bones manifest (no connectsTo)
+  // still produces a connected, sensible-looking constellation rather than
+  // a field of disconnected stars.
+  const edges: ConstellationEdge[] =
+    authoredEdges.length > 0
+      ? authoredEdges
+      : nodes.slice(1).map((node, i) => ({ from: nodes[i].id, to: node.id }));
+
+  return { project: model.project, description: model.description, nodes, edges, categories };
 }

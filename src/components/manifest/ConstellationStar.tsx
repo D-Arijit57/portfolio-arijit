@@ -25,8 +25,8 @@ import type { ConstellationVisualState } from './constellationVisualState';
  */
 
 const NODE_OPACITY: Record<ConstellationVisualState, number> = { default: 1, active: 1, connected: 1, dimmed: 0.15 };
-const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.6, active: 1, connected: 0.9, dimmed: 0.4 };
-const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 1.25, active: 2.25, connected: 1.6, dimmed: 1.25 };
+const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.9, active: 1, connected: 0.97, dimmed: 0.45 };
+const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 2.4, active: 3.5, connected: 2.9, dimmed: 2 };
 // Overall multiplier on the glow stack (halo + bloom + corona) per
 // interaction state — this, not a scale transform, is what "hovering
 // feels magical" means here.
@@ -137,31 +137,21 @@ function ConstellationStarImpl({
         >
           {!reduceMotion && (
             <g style={{ opacity: glowBoost, transition: 'opacity 0.25s ease-out' }}>
-              {/* Layer 5 — volumetric: the widest, faintest layer of the
-                  stack. A light source reads as "emitting into space"
-                  through how far a low-opacity layer's blur spreads, not
-                  through raw brightness — this is what makes nearby stars
-                  feel like they share one atmosphere instead of each
-                  sitting in its own bubble. */}
+              {/* Short-range halo — a tight, contained accent, not a
+                  spreading atmosphere. Every radius/blur in this stack
+                  is deliberately small: the glow should read as
+                  emanating from a sharp object, never as fog. */}
               <circle
-                r={radius * 8}
+                r={radius * 2.0}
                 fill={`url(#${glowGradientId})`}
-                opacity={0.05}
-                filter="url(#constellation-volumetric-blur)"
-                style={{ mixBlendMode: 'screen' }}
-              />
-              {/* Layer 4 — atmospheric halo. */}
-              <circle
-                r={radius * 4.6}
-                fill={`url(#${glowGradientId})`}
-                opacity={0.13}
+                opacity={0.16}
                 filter="url(#constellation-halo-blur)"
                 style={{ mixBlendMode: 'screen' }}
               />
-              {/* Layer 3 — large bloom, breathes independently per node so
-                  the whole stack pulses in brightness. */}
+              {/* Controlled bloom, breathes independently per node so the
+                  stack pulses in brightness without ever growing hazy. */}
               <circle
-                r={radius * 2.6}
+                r={radius * 1.5}
                 fill={`url(#${glowGradientId})`}
                 filter="url(#constellation-bloom-blur)"
                 style={{
@@ -170,29 +160,24 @@ function ConstellationStarImpl({
                   animationDelay: `${breatheDelayS}s`,
                 }}
               />
-              {/* Layer 2 — soft colored corona, immediately around the
-                  core. */}
+              {/* Soft colored corona, immediately around the core. */}
               <circle
-                r={radius * 1.55}
+                r={radius * 1.22}
                 fill={`url(#${glowGradientId})`}
-                opacity={0.6}
+                opacity={0.55}
                 filter="url(#constellation-corona-blur)"
                 style={{ mixBlendMode: 'screen' }}
               />
-              {/* A tight white-hot edge right at the core boundary —
-                  reinforces "hot" without conflating with the colored
-                  corona layer above it. */}
-              <circle r={radius * 1.1} fill="#ffffff" opacity={0.35} filter="url(#constellation-corona-blur)" style={{ mixBlendMode: 'screen' }} />
-              {/* Always-on soft glow behind the outline ring, so the ring
-                  itself reads as a lit edge rather than a flat stroke;
-                  the heartbeat ring below layers an occasional brighter
-                  pulse on top of this steady glow. */}
+              {/* Always-on, tight glow directly behind the outline ring
+                  — a controlled accent so the ring reads as a lit edge,
+                  not a flat stroke. The heartbeat ring below layers an
+                  occasional brighter pulse on top. */}
               <circle
-                r={radius + ringExtra * 0.55}
+                r={radius + ringExtra * 0.35}
                 fill="none"
                 stroke={node.color}
-                strokeWidth={isRoot ? 4 : 2.5}
-                opacity={0.55}
+                strokeWidth={isRoot ? 3.5 : 2}
+                opacity={0.5}
                 filter="url(#constellation-node-glow)"
                 style={{ mixBlendMode: 'screen' }}
               />
@@ -217,7 +202,7 @@ function ConstellationStarImpl({
               A translucent dark scrim on top keeps the icon legible
               against it without hiding the gradient entirely. */}
           <circle r={radius} fill={`url(#${glowGradientId})`} />
-          <circle r={radius} fill="#04060a" opacity={0.32} />
+          <circle r={radius} fill="#04060a" opacity={0.26} />
           {!reduceMotion && (
             // Bright core highlight — a directional specular glint
             // suggesting the star has a hot core catching light, distinct
@@ -266,12 +251,15 @@ function ConstellationStarImpl({
           </foreignObject>
         </motion.g>
 
+        {/* Crisp, high-contrast labels — a tight drop shadow for legibility
+            against whatever sits behind them, never a blurred glow. */}
         <motion.text
           y={radius + 17}
           textAnchor="middle"
           fontSize={TITLE_FONT[node.tier]}
           fontWeight={600}
-          fill="#f0f0f0"
+          fill="#ffffff"
+          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: NODE_OPACITY[state] }}
           transition={titleTransition}
@@ -282,7 +270,8 @@ function ConstellationStarImpl({
           y={radius + 31}
           textAnchor="middle"
           fontSize={9.5}
-          fill="#8a8f98"
+          fill="#a8adb5"
+          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: NODE_OPACITY[state] * 0.9 }}
           transition={subtitleTransition}

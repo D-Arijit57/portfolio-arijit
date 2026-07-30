@@ -167,17 +167,33 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
               @keyframes constellation-glow-breathe { 0%, 100% { opacity: 0.28; transform: scale(0.95); } 50% { opacity: 0.5; transform: scale(1.05); } }
             `}
           </style>
-          <radialGradient id="constellation-space-bg" cx="50%" cy="34%" r="80%">
-            <stop offset="0%" stopColor="#0a0f16" />
-            <stop offset="60%" stopColor="#050708" />
-            <stop offset="100%" stopColor="#010102" />
+          {/* Near-black, barely-tinted — the background exists to recede,
+              not to read as atmosphere. No blue/purple cast. */}
+          <radialGradient id="constellation-space-bg" cx="50%" cy="34%" r="90%">
+            <stop offset="0%" stopColor="#0a0a0b" />
+            <stop offset="100%" stopColor="#000000" />
           </radialGradient>
+          {/* Engineering grid — Figma/Unreal-editor style: a fine minor
+              line every GRID_MINOR world units, a brighter major line
+              every 5th. Rendered as a background rect inside the same
+              pan/zoom transform as the constellation content (see below)
+              so it scales and pans with the scene like a real canvas
+              grid, not a fixed screen overlay. */}
+          <pattern id="constellation-grid-minor" width={40} height={40} patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" strokeOpacity={0.05} strokeWidth={1} />
+          </pattern>
+          <pattern id="constellation-grid-major" width={200} height={200} patternUnits="userSpaceOnUse">
+            <rect width={200} height={200} fill="url(#constellation-grid-minor)" />
+            <path d="M 200 0 L 0 0 0 200" fill="none" stroke="#ffffff" strokeOpacity={0.09} strokeWidth={1.2} />
+          </pattern>
           {/* One radial "star" gradient per category color — bright
               near-white core fading through the category's own hue into
-              full transparency. ConstellationStar's layered halo/bloom
-              circles sample this instead of a flat fill, which is what
-              makes a node read as a light source rather than a filled UI
-              circle with a blur behind it. */}
+              full transparency. ConstellationStar's core circle and its
+              (now tightly controlled) glow layers sample this instead of
+              a flat fill, which is what makes a node read as a light
+              source rather than a filled UI circle with a blur behind
+              it — the core itself is never blurred, only what surrounds
+              it. */}
           {graph.categories.map((cat) => (
             <radialGradient key={cat.key} id={`constellation-star-glow-${cat.color.slice(1)}`} cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity={0.95} />
@@ -185,58 +201,30 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
               <stop offset="100%" stopColor={cat.color} stopOpacity={0} />
             </radialGradient>
           ))}
-          {/* Star glow filter stack — a light source reads as "emitting
-              into space" through spatial extent (how far the blur spreads
-              a low-opacity layer), not through raw opacity. Each filter
-              below is a wider, softer blur than the last; ConstellationStar
-              pairs a bigger radius with a *lower* opacity as it moves
-              outward through this stack, so total perceived brightness at
-              the core stays put while the falloff genuinely fills the
-              surrounding canvas instead of stopping at a hard edge. */}
-          <filter id="constellation-node-glow" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="8" />
+          {/* Controlled, short-range blur only — every radius here is
+              small enough that the glow reads as a tight, defined
+              accent around a sharp object, never as fog spreading across
+              the canvas. */}
+          <filter id="constellation-node-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="3" />
           </filter>
-          <filter id="constellation-corona-blur" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="5" />
+          <filter id="constellation-corona-blur" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="2" />
           </filter>
-          <filter id="constellation-bloom-blur" x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation="16" />
+          <filter id="constellation-bloom-blur" x="-90%" y="-90%" width="280%" height="280%">
+            <feGaussianBlur stdDeviation="6" />
           </filter>
-          <filter id="constellation-halo-blur" x="-260%" y="-260%" width="620%" height="620%">
-            <feGaussianBlur stdDeviation="26" />
-          </filter>
-          {/* Layer 5 — "volumetric" — very large, very soft, barely-there;
-              this is what makes nearby stars feel like they share one
-              atmosphere instead of each existing in its own bubble. */}
-          <filter id="constellation-volumetric-blur" x="-400%" y="-400%" width="900%" height="900%">
-            <feGaussianBlur stdDeviation="46" />
-          </filter>
-          <filter id="constellation-edge-glow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="3.5" />
-          </filter>
-          <filter id="constellation-edge-bloom" x="-150%" y="-150%" width="400%" height="400%">
+          <filter id="constellation-halo-blur" x="-110%" y="-110%" width="320%" height="320%">
             <feGaussianBlur stdDeviation="9" />
           </filter>
-          <filter id="constellation-edge-haze" x="-250%" y="-250%" width="600%" height="600%">
-            <feGaussianBlur stdDeviation="20" />
+          <filter id="constellation-edge-glow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="1.4" />
           </filter>
-          <filter id="constellation-particle-glow" x="-150%" y="-150%" width="400%" height="400%">
-            <feGaussianBlur stdDeviation="4" />
+          <filter id="constellation-edge-bloom" x="-70%" y="-70%" width="240%" height="240%">
+            <feGaussianBlur stdDeviation="3.5" />
           </filter>
-          {/* Three blur radii for the nebula's overlapping clouds — real
-              depth reads through varied softness, not just varied color,
-              so no two blobs look like copies of the same shape. */}
-          <filter id="constellation-nebula-blur-tight" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="38" />
-          </filter>
-          <filter id="constellation-nebula-blur" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="55" />
-          </filter>
-          <filter id="constellation-nebula-blur-wide" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="74" />
-          </filter>
-          <filter id="constellation-bg-star-glow" x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur stdDeviation="2.2" />
+          <filter id="constellation-particle-glow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="1.4" />
           </filter>
         </defs>
 
@@ -270,6 +258,19 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
                 : 'none',
           }}
         >
+          {/* Engineering grid, in the same world-space transform as the
+              constellation content — scales and pans with it, like a
+              real canvas grid rather than a fixed screen overlay. Sized
+              generously past the content's own bounding box so panning
+              never reveals a hard edge. */}
+          <rect
+            aria-hidden="true"
+            x={-layout.width * 1.5}
+            y={-layout.height * 1.5}
+            width={layout.width * 4}
+            height={layout.height * 4}
+            fill="url(#constellation-grid-major)"
+          />
           <AnimatePresence mode="wait">
             <motion.g
               key={graph.project}

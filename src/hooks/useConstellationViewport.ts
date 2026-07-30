@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
 
 /**
  * The Tech Stack Constellation's interaction layer — pan, zoom, fit-to-
@@ -23,11 +23,111 @@ interface ViewportTransition {
   ease?: [number, number, number, number];
 }
 
+interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Reserved-chrome configuration — the viewport's usable canvas is the
+ * container minus whatever persistent floating UI (legend/detail card,
+ * the fit/reset toolbar, and any future panel) actually occupies right
+ * now. Nothing about a specific panel's size or corner is hardcoded here:
+ * each ref just points at a real rendered DOM element, measured fresh on
+ * every fit via getBoundingClientRect(). A caller that wants a new
+ * floating panel to reserve space adds its ref to this array — nothing
+ * else in the fit/center/focus math needs to know that panel exists.
+ */
+export interface ConstellationViewportOptions {
+  reservedChromeRefs?: RefObject<HTMLElement | null>[];
+}
+
+// How close (px) a panel's edge must sit to a container edge to be
+// treated as anchored to it. Panels are typically pinned via `top-3`/
+// `right-3`-style utility classes (a few px of breathing room), so this
+// just needs to comfortably clear that gap — it is not a per-panel
+// dimension, only the tolerance for "is this panel hugging this edge."
+const CHROME_ANCHOR_PROXIMITY_PX = 48;
+// Reserved chrome may never claim more than this fraction of either axis
+// — a safety floor on the reservation system itself (not a per-panel
+// value): a panel that happens to be tall relative to a short container
+// (e.g. the detail card's description/tags pushing it close to the
+// container's own bottom edge) must never be able to squeeze the usable
+// area to zero and collapse the fit to nothing. Both axes are scaled down
+// together when this cap is hit, so the composition shrinks gracefully
+// instead of vanishing.
+const MAX_RESERVED_FRACTION = 0.65;
+
+/**
+ * Derives how much of the container's top/right/bottom/left a set of
+ * corner-anchored floating panels occupies, purely from their measured
+ * geometry — no panel-specific widths/positions are known or assumed. For
+ * each axis, a panel is anchored to whichever single edge it's actually
+ * closest to (not every edge within a fixed distance): a panel that's
+ * simply large relative to a short container can otherwise end up within
+ * the proximity tolerance of *both* opposing edges (e.g. a tall detail
+ * card whose top is genuinely pinned but whose bottom also happens to
+ * land near the container's bottom purely because the container is
+ * short) and get double-counted, over-reserving until nothing is left
+ * for the constellation itself.
+ */
+function computeReservedInsets(containerRect: DOMRect, panelRects: DOMRect[]): Insets {
+  const raw: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  for (const r of panelRects) {
+    const distTop = r.top - containerRect.top;
+    const distBottom = containerRect.bottom - r.bottom;
+    if (distTop <= CHROME_ANCHOR_PROXIMITY_PX && distTop <= distBottom) {
+      raw.top = Math.max(raw.top, r.bottom - containerRect.top);
+    } else if (distBottom <= CHROME_ANCHOR_PROXIMITY_PX && distBottom < distTop) {
+      raw.bottom = Math.max(raw.bottom, containerRect.bottom - r.top);
+    }
+
+    const distLeft = r.left - containerRect.left;
+    const distRight = containerRect.right - r.right;
+    if (distLeft <= CHROME_ANCHOR_PROXIMITY_PX && distLeft <= distRight) {
+      raw.left = Math.max(raw.left, r.right - containerRect.left);
+    } else if (distRight <= CHROME_ANCHOR_PROXIMITY_PX && distRight < distLeft) {
+      raw.right = Math.max(raw.right, containerRect.right - r.left);
+    }
+  }
+
+  const maxVertical = containerRect.height * MAX_RESERVED_FRACTION;
+  const verticalTotal = raw.top + raw.bottom;
+  const verticalScale = verticalTotal > maxVertical && verticalTotal > 0 ? maxVertical / verticalTotal : 1;
+  const maxHorizontal = containerRect.width * MAX_RESERVED_FRACTION;
+  const horizontalTotal = raw.left + raw.right;
+  const horizontalScale = horizontalTotal > maxHorizontal && horizontalTotal > 0 ? maxHorizontal / horizontalTotal : 1;
+
+  return {
+    top: raw.top * verticalScale,
+    bottom: raw.bottom * verticalScale,
+    left: raw.left * horizontalScale,
+    right: raw.right * horizontalScale,
+  };
+}
+
+/** The rectangle the constellation actually has to work with, in
+ * container-local coordinates — the container's own box minus whatever
+ * reserved chrome insets apply. Every centering computation (fit, reset,
+ * focus) targets this box's center, not the raw container's. */
+function getUsableBox(containerWidth: number, containerHeight: number, insets: Insets) {
+  const width = Math.max(0, containerWidth - insets.left - insets.right);
+  const height = Math.max(0, containerHeight - insets.top - insets.bottom);
+  return {
+    width,
+    height,
+    centerX: insets.left + width / 2,
+    centerY: insets.top + height / 2,
+  };
+}
+
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 3;
-// 1 - 2*0.13 = 0.74 — the graph occupies ~74% of the viewport on the
-// constraining axis, squarely in the "70-80% hero" range with comfortable
-// margins on all sides.
+// 1 - 2*0.13 = 0.74 — the graph occupies ~74% of the *usable* canvas on
+// the constraining axis, squarely in the "70-80% hero" range with
+// comfortable margins on all sides.
 const FIT_PADDING_RATIO = 0.13;
 // The authored layout's bounding box is roughly square, while the actual
 // drawable canvas (editor pane minus header/terminal) is a wide letterbox
@@ -43,7 +143,11 @@ const CLICK_DRAG_THRESHOLD = 4;
 const INSTANT_TRANSITION: ViewportTransition = { duration: 0 };
 const FOCUS_TRANSITION: ViewportTransition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
 
-export function useConstellationViewport(layout: { width: number; height: number }) {
+export function useConstellationViewport(
+  layout: { width: number; height: number },
+  options: ConstellationViewportOptions = {},
+) {
+  const { reservedChromeRefs = [] } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewport, setViewport] = useState<ConstellationViewport>({ x: 0, y: 0, scale: 1 });
@@ -57,23 +161,41 @@ export function useConstellationViewport(layout: { width: number; height: number
     hasInteractedRef.current = false;
   };
 
-  const fitToScreen = () => {
+  /** Measures the container and every reserved-chrome ref right now and
+   * derives the usable box to center/fit against — called fresh from
+   * each of fit/reset/focus rather than cached, since which panel is
+   * mounted (legend vs. the wider selected-node detail card) can change
+   * between calls. */
+  const measureUsableBox = () => {
     const container = containerRef.current;
-    if (!container || layout.width === 0 || layout.height === 0) return;
-    const availableWidth = container.clientWidth * (1 - FIT_PADDING_RATIO * 2);
-    const availableHeight = container.clientHeight * (1 - FIT_PADDING_RATIO * 2);
+    if (!container) return null;
+    const containerRect = container.getBoundingClientRect();
+    const panelRects = reservedChromeRefs
+      .map((ref) => ref.current?.getBoundingClientRect())
+      .filter((rect): rect is DOMRect => !!rect);
+    const insets = computeReservedInsets(containerRect, panelRects);
+    return { container, usable: getUsableBox(container.clientWidth, container.clientHeight, insets) };
+  };
+
+  const fitToScreen = () => {
+    if (layout.width === 0 || layout.height === 0) return;
+    const measured = measureUsableBox();
+    if (!measured) return;
+    const { usable } = measured;
+    const availableWidth = usable.width * (1 - FIT_PADDING_RATIO * 2);
+    const availableHeight = usable.height * (1 - FIT_PADDING_RATIO * 2);
     const containScale = Math.min(availableWidth / layout.width, availableHeight / layout.height);
     const coverScale = Math.max(availableWidth / layout.width, availableHeight / layout.height);
     const scale = Math.min(MAX_SCALE, coverScale, containScale * (1 + COVER_BOOST));
     // Layout positions are already shifted so (0,0)-(width,height) is the
-    // bounding box — center that box in the container. A floating corner
-    // card (the legend/detail card) doesn't reserve dedicated space, so
-    // nothing needs to be subtracted here.
+    // bounding box — center that box within the *usable* area, not the
+    // raw container, so reserved chrome (the legend/detail card, the
+    // toolbar) never visually collides with the composition.
     setViewportTransition(INSTANT_TRANSITION);
     setViewport({
       scale,
-      x: (container.clientWidth - layout.width * scale) / 2,
-      y: (container.clientHeight - layout.height * scale) / 2,
+      x: usable.centerX - (layout.width * scale) / 2,
+      y: usable.centerY - (layout.height * scale) / 2,
     });
   };
 
@@ -83,27 +205,29 @@ export function useConstellationViewport(layout: { width: number; height: number
   };
 
   const resetView = () => {
-    const container = containerRef.current;
-    if (!container) return;
+    const measured = measureUsableBox();
+    if (!measured) return;
+    const { usable } = measured;
     resetInteraction();
     setViewportTransition(INSTANT_TRANSITION);
     setViewport({
       scale: 1,
-      x: (container.clientWidth - layout.width) / 2,
-      y: (container.clientHeight - layout.height) / 2,
+      x: usable.centerX - layout.width / 2,
+      y: usable.centerY - layout.height / 2,
     });
   };
 
   const focusOnNode = (pos: { x: number; y: number }) => {
-    const container = containerRef.current;
-    if (!container) return;
+    const measured = measureUsableBox();
+    if (!measured) return;
+    const { usable } = measured;
     hasInteractedRef.current = true;
     const scale = Math.max(viewport.scale, 1.15);
     setViewportTransition(FOCUS_TRANSITION);
     setViewport({
       scale,
-      x: container.clientWidth / 2 - pos.x * scale,
-      y: container.clientHeight / 2 - pos.y * scale,
+      x: usable.centerX - pos.x * scale,
+      y: usable.centerY - pos.y * scale,
     });
   };
 

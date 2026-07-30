@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Maximize, RotateCcw, X, ChevronDown, Boxes } from 'lucide-react';
 import type { ConstellationGraph, ConstellationNode } from '../../manifest/constellationGraph';
@@ -34,6 +34,16 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Persistent floating UI chrome that should reserve its own space from
+  // the viewport's fit/center/focus math (see useConstellationViewport's
+  // reservedChromeRefs) — the info card (legend, or the wider selected-
+  // node detail card) and the fit/reset toolbar. A future floating panel
+  // opts in the same way: create a ref, attach it to the element, add it
+  // here. Nothing about either element's size or corner is hardcoded
+  // anywhere in the viewport hook itself.
+  const infoCardRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
   const {
     containerRef,
     svgRef,
@@ -46,7 +56,7 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
     handlePointerDown,
     handlePointerMove,
     handlePointerUp,
-  } = useConstellationViewport(layout);
+  } = useConstellationViewport(layout, { reservedChromeRefs: [infoCardRef, toolbarRef] });
 
   const revealSequence = useFileRevealSequence({
     fileId: `${fileId}:${graph.project}`,
@@ -283,7 +293,10 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
         </g>
       </svg>
 
-      <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded border border-[#3c3c3c] bg-[#252526]/80 p-0.5 text-[#cccccc] backdrop-blur-sm">
+      <div
+        ref={toolbarRef}
+        className="absolute bottom-3 left-3 flex items-center gap-1 rounded border border-[#3c3c3c] bg-[#252526]/80 p-0.5 text-[#cccccc] backdrop-blur-sm"
+      >
         <button type="button" onClick={fitToScreenManual} title="Fit to screen" className="rounded p-1.5 hover:bg-[#2d2d2d]">
           <Maximize size={13} />
         </button>
@@ -292,7 +305,7 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
         </button>
       </div>
 
-      <ConstellationInfoCard graph={graph} selectedNode={selectedNode} onClose={() => setSelectedId(null)} />
+      <ConstellationInfoCard cardRef={infoCardRef} graph={graph} selectedNode={selectedNode} onClose={() => setSelectedId(null)} />
     </div>
   );
 }
@@ -301,20 +314,28 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
  * A small floating card in the canvas's top-right corner. Just enough to
  * orient at a glance (category colors + a technology count) without
  * permanently walling off a strip of the canvas; a selected node's detail
- * takes over the same card rather than opening a second panel.
+ * takes over the same card rather than opening a second panel. Its own
+ * ref (forwarded from ConstellationScene) is what lets the viewport's fit
+ * math reserve exactly the space this card is actually occupying right
+ * now, whichever variant is showing.
  */
 function ConstellationInfoCard({
+  cardRef,
   graph,
   selectedNode,
   onClose,
 }: {
+  cardRef: React.RefObject<HTMLDivElement | null>;
   graph: ConstellationGraph;
   selectedNode: ConstellationNode | undefined;
   onClose: () => void;
 }) {
   if (selectedNode) {
     return (
-      <div className="absolute right-3 top-3 z-10 w-60 max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-[#3c3c3c] bg-[#1e1e1e]/90 shadow-lg backdrop-blur-sm">
+      <div
+        ref={cardRef}
+        className="absolute right-3 top-3 z-10 w-60 max-h-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-[#3c3c3c] bg-[#1e1e1e]/90 shadow-lg backdrop-blur-sm"
+      >
         <div className="sticky top-0 flex items-center gap-2 border-b border-[#3c3c3c] bg-[#1e1e1e]/90 px-3 py-2 backdrop-blur-sm">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: selectedNode.color }} />
           <span className="flex-1 truncate text-[12px] font-medium text-white">{selectedNode.technology}</span>
@@ -333,7 +354,7 @@ function ConstellationInfoCard({
   }
 
   return (
-    <div className="absolute right-3 top-3 z-10 w-52 rounded-lg border border-[#3c3c3c] bg-[#1e1e1e]/90 shadow-lg backdrop-blur-sm">
+    <div ref={cardRef} className="absolute right-3 top-3 z-10 w-52 rounded-lg border border-[#3c3c3c] bg-[#1e1e1e]/90 shadow-lg backdrop-blur-sm">
       <div className="px-3 py-2.5">
         <div className="mb-2 text-[10px] uppercase tracking-wide text-[#858585]">Legend</div>
         <ul className="space-y-1.5">

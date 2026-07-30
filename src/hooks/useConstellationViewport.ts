@@ -51,45 +51,47 @@ export interface ConstellationViewportOptions {
 // dimension, only the tolerance for "is this panel hugging this edge."
 const CHROME_ANCHOR_PROXIMITY_PX = 48;
 // Reserved chrome may never claim more than this fraction of either axis
-// — a safety floor on the reservation system itself (not a per-panel
-// value): a panel that happens to be tall relative to a short container
-// (e.g. the detail card's description/tags pushing it close to the
-// container's own bottom edge) must never be able to squeeze the usable
-// area to zero and collapse the fit to nothing. Both axes are scaled down
-// together when this cap is hit, so the composition shrinks gracefully
-// instead of vanishing.
-const MAX_RESERVED_FRACTION = 0.65;
+// — a defense-in-depth safety floor on the reservation system itself
+// (not a per-panel value), in case some future panel configuration isn't
+// cleanly separable on a single axis. With computeReservedInsets now
+// reserving only one axis per panel (see its own comment), the ordinary
+// case never comes remotely close to this — it exists purely to stop a
+// pathological one from collapsing the fit to zero.
+const MAX_RESERVED_FRACTION = 0.85;
 
 /**
  * Derives how much of the container's top/right/bottom/left a set of
  * corner-anchored floating panels occupies, purely from their measured
- * geometry — no panel-specific widths/positions are known or assumed. For
- * each axis, a panel is anchored to whichever single edge it's actually
- * closest to (not every edge within a fixed distance): a panel that's
- * simply large relative to a short container can otherwise end up within
- * the proximity tolerance of *both* opposing edges (e.g. a tall detail
- * card whose top is genuinely pinned but whose bottom also happens to
- * land near the container's bottom purely because the container is
- * short) and get double-counted, over-reserving until nothing is left
- * for the constellation itself.
+ * geometry — no panel-specific widths/positions are known or assumed.
+ *
+ * Two axis-aligned rectangles fail to overlap as soon as they're
+ * separated along *either one* axis (the separating-axis test) — so a
+ * corner panel only ever needs ONE of its two edges reserved, never
+ * both. Reserving both (an earlier version of this function did) is
+ * pure waste: it doesn't buy any additional collision-safety, it just
+ * shrinks the usable box on an axis that didn't need shrinking. This
+ * app's canvas is chronically wide-but-short, so the horizontal axis is
+ * preferred whenever a panel has a valid horizontal anchor — spending
+ * the reservation on the axis with more slack to spare, protecting the
+ * one that's already scarce. A panel with no horizontal anchor (e.g. a
+ * hypothetical full-width banner) falls back to a vertical reservation,
+ * since that's the only separating axis available for it.
  */
 function computeReservedInsets(containerRect: DOMRect, panelRects: DOMRect[]): Insets {
   const raw: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
   for (const r of panelRects) {
     const distTop = r.top - containerRect.top;
     const distBottom = containerRect.bottom - r.bottom;
-    if (distTop <= CHROME_ANCHOR_PROXIMITY_PX && distTop <= distBottom) {
-      raw.top = Math.max(raw.top, r.bottom - containerRect.top);
-    } else if (distBottom <= CHROME_ANCHOR_PROXIMITY_PX && distBottom < distTop) {
-      raw.bottom = Math.max(raw.bottom, containerRect.bottom - r.top);
-    }
-
     const distLeft = r.left - containerRect.left;
     const distRight = containerRect.right - r.right;
-    if (distLeft <= CHROME_ANCHOR_PROXIMITY_PX && distLeft <= distRight) {
-      raw.left = Math.max(raw.left, r.right - containerRect.left);
-    } else if (distRight <= CHROME_ANCHOR_PROXIMITY_PX && distRight < distLeft) {
-      raw.right = Math.max(raw.right, containerRect.right - r.left);
+    const hasHorizontalAnchor = distLeft <= CHROME_ANCHOR_PROXIMITY_PX || distRight <= CHROME_ANCHOR_PROXIMITY_PX;
+
+    if (hasHorizontalAnchor) {
+      if (distLeft <= distRight) raw.left = Math.max(raw.left, r.right - containerRect.left);
+      else raw.right = Math.max(raw.right, containerRect.right - r.left);
+    } else if (distTop <= CHROME_ANCHOR_PROXIMITY_PX || distBottom <= CHROME_ANCHOR_PROXIMITY_PX) {
+      if (distTop <= distBottom) raw.top = Math.max(raw.top, r.bottom - containerRect.top);
+      else raw.bottom = Math.max(raw.bottom, containerRect.bottom - r.top);
     }
   }
 

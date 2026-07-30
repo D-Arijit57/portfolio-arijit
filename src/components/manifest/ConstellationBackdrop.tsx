@@ -2,22 +2,15 @@ import { useMemo } from 'react';
 import { hashStringToIndex } from '../../manifest/colorHash';
 
 /**
- * The constellation's static backdrop: a near-black space fill and an
- * ambient star field. Deliberately NOT atmospheric — no nebula, no large
- * blurred color washes. The engineering grid lives in ConstellationScene
- * (rendered inside the same pan/zoom transform as the content, so it
- * scales/pans with the scene); this layer only owns what sits behind
- * that grid. This is also NOT where the constellation's own bright,
- * saturated "living star" quality lives (that belongs to
- * ConstellationStar so it reads as the focal element) — but a
- * completely uniform, completely static field still reads as a
- * repeating pattern, so a minority of background stars are slightly
- * bigger/brighter or slowly twinkle (opacity only, never blurred).
+ * The constellation's static backdrop: space gradient, a faint nebula
+ * haze, and a plain (non-shiny, static-brightness) ambient star field
+ * with a slight parallax drift tied to the interactive pan offset.
+ * Deliberately NOT where the "living, blinking star" quality lives — that
+ * belongs to the constellation itself (ConstellationStar / ConstellationEdge)
+ * so it reads as the focal element, not diluted across the whole backdrop.
  */
 
-const STAR_COUNT = 90;
-const BRIGHT_STAR_RATIO = 0.16;
-const TWINKLE_STAR_RATIO = 0.14;
+const STAR_COUNT = 70;
 
 function jitter(seed: string, mod: number): number {
   return hashStringToIndex(seed, mod) / mod;
@@ -31,29 +24,12 @@ export interface ConstellationBackdropProps {
 export function ConstellationBackdrop({ viewportX, viewportY }: ConstellationBackdropProps) {
   const stars = useMemo(
     () =>
-      Array.from({ length: STAR_COUNT }, (_, i) => {
-        const kindRoll = jitter(`star:${i}:kind`, 1013);
-        const kind: 'dim' | 'bright' | 'twinkle' =
-          kindRoll < TWINKLE_STAR_RATIO ? 'twinkle' : kindRoll < TWINKLE_STAR_RATIO + BRIGHT_STAR_RATIO ? 'bright' : 'dim';
-        const baseRadius = kind === 'bright' ? 1.0 + jitter(`star:${i}:r`, 991) * 0.5 : 0.4 + jitter(`star:${i}:r`, 991) * 0.5;
-        const baseOpacity =
-          kind === 'bright'
-            ? 0.45 + jitter(`star:${i}:op`, 883) * 0.3
-            : kind === 'twinkle'
-              ? 0.22 + jitter(`star:${i}:op`, 883) * 0.18
-              : 0.08 + jitter(`star:${i}:op`, 883) * 0.16;
-        return {
-          cx: `${jitter(`star:${i}:x`, 9973) * 100}%`,
-          cy: `${jitter(`star:${i}:y`, 9967) * 100}%`,
-          r: baseRadius,
-          opacity: baseOpacity,
-          kind,
-          twinkleMinOpacity: baseOpacity * 0.4,
-          twinkleMaxOpacity: Math.min(0.85, baseOpacity * 2.2),
-          twinkleDur: 3.5 + jitter(`star:${i}:tdur`, 4127) * 5.5,
-          twinkleBegin: jitter(`star:${i}:tbegin`, 4159) * 6,
-        };
-      }),
+      Array.from({ length: STAR_COUNT }, (_, i) => ({
+        cx: `${jitter(`star:${i}:x`, 9973) * 100}%`,
+        cy: `${jitter(`star:${i}:y`, 9967) * 100}%`,
+        r: 0.5 + jitter(`star:${i}:r`, 991) * 0.7,
+        opacity: 0.18 + jitter(`star:${i}:op`, 883) * 0.22,
+      })),
     [],
   );
 
@@ -61,28 +37,29 @@ export function ConstellationBackdrop({ viewportX, viewportY }: ConstellationBac
     <>
       <rect x={0} y={0} width="100%" height="100%" fill="url(#constellation-space-bg)" />
 
-      {/* Ambient star field — sharp, unblurred points. Mostly dim/static,
-          a minority brighter, a smaller minority slowly twinkling
-          (opacity animation only, never a blur) — enough variety to read
-          as depth without any haze. A slight parallax drift (a fraction
-          of the pan offset) reads as "further away" than the
-          constellation itself. */}
+      {/* Faint nebula haze — two large, heavily-blurred, very
+          low-opacity color blobs. Purely atmospheric depth, not a focal
+          element: additive (screen) blend so it never muddies the black
+          background, and a tiny parallax drift (a small fraction of the
+          pan offset) reads as "further away" than the stars. */}
+      <g
+        aria-hidden="true"
+        opacity={0.9}
+        style={{ mixBlendMode: 'screen' }}
+        transform={`translate(${viewportX * 0.015} ${viewportY * 0.015})`}
+      >
+        <ellipse cx="24%" cy="22%" rx={520} ry={340} fill="#3d52a8" opacity={0.26} filter="url(#constellation-nebula-blur)" />
+        <ellipse cx="78%" cy="74%" rx={580} ry={380} fill="#7d3f9e" opacity={0.22} filter="url(#constellation-nebula-blur)" />
+        <ellipse cx="50%" cy="90%" rx={460} ry={260} fill="#1f5f8b" opacity={0.16} filter="url(#constellation-nebula-blur)" />
+      </g>
+
+      {/* Ambient star field — a slightly stronger parallax drift than the
+          nebula, so it reads as nearer. Static brightness only (no glow,
+          no twinkle); this layer only needs varying static brightness for
+          depth. */}
       <g aria-hidden="true" transform={`translate(${viewportX * 0.04} ${viewportY * 0.04})`}>
         {stars.map((star, i) => (
-          <circle key={i} cx={star.cx} cy={star.cy} r={star.r} fill="#ffffff" opacity={star.kind === 'twinkle' ? undefined : star.opacity}>
-            {star.kind === 'twinkle' && (
-              <animate
-                attributeName="opacity"
-                values={`${star.twinkleMinOpacity};${star.twinkleMaxOpacity};${star.twinkleMinOpacity}`}
-                dur={`${star.twinkleDur}s`}
-                begin={`${star.twinkleBegin}s`}
-                repeatCount="indefinite"
-                calcMode="spline"
-                keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"
-                keyTimes="0;0.5;1"
-              />
-            )}
-          </circle>
+          <circle key={i} cx={star.cx} cy={star.cy} r={star.r} fill="#ffffff" opacity={star.opacity} />
         ))}
       </g>
     </>

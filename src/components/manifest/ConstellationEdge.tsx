@@ -4,33 +4,22 @@ import { hashStringToIndex } from '../../manifest/colorHash';
 import type { ConstellationVisualState } from './constellationVisualState';
 
 /**
- * A single connection — an illuminated fiber-optic line, not a fading
- * gradient. Three stacked layers, each a *solid* color end to end (no
- * per-edge fade gradient, no tapering toward the endpoints): a soft
- * outer bloom, a colored glow matching the destination category, and a
- * thin bright white center line on top. The line stays constantly
- * visible and constant-width along its full length — only the
- * hover/select dimming states (EDGE_OPACITY) change its overall
- * brightness, never its geometry. On top: several independently-timed
- * traveling "packets" — a short, sharp strokeDasharray/stroke-dashoffset
- * segment with a tight glow and a brief trailing streak, not a blurry
- * floating dot.
+ * A single connection — a straight, thinly-glowing line plus several
+ * independently-timed traveling particles ("the network should feel
+ * alive even when idle"). Each particle fades in as it leaves its source
+ * and fades out as it approaches its target (an SMIL <animate> on
+ * opacity sharing the exact dur/begin as the motion itself, not a
+ * separate blink) rather than popping in/out abruptly, with an additive
+ * (screen-blend) glow halo that locally brightens the line as it passes.
  */
 
-const EDGE_OPACITY: Record<ConstellationVisualState, number> = { default: 0.75, active: 0.8, connected: 0.9, dimmed: 0.14 };
+const EDGE_OPACITY: Record<ConstellationVisualState, number> = { default: 0.5, active: 0.5, connected: 0.6, dimmed: 0.08 };
 // 3 traveling particles per edge, each independently timed — never a
 // single lonely dot per line.
 const PARTICLES_PER_EDGE = [0, 1, 2];
 
 function jitter(seed: string, mod: number): number {
   return hashStringToIndex(seed, mod) / mod;
-}
-
-/** CSS custom-idents (keyframe/animation names) can't contain the `:`/`>`
- * characters an edge/path id is built from — everything else about these
- * ids (SVG `id`, `url(#...)`, `href="#..."`) already tolerates them fine. */
-function cssSafeIdent(id: string): string {
-  return id.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 export interface ConstellationEdgeProps {
@@ -48,50 +37,29 @@ export interface ConstellationEdgeProps {
 
 export function ConstellationEdge({ edgeKey, pathId, from, to, color, state, reduceMotion, delay, duration, isRevealed }: ConstellationEdgeProps) {
   const pathD = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
-  const pathLength = Math.hypot(to.x - from.x, to.y - from.y);
-  const safeId = cssSafeIdent(pathId);
-  const stateOpacity = EDGE_OPACITY[state];
 
   return (
     <g>
       {!reduceMotion && (
-        <>
-          {/* Layer 3 — soft outer bloom, solid color, full length. */}
-          <motion.path
-            d={pathD}
-            stroke={color}
-            strokeWidth={5}
-            strokeLinecap="round"
-            filter="url(#constellation-edge-bloom)"
-            style={{ mixBlendMode: 'screen' }}
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: stateOpacity * 0.4 }}
-            transition={{ duration, delay, ease: 'easeOut' }}
-          />
-          {/* Layer 2 — colored glow matching the destination category. */}
-          <motion.path
-            d={pathD}
-            stroke={color}
-            strokeWidth={2.4}
-            strokeLinecap="round"
-            filter="url(#constellation-edge-glow)"
-            style={{ mixBlendMode: 'screen' }}
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: stateOpacity }}
-            transition={{ duration, delay, ease: 'easeOut' }}
-          />
-        </>
+        <motion.path
+          d={pathD}
+          stroke={color}
+          strokeWidth={5}
+          strokeLinecap="round"
+          filter="url(#constellation-edge-glow)"
+          initial={{ pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: EDGE_OPACITY[state] * 0.8 }}
+          transition={{ duration, delay, ease: 'easeOut' }}
+        />
       )}
-      {/* Layer 1 — thin bright white center line, solid, unblurred,
-          constant thickness end to end. */}
       <motion.path
         id={pathId}
         d={pathD}
-        stroke="#ffffff"
-        strokeWidth={1.2}
+        stroke={color}
+        strokeWidth={1.4}
         strokeLinecap="round"
         initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: stateOpacity }}
+        animate={{ pathLength: 1, opacity: EDGE_OPACITY[state] }}
         transition={{ duration, delay, ease: 'easeOut' }}
       />
 
@@ -102,58 +70,44 @@ export function ConstellationEdge({ edgeKey, pathId, from, to, color, state, red
           <animateMotion dur={`${duration}s`} begin={`${delay}s`} fill="freeze" calcMode="linear">
             <mpath href={`#${pathId}`} />
           </animateMotion>
-          <circle r={3.5} fill="#ffffff" opacity={0.5} filter="url(#constellation-particle-glow)" />
-          <circle r={1.6} fill="#ffffff" opacity={0.95} />
+          <circle r={5} fill="#ffffff" opacity={0.45} filter="url(#constellation-edge-glow)" />
+          <circle r={2.2} fill="#ffffff" opacity={0.95} />
         </g>
       )}
 
       {!reduceMotion &&
-        pathLength > 0 &&
         PARTICLES_PER_EDGE.map((particleIndex) => {
-          const pDur = 2.4 + jitter(`${edgeKey}:p${particleIndex}:dur`, 3301) * 1.6;
+          const pDur = 3 + jitter(`${edgeKey}:p${particleIndex}:dur`, 3301) * 2.2;
           const phase =
             (pDur / PARTICLES_PER_EDGE.length) * particleIndex + jitter(`${edgeKey}:p${particleIndex}:phase`, 3319) * pDur * 0.4;
           const begin = delay + duration + 0.15 + phase;
-          // A short traveling dash — a data packet, not a floating dot.
-          // Its trailing streak is just its own recent path history,
-          // which is why it needs no separate fade animation.
-          const tailLength = Math.min(14, pathLength * 0.1);
-          const keyframeName = `constellation-particle-travel-${safeId}-${particleIndex}`;
           return (
             <g key={particleIndex}>
-              <style>
-                {`@keyframes ${keyframeName} {
-                    0% { stroke-dashoffset: ${pathLength + tailLength}; opacity: 0; }
-                    10% { opacity: 0.95; }
-                    85% { opacity: 0.95; }
-                    100% { stroke-dashoffset: ${-tailLength}; opacity: 0; }
-                  }`}
-              </style>
-              <path
-                d={pathD}
-                stroke={color}
-                strokeWidth={2.4}
-                strokeLinecap="round"
-                strokeDasharray={`${tailLength} ${Math.max(pathLength, 1)}`}
-                filter="url(#constellation-particle-glow)"
-                style={{
-                  mixBlendMode: 'screen',
-                  animation: `${keyframeName} ${pDur}s linear infinite`,
-                  animationDelay: `${begin}s`,
-                }}
-              />
-              <path
-                d={pathD}
-                stroke="#ffffff"
-                strokeWidth={1.1}
-                strokeLinecap="round"
-                strokeDasharray={`${tailLength * 0.35} ${Math.max(pathLength, 1)}`}
-                style={{
-                  mixBlendMode: 'screen',
-                  animation: `${keyframeName} ${pDur}s linear infinite`,
-                  animationDelay: `${begin}s`,
-                }}
-              />
+              <animateMotion dur={`${pDur}s`} begin={`${begin}s`} repeatCount="indefinite" calcMode="linear">
+                <mpath href={`#${pathId}`} />
+              </animateMotion>
+              <circle r={4.5} fill={color} style={{ mixBlendMode: 'screen' }} filter="url(#constellation-edge-glow)">
+                <animate
+                  attributeName="opacity"
+                  values="0;0.32;0.32;0"
+                  keyTimes="0;0.14;0.82;1"
+                  dur={`${pDur}s`}
+                  begin={`${begin}s`}
+                  repeatCount="indefinite"
+                  calcMode="linear"
+                />
+              </circle>
+              <circle r={1.7} fill="#ffffff" style={{ mixBlendMode: 'screen' }}>
+                <animate
+                  attributeName="opacity"
+                  values="0;1;1;0"
+                  keyTimes="0;0.14;0.82;1"
+                  dur={`${pDur}s`}
+                  begin={`${begin}s`}
+                  repeatCount="indefinite"
+                  calcMode="linear"
+                />
+              </circle>
             </g>
           );
         })}

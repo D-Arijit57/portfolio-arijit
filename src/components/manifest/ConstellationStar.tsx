@@ -25,8 +25,8 @@ import type { ConstellationVisualState } from './constellationVisualState';
  */
 
 const NODE_OPACITY: Record<ConstellationVisualState, number> = { default: 1, active: 1, connected: 1, dimmed: 0.15 };
-const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.9, active: 1, connected: 0.97, dimmed: 0.45 };
-const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 2.4, active: 3.5, connected: 2.9, dimmed: 2 };
+const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.6, active: 1, connected: 0.9, dimmed: 0.4 };
+const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 1.25, active: 2.25, connected: 1.6, dimmed: 1.25 };
 // Overall multiplier on the glow stack (halo + bloom + corona) per
 // interaction state — this, not a scale transform, is what "hovering
 // feels magical" means here.
@@ -137,50 +137,31 @@ function ConstellationStarImpl({
         >
           {!reduceMotion && (
             <g style={{ opacity: glowBoost, transition: 'opacity 0.25s ease-out' }}>
-              {/* Short-range halo — a tight, contained accent, not a
-                  spreading atmosphere. Every radius/blur in this stack
-                  is deliberately small: the glow should read as
-                  emanating from a sharp object, never as fog. */}
+              {/* Atmospheric halo — wide and soft. */}
               <circle
-                r={radius * 2.0}
+                r={radius * 3.4}
                 fill={`url(#${glowGradientId})`}
-                opacity={0.16}
+                opacity={0.15}
                 filter="url(#constellation-halo-blur)"
                 style={{ mixBlendMode: 'screen' }}
               />
-              {/* Controlled bloom, breathes independently per node so the
-                  stack pulses in brightness without ever growing hazy. */}
+              {/* Mid bloom — tighter and brighter, breathes independently
+                  per node so the whole halo pulses in brightness. */}
               <circle
-                r={radius * 1.5}
+                r={radius * 1.75}
                 fill={`url(#${glowGradientId})`}
-                filter="url(#constellation-bloom-blur)"
                 style={{
                   mixBlendMode: 'screen',
                   animation: `constellation-glow-breathe ${breatheDurationS}s ease-in-out infinite`,
                   animationDelay: `${breatheDelayS}s`,
                 }}
               />
-              {/* Soft colored corona, immediately around the core. */}
-              <circle
-                r={radius * 1.22}
-                fill={`url(#${glowGradientId})`}
-                opacity={0.55}
-                filter="url(#constellation-corona-blur)"
-                style={{ mixBlendMode: 'screen' }}
-              />
-              {/* Always-on, tight glow directly behind the outline ring
-                  — a controlled accent so the ring reads as a lit edge,
-                  not a flat stroke. The heartbeat ring below layers an
-                  occasional brighter pulse on top. */}
-              <circle
-                r={radius + ringExtra * 0.35}
-                fill="none"
-                stroke={node.color}
-                strokeWidth={isRoot ? 3.5 : 2}
-                opacity={0.5}
-                filter="url(#constellation-node-glow)"
-                style={{ mixBlendMode: 'screen' }}
-              />
+              {/* White-hot corona — immediately around the chip, fading
+                  into the mid bloom's color further out. This is what
+                  makes the center read as near-white with color emerging
+                  from it, rather than a flat color disc with a glow
+                  glued behind it. */}
+              <circle r={radius * 1.18} fill="#ffffff" opacity={0.4} filter="url(#constellation-corona-blur)" style={{ mixBlendMode: 'screen' }} />
               <circle
                 r={radius + ringExtra}
                 fill="none"
@@ -195,14 +176,14 @@ function ConstellationStarImpl({
               />
             </g>
           )}
-          {/* Layer 1 — the chip's own body: the bright white core. Samples
-              the same white-hot-core -> category-color gradient the rest
-              of the glow stack uses, instead of a flat near-black fill —
-              this is what makes the disc itself read as a light source.
-              A translucent dark scrim on top keeps the icon legible
-              against it without hiding the gradient entirely. */}
+          {/* The chip's own body now samples the same white-hot-core ->
+              category-color gradient the halo/bloom/corona layers use,
+              instead of a flat near-black fill — this is what actually
+              makes the disc itself read as a light source. A translucent
+              dark scrim on top keeps the icon legible against it without
+              hiding the gradient entirely. */}
           <circle r={radius} fill={`url(#${glowGradientId})`} />
-          <circle r={radius} fill="#04060a" opacity={0.26} />
+          <circle r={radius} fill="#04060a" opacity={0.4} />
           {!reduceMotion && (
             // Bright core highlight — a directional specular glint
             // suggesting the star has a hot core catching light, distinct
@@ -251,15 +232,12 @@ function ConstellationStarImpl({
           </foreignObject>
         </motion.g>
 
-        {/* Crisp, high-contrast labels — a tight drop shadow for legibility
-            against whatever sits behind them, never a blurred glow. */}
         <motion.text
           y={radius + 17}
           textAnchor="middle"
           fontSize={TITLE_FONT[node.tier]}
           fontWeight={600}
-          fill="#ffffff"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+          fill="#f0f0f0"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: NODE_OPACITY[state] }}
           transition={titleTransition}
@@ -270,8 +248,7 @@ function ConstellationStarImpl({
           y={radius + 31}
           textAnchor="middle"
           fontSize={9.5}
-          fill="#a8adb5"
-          style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+          fill="#8a8f98"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: NODE_OPACITY[state] * 0.9 }}
           transition={subtitleTransition}

@@ -176,8 +176,14 @@ function ConstellationStarImpl({
               />
             </g>
           )}
-          <circle r={radius} fill="#04060a" />
-          <circle r={radius} fill={node.color} opacity={0.16} />
+          {/* The chip's own body now samples the same white-hot-core ->
+              category-color gradient the halo/bloom/corona layers use,
+              instead of a flat near-black fill — this is what actually
+              makes the disc itself read as a light source. A translucent
+              dark scrim on top keeps the icon legible against it without
+              hiding the gradient entirely. */}
+          <circle r={radius} fill={`url(#${glowGradientId})`} />
+          <circle r={radius} fill="#04060a" opacity={0.4} />
           {!reduceMotion && (
             // Bright core highlight — a directional specular glint
             // suggesting the star has a hot core catching light, distinct

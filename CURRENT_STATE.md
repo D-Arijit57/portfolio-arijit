@@ -14,6 +14,14 @@
     /terminal       # Interactive command line interface
   /content
     fileSystem.ts   # Static mock of the virtual file system
+  /graph            # Generic Knowledge Graph engine (Sprint 11) — no
+                     # "skills"-specific code; skills.graph is its first
+                     # tenant. types/loader/fileMatch/registry shipped in
+                     # Milestone 1; graphBuilder/layout/physics/search not
+                     # yet built (see ARCHITECTURE.md's "Knowledge Graph
+                     # Renderer" section for the full milestone status).
+  /components/graph # KnowledgeGraphViewer.tsx — Milestone 1 placeholder
+                     # only, not the real interactive renderer yet.
   /hooks
     useRouterSync.ts# Synchronizes Zustand state with browser URL history
   /lib
@@ -73,3 +81,8 @@ The app follows a unidirectional data flow powered by **Zustand**.
 - Transition `src/content/fileSystem.ts` into a data-fetching layer communicating with a backend API.
 - Re-route terminal command processing to a backend endpoint.
 - Integrate real-time APIs for GitHub/LeetCode data injection.
+- **Sprint 11 (Knowledge Graph), Milestone 2**: build the Graph Builder (`skills.graph`'s parsed `GraphModel` → node/edge relationships only, no coordinates — see ARCHITECTURE.md). Milestone 1 (registry, routing, YAML loader, Graph Model, placeholder plumbing) shipped 2026-07-31; stable, awaiting review before Milestone 2 starts.
+
+## Known Limitations (Sprint 11, Milestone 1)
+- `skills.graph` currently renders as a flat category/count list, not the real interactive knowledge graph — no layout, physics, or interaction yet.
+- `server/types/vfs.types.ts`'s `FILE_TYPES` runtime array and the `FileType` TS union are two hand-maintained sources of truth that don't derive from each other — adding a new `FileType` value requires updating both, and only one is caught by `tsc`. This bit Milestone 1's own backend startup once; noted here so it isn't hit again by future work rather than only living in ARCHITECTURE.md's history.

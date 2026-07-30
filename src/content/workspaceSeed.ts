@@ -228,6 +228,368 @@ const CORTEXA_MANIFEST_YAML = `{
 }
 `;
 
+// Sprint 11 (Knowledge Graph): consolidates the old skills/frontend.yaml +
+// skills/backend.yaml into one skills.graph file, matching the new
+// 6-category scheme (Programming Languages, Frontend, Backend, Artificial
+// Intelligence, Cloud, Developer Tools) and the richer GraphNode schema
+// (src/graph/types.ts). Real YAML, not JSON-in-yaml — parsed by
+// loadGraphModel() (src/graph/loader.ts) via the `yaml` package, an
+// explicit, approved exception to the JSON-flow-style trick manifest.yaml
+// uses, since this file is meant to read as genuinely developer-authored.
+//
+// Content grounding (per explicit instruction: do not fabricate years,
+// proficiency percentages, project usage, or certifications):
+// - `projects`/`notes` on a node only cite what the resume
+//   (src/components/resume/data/fullstack-ai.ts, verified verbatim
+//   against the real resume PDF) or the Cortexa manifest
+//   (manifest.yaml, this same file) already document — e.g. React's
+//   `projects` cites Cortexa because manifest.yaml's own frontend
+//   category already lists it, and "Portfolio Workspace (this site)"
+//   because this app's own package.json genuinely depends on
+//   react/typescript/tailwindcss/motion/zustand.
+// - `proficiency`/`proficiencyPercent`/`years` are left unset on every
+//   node — nothing in the resume states per-skill experience duration or
+//   a percentage, so inventing one would violate the instruction. Ready
+//   for the user to fill in by hand later.
+// - Skills with no direct resume/manifest citation (Vue, Go, PostgreSQL,
+//   MongoDB, Redis, GraphQL, Microservices, HTML/CSS, JIRA, Postman, Git,
+//   GitHub, Hugging Face, Open-Source LLMs, Prompt Engineering, Vector
+//   Stores, SQL) carry a factual description of the technology itself
+//   (safe, non-personal) but no `projects`/`notes` claim.
+const SKILLS_GRAPH_YAML = `title: Skills
+description: An interactive map of the languages, frameworks, and tools I build with.
+
+categories:
+  - key: languages
+    title: Programming Languages
+    nodes:
+      - id: cpp
+        name: C++
+        category: languages
+        isCore: true
+        description: A high-performance, compiled systems language with manual memory control and object-oriented features.
+        documentation: https://en.cppreference.com
+        tags: [systems, compiled, oop]
+
+      - id: python
+        name: Python
+        category: languages
+        isCore: true
+        description: A dynamically-typed, readable general-purpose language widely used for scripting, data, and machine learning.
+        documentation: https://docs.python.org/3
+        projects: [RakshaChakra - Secure Mobile Banking]
+        notes: Built the fraud-detection backend for RakshaChakra, evaluated at 92% accuracy.
+        relatedNodes: [aws]
+        tags: [scripting, ml, backend]
+
+      - id: javascript
+        name: JavaScript
+        category: languages
+        description: The core scripting language of the web, running in browsers and on servers via Node.js.
+        documentation: https://developer.mozilla.org/en-US/docs/Web/JavaScript
+        relatedNodes: [typescript, nodejs]
+        tags: [web, scripting]
+
+      - id: typescript
+        name: TypeScript
+        category: languages
+        isCore: true
+        description: A statically-typed superset of JavaScript that catches errors at compile time.
+        documentation: https://www.typescriptlang.org/docs
+        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
+        relatedNodes: [react, nextjs, javascript]
+        tags: [web, typed]
+
+      - id: sql
+        name: SQL
+        category: languages
+        description: The standard query language for relational databases.
+        relatedNodes: [postgresql, mongodb]
+        tags: [database, query]
+
+      - id: go
+        name: Go
+        category: languages
+        description: A compiled, statically-typed language designed for simple, efficient concurrent systems.
+        documentation: https://go.dev/doc
+        tags: [systems, backend, concurrency]
+
+  - key: frontend
+    title: Frontend
+    nodes:
+      - id: react
+        name: React
+        category: frontend
+        isCore: true
+        description: A component-based JavaScript library for building user interfaces.
+        documentation: https://react.dev
+        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
+        relatedNodes: [nextjs, typescript, tailwindcss]
+        tags: [ui, library, component-based]
+
+      - id: nextjs
+        name: Next.js
+        category: frontend
+        isCore: true
+        description: A React framework with routing, server components, and API routes built in.
+        documentation: https://nextjs.org/docs
+        projects: [Cortexa Remote Interview Platform]
+        relatedNodes: [react, typescript, vercel]
+        tags: [framework, ssr]
+
+      - id: vue
+        name: Vue
+        category: frontend
+        description: An approachable, component-based JavaScript framework for building user interfaces.
+        documentation: https://vuejs.org
+        tags: [ui, framework]
+
+      - id: tailwindcss
+        name: Tailwind CSS
+        category: frontend
+        description: A utility-first CSS framework for building custom designs without leaving HTML.
+        documentation: https://tailwindcss.com/docs
+        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
+        relatedNodes: [react, shadcn-radix, html-css]
+        tags: [css, styling]
+
+      - id: framer-motion
+        name: Framer Motion
+        category: frontend
+        description: A production-ready animation library for React, published today as the "motion" package.
+        documentation: https://motion.dev
+        projects: [Portfolio Workspace (this site)]
+        relatedNodes: [react]
+        tags: [animation, react]
+
+      - id: shadcn-radix
+        name: shadcn/ui + Radix UI
+        category: frontend
+        description: Accessible, unstyled UI primitives (Radix) composed into a themeable component set (shadcn/ui).
+        documentation: https://ui.shadcn.com
+        projects: [Cortexa Remote Interview Platform]
+        relatedNodes: [tailwindcss, react]
+        tags: [ui, components, accessibility]
+
+      - id: html-css
+        name: HTML/CSS
+        category: frontend
+        description: The foundational markup and styling languages of the web.
+        relatedNodes: [tailwindcss]
+        tags: [web, markup, styling]
+
+      - id: zustand
+        name: Zustand
+        category: frontend
+        description: A small, unopinionated state-management library for React.
+        documentation: https://zustand.docs.pmnd.rs
+        projects: [Portfolio Workspace (this site)]
+        relatedNodes: [react]
+        tags: [state-management, react]
+
+  - key: backend
+    title: Backend
+    nodes:
+      - id: nodejs
+        name: Node.js
+        category: backend
+        isCore: true
+        description: A JavaScript runtime for building server-side applications outside the browser.
+        documentation: https://nodejs.org/docs
+        projects: [Cortexa Remote Interview Platform]
+        notes: Resolved 5+ production defects in a Node.js/Express backend at American Chase, reducing recurring issues by 35% through root-cause analysis and improved logging.
+        relatedNodes: [expressjs, javascript, typescript]
+        tags: [runtime, backend]
+
+      - id: expressjs
+        name: Express.js
+        category: backend
+        description: A minimal, unopinionated web framework for Node.js.
+        documentation: https://expressjs.com
+        relatedNodes: [nodejs, rest-apis]
+        tags: [framework, backend]
+
+      - id: rest-apis
+        name: REST APIs
+        category: backend
+        description: An architectural style for designing networked applications around stateless, resource-oriented HTTP endpoints.
+        relatedNodes: [expressjs, graphql]
+        tags: [api, architecture]
+
+      - id: postgresql
+        name: PostgreSQL
+        category: backend
+        description: An open-source, standards-compliant relational database.
+        documentation: https://www.postgresql.org/docs
+        relatedNodes: [sql]
+        tags: [database, relational]
+
+      - id: mongodb
+        name: MongoDB
+        category: backend
+        description: A document-oriented NoSQL database.
+        documentation: https://www.mongodb.com/docs
+        relatedNodes: [sql]
+        tags: [database, nosql]
+
+      - id: redis
+        name: Redis
+        category: backend
+        description: An in-memory key-value store used for caching, queues, and fast lookups.
+        documentation: https://redis.io/docs
+        tags: [database, cache]
+
+      - id: graphql
+        name: GraphQL
+        category: backend
+        description: A query language for APIs that lets clients request exactly the data they need.
+        documentation: https://graphql.org/learn
+        relatedNodes: [rest-apis]
+        tags: [api, query-language]
+
+      - id: microservices
+        name: Microservices
+        category: backend
+        description: An architectural style that structures an application as a collection of independently deployable services.
+        relatedNodes: [rest-apis, graphql]
+        tags: [architecture]
+
+      - id: convex
+        name: Convex
+        category: backend
+        description: A real-time backend platform combining a database, serverless functions, and live synchronization.
+        documentation: https://docs.convex.dev
+        projects: [Cortexa Remote Interview Platform]
+        relatedNodes: [react, nextjs]
+        tags: [backend-platform, realtime]
+
+  - key: ai
+    title: Artificial Intelligence
+    nodes:
+      - id: openai-api
+        name: OpenAI API
+        category: ai
+        isCore: true
+        description: A hosted API for accessing large language models for text generation and reasoning tasks.
+        documentation: https://platform.openai.com/docs
+        notes: Used to build an LLM-powered document workflow automating key-field extraction, saving 2 hrs/week for a US operations team.
+        relatedNodes: [langchain, rag]
+        tags: [llm, api]
+
+      - id: langchain
+        name: LangChain
+        category: ai
+        isCore: true
+        description: A framework for composing LLM calls, tools, and retrieval steps into structured pipelines.
+        documentation: https://www.langchain.com
+        notes: Used alongside the OpenAI API to build an automated document-processing workflow.
+        relatedNodes: [openai-api, rag, vector-stores]
+        tags: [llm, framework]
+
+      - id: rag
+        name: RAG
+        category: ai
+        isCore: true
+        description: Retrieval-Augmented Generation — combines a language model with a search step over external documents to ground its answers.
+        notes: Integrated a RAG pipeline enabling natural-language search across 200+ internal documents, cutting lookup time from around 5 minutes to under 2.
+        relatedNodes: [langchain, vector-stores, openai-api]
+        tags: [llm, retrieval]
+
+      - id: prompt-engineering
+        name: Prompt Engineering
+        category: ai
+        description: Structuring inputs to a language model to reliably produce the intended output.
+        relatedNodes: [openai-api, langchain]
+        tags: [llm]
+
+      - id: vector-stores
+        name: Vector Stores
+        category: ai
+        description: Databases optimized for storing and searching embeddings by semantic similarity — the retrieval half of RAG.
+        relatedNodes: [rag, langchain]
+        tags: [llm, retrieval, database]
+
+      - id: hugging-face
+        name: Hugging Face
+        category: ai
+        description: A platform and library ecosystem for open-source machine learning models.
+        documentation: https://huggingface.co/docs
+        relatedNodes: [open-source-llms]
+        tags: [ml, models]
+
+      - id: open-source-llms
+        name: Open-Source LLMs (Llama, Mistral)
+        category: ai
+        description: Openly-available language models that can be run and experimented with outside a hosted API.
+        relatedNodes: [hugging-face]
+        tags: [llm]
+
+  - key: cloud
+    title: Cloud
+    nodes:
+      - id: aws
+        name: AWS
+        category: cloud
+        description: Amazon's cloud computing platform, spanning compute, storage, and managed services.
+        documentation: https://docs.aws.amazon.com
+        projects: [RakshaChakra - Secure Mobile Banking]
+        notes: Deployed a cloud-based behavioral-analytics system on AWS EC2 for real-time monitoring.
+        relatedNodes: [python]
+        tags: [cloud, infrastructure]
+
+      - id: vercel
+        name: Vercel
+        category: cloud
+        description: A hosting platform for frontend frameworks, built around Next.js.
+        documentation: https://vercel.com/docs
+        projects: [Cortexa Remote Interview Platform]
+        relatedNodes: [nextjs]
+        tags: [hosting, deployment]
+
+  - key: devtools
+    title: Developer Tools
+    nodes:
+      - id: git
+        name: Git
+        category: devtools
+        description: A distributed version-control system for tracking changes in source code.
+        documentation: https://git-scm.com/doc
+        relatedNodes: [github]
+        tags: [vcs]
+
+      - id: github
+        name: GitHub
+        category: devtools
+        description: A hosting platform for Git repositories, code review, and CI/CD.
+        documentation: https://docs.github.com
+        relatedNodes: [git]
+        tags: [vcs, collaboration]
+
+      - id: jira
+        name: JIRA
+        category: devtools
+        description: A project- and issue-tracking tool used for agile software development.
+        documentation: https://support.atlassian.com/jira-software-cloud
+        tags: [project-management]
+
+      - id: postman
+        name: Postman
+        category: devtools
+        description: A tool for building, testing, and documenting HTTP APIs.
+        documentation: https://learning.postman.com/docs
+        relatedNodes: [rest-apis]
+        tags: [api, testing]
+
+      - id: monaco-editor
+        name: Monaco Editor
+        category: devtools
+        description: The code editor component that powers VS Code, embeddable in web applications.
+        documentation: https://microsoft.github.io/monaco-editor
+        projects: [Cortexa Remote Interview Platform]
+        relatedNodes: [typescript]
+        tags: [editor, tooling]
+`;
+
 /**
  * Pre-hydration seed for the workspace store. Schema-equivalent to the
  * backend's own seed (server/repositories/seed/workspaceSeed.ts) so the
@@ -393,42 +755,11 @@ Hello! I'm a software engineer passionate about building scalable, high-performa
       path: '/skills',
       children: [
         {
-          id: 'skills_frontend',
-          name: 'frontend.yaml',
-          type: 'yaml',
-          path: '/skills/frontend.yaml',
-          content: `frameworks:
-  - React
-  - Next.js
-  - Vue
-languages:
-  - TypeScript
-  - JavaScript
-  - HTML/CSS
-styling:
-  - TailwindCSS
-  - Framer Motion
-  - Radix UI
-`,
-        } as VirtualFile,
-        {
-          id: 'skills_backend',
-          name: 'backend.yaml',
-          type: 'yaml',
-          path: '/skills/backend.yaml',
-          content: `languages:
-  - Node.js
-  - Python
-  - Go
-databases:
-  - PostgreSQL
-  - MongoDB
-  - Redis
-architecture:
-  - Microservices
-  - REST
-  - GraphQL
-`,
+          id: 'skills_graph',
+          name: 'skills.graph',
+          type: 'graph',
+          path: '/skills/skills.graph',
+          content: SKILLS_GRAPH_YAML,
         } as VirtualFile,
       ],
     } as VirtualFolder,

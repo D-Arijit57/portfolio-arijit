@@ -10,6 +10,8 @@ import { ProjectDocumentationViewer } from '../documentation/ProjectDocumentatio
 import { MarkdownFileView } from './MarkdownFileView';
 import { ShikiEditor } from './ShikiEditor';
 import { ResumeWorkspace } from '../resume/ResumeWorkspace';
+import { resolveVisualization } from '../../graph/registry/visualizationRegistry';
+import '../../graph/registerBuiltins';
 import type { VirtualFile } from '../../types';
 
 export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
@@ -70,6 +72,17 @@ function renderFileContent(file: VirtualFile) {
   // ShikiEditor below, unaffected.
   if (isManifestFile(file)) {
     return <ManifestViewer file={file} />;
+  }
+
+  // Visualization Registry — proving itself this sprint with the Knowledge
+  // Graph Renderer only (see graph/registry/visualizationRegistry.ts).
+  // Markdown/Mermaid/Manifest above stay as their existing hardcoded
+  // branches on purpose; migrating them onto this same registry is a
+  // deliberate future follow-up, not part of this sprint.
+  const visualization = resolveVisualization(file);
+  if (visualization) {
+    const Component = visualization.component;
+    return <Component file={file} />;
   }
 
   return <ShikiEditor fileId={file.id} />;

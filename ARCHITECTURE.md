@@ -10,6 +10,8 @@ This document originated as the Phase 1 (frontend-only) architecture snapshot. `
 
 **Revision note (2026-07-19, Sprint 9A)**: added a "Notification Service" section, resolving the open question `BACKEND_BOOTSTRAP.md`'s Integration APIs section explicitly left for "whoever designs the Notification Engine." Design only — no code written.
 
+**Revision note (2026-07-31, Sprint 11 Milestone 1)**: added a "Knowledge Graph Renderer" section — the first consumer of a new, deliberately generic Visualization Registry (`skills.graph`, with `resume.graph`/`projects.graph` as future tenants of the same registry entry, not new special cases). Milestone 1 only: registry, file routing, YAML loader, Graph Model, and placeholder rendering plumbing. Graph Builder, Layout Engine, Physics, and the real node/edge renderer are not built yet.
+
 ## Component Hierarchy
 ```text
 App
@@ -658,3 +660,75 @@ No addition above requires changing `NotificationQueue`'s ordering/overflow/dedu
 | Drop overflow notifications past the max-visible count instead of queueing them | Risks silently losing an error notification a user never saw — the backlog-and-promote strategy (§5) guarantees eventual visibility at the cost of a possible short display delay, a better tradeoff for a system where "error" is one of the four severities. |
 
 **This freezes**: the layered architecture and per-layer responsibilities (§3), ownership (§2), the notification model (§4), queue behavior including overflow/dedupe (§5), the render/queue split (§6), animation behavior (§7), integration points including the one explicitly-flagged backend-observability gap (§8), per-severity error handling defaults (§9), and the extensibility mechanism (§10). No code was written in Sprint 9A; `src/notifications/*`, the `notificationState` store slice, and every producer integration remain unbuilt until a future sprint implements against this section.
+
+---
+
+## Knowledge Graph Renderer
+
+**Status: Milestone 1 of Sprint 11 shipped 2026-07-31 (registry + routing + loader + Graph Model + placeholder rendering only). Graph Builder, Layout Engine, Physics Engine, and the real interactive renderer are not built yet — see §6.**
+
+### 0. Grounding — what already existed, what this reuses
+
+This sprint follows the same engineering process the Manifest Constellation sprint used (audit → architecture approval → milestone-gated implementation), and reuses several of its already-proven pieces directly rather than re-deriving them:
+
+- `resolveTechLogo()`/`colorHash.ts` (icon and deterministic-color resolution) — planned reuse for the real renderer (not needed yet by Milestone 1's placeholder view).
+- `useConstellationViewport` — generic enough (`layout: {width,height}`, optional `reservedChromeRefs`) to reuse directly for the graph's pan/zoom/fit once the real renderer needs a viewport (Milestone 5).
+- The `parseManifest`-style "pure function, raw text in, typed model out, undefined on anything unusable" contract — mirrored exactly by `loadGraphModel()` below.
+- `EditorRenderer.tsx`'s dispatch chain — extended, not replaced (see §2).
+
+### 1. Why this is generic "graph infrastructure," not a "skills" feature
+
+Everything under `src/graph/` and `src/components/graph/` is written with zero references to "skills" — the domain-specific content (the six categories, the actual technologies) lives only in `skills/skills.graph`'s own YAML. The renderer is selected by `FileType === 'graph'`, not by filename, so a future `resume.graph` or `projects.graph` gets the identical Knowledge Graph Renderer for free, with no renderer change — the same principle `isManifestFile`'s filename-based match deliberately does *not* offer, and the reason this file match is type-based instead (see `graph/fileMatch.ts`'s own comment for the explicit contrast).
+
+### 2. Visualization Registry
+
+```ts
+interface VisualizationDefinition {
+  id: string;
+  matches: (file: VirtualFile) => boolean;
+  component: ComponentType<{ file: VirtualFile }>;
+}
+registerVisualization(definition): void
+resolveVisualization(file): VisualizationDefinition | undefined
+```
+
+`EditorRenderer.tsx`'s `renderFileContent()` now ends with `resolveVisualization(file)` checked immediately before the `ShikiEditor` fallback — after every existing hardcoded branch (Markdown, `work_history`, Mermaid, Manifest), all left completely untouched. **Explicit scope decision**: this sprint does not migrate Markdown/Mermaid/Manifest/WorkHistory/Resume onto the registry — it only needs to prove itself hosting the Knowledge Graph Renderer. Retrofitting the existing renderers onto the same registry is a deliberate, named future refactoring sprint, not an oversight.
+
+Registration happens via a side-effect import (`import '../../graph/registerBuiltins'` in `EditorRenderer.tsx`) — the one place that actually needs the registry populated before first render.
+
+### 3. Source format — real YAML, not JSON-in-yaml
+
+Unlike `manifest.yaml` (JSON text, avoiding a parser dependency, since it's never shown raw anyway), `skills.graph`'s content is genuine YAML, parsed via the `yaml` npm package (newly added; zero existing YAML parser in this repo before this sprint). Explicit, approved trade-off: maintaining the illusion that every workspace file is a real developer-authored artifact was judged more valuable than avoiding one small dependency.
+
+### 4. Graph Model
+
+```ts
+interface GraphNode {
+  id: string; name: string; category: string;         // required
+  icon?, description?, proficiency?, proficiencyPercent?,
+  years?, isCore?, projects?, relatedNodes?, prerequisites?,
+  strengths?, documentation?, tags?, notes?;             // all optional
+}
+interface GraphCategory { key: string; title: string; nodes: GraphNode[] }
+interface GraphModel { title: string; description: string; categories: GraphCategory[] }
+```
+
+Named optional fields (not an untyped attributes bag) — deliberate, matching `ManifestTechnology`'s precedent: the Inspector Panel needs to render a real progress bar / strengths checklist / project list, which an untyped bag would only relocate the problem into, not solve, for a portfolio that will realistically only ever have 2-3 graph types.
+
+`relatedNodes` is intentionally **not** rendered as a permanent graph edge — approved decision: cross-category relationships surface only in the Inspector Panel and as a temporary highlight on hover/select (Milestone 7/9), keeping the graph itself a clean, uncluttered tree.
+
+### 5. Content — `skills/skills.graph`
+
+Replaces the old `skills/frontend.yaml` + `skills/backend.yaml` (both removed, in both `src/content/workspaceSeed.ts` and `server/repositories/seed/workspaceSeed.ts`, which must stay byte-identical per existing convention). 37 nodes across the 6 approved categories (Programming Languages, Frontend, Backend, Artificial Intelligence, Cloud, Developer Tools). Content-grounding rule followed per explicit instruction: `projects`/`notes` only cite what `src/components/resume/data/fullstack-ai.ts` (verified verbatim against the real resume PDF) or `manifest.yaml`'s own Cortexa tech list already document as fact; `proficiency`/`proficiencyPercent`/`years` are left unset on every node — nothing in the source resume states a per-skill duration or percentage, so none was invented. Full rationale in the comment directly above `SKILLS_GRAPH_YAML` in `workspaceSeed.ts`.
+
+### 6. What Milestone 1 does *not* include (by design, not oversight)
+
+Graph Builder (relationships-only, no coordinates), Layout Engine (`LayoutStrategy` interface + `RadialLayout`), Physics Engine (spring/tether/repulsion/noise), the real SVG node/edge renderer, viewport, Inspector Panel, hover, search, and filters are all explicitly out of scope for this milestone per the approved brief ("Do not begin layout, rendering, interactions or physics yet"). `KnowledgeGraphViewer.tsx` today is a flat category/node-count list proving the pipeline end to end (file → registry → component → `loadGraphModel` → `GraphModel`) — not meant to survive once Milestone 3/4 land.
+
+### 7. One real bug caught during this milestone
+
+`tsc --noEmit` passing on the new `'graph'` `FileType` union member did **not** catch a second, separate runtime whitelist: `server/types/vfs.types.ts`'s `FILE_TYPES` array (used by `isValidFileType()`, which `server/repositories/validation.ts` calls on every workspace-tree load) is a parallel, hand-maintained list the type checker can't see into. Missing the addition there took the backend down entirely (`WorkspaceIntegrityError: File "skills_graph" has invalid type "graph"`, crashing `InMemoryFileNodeRepository`'s constructor on startup) — caught via a live `curl` check against `/api/health`, not by the type checker. Fixed by adding `'graph'` to `FILE_TYPES` alongside the type union. Worth remembering for any future `FileType` addition: the TS union and this runtime array are two sources of truth that don't currently derive from each other.
+
+### 8. Next milestone
+
+Milestone 2 (Graph Builder) — pending review of this milestone.

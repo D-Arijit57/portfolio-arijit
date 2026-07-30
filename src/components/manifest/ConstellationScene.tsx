@@ -185,20 +185,58 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
               <stop offset="100%" stopColor={cat.color} stopOpacity={0} />
             </radialGradient>
           ))}
+          {/* Star glow filter stack — a light source reads as "emitting
+              into space" through spatial extent (how far the blur spreads
+              a low-opacity layer), not through raw opacity. Each filter
+              below is a wider, softer blur than the last; ConstellationStar
+              pairs a bigger radius with a *lower* opacity as it moves
+              outward through this stack, so total perceived brightness at
+              the core stays put while the falloff genuinely fills the
+              surrounding canvas instead of stopping at a hard edge. */}
           <filter id="constellation-node-glow" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation="7" />
+            <feGaussianBlur stdDeviation="8" />
           </filter>
-          <filter id="constellation-halo-blur" x="-160%" y="-160%" width="420%" height="420%">
-            <feGaussianBlur stdDeviation="13" />
+          <filter id="constellation-corona-blur" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="5" />
           </filter>
-          <filter id="constellation-corona-blur" x="-80%" y="-80%" width="260%" height="260%">
+          <filter id="constellation-bloom-blur" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation="16" />
+          </filter>
+          <filter id="constellation-halo-blur" x="-260%" y="-260%" width="620%" height="620%">
+            <feGaussianBlur stdDeviation="26" />
+          </filter>
+          {/* Layer 5 — "volumetric" — very large, very soft, barely-there;
+              this is what makes nearby stars feel like they share one
+              atmosphere instead of each existing in its own bubble. */}
+          <filter id="constellation-volumetric-blur" x="-400%" y="-400%" width="900%" height="900%">
+            <feGaussianBlur stdDeviation="46" />
+          </filter>
+          <filter id="constellation-edge-glow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="3.5" />
+          </filter>
+          <filter id="constellation-edge-bloom" x="-150%" y="-150%" width="400%" height="400%">
+            <feGaussianBlur stdDeviation="9" />
+          </filter>
+          <filter id="constellation-edge-haze" x="-250%" y="-250%" width="600%" height="600%">
+            <feGaussianBlur stdDeviation="20" />
+          </filter>
+          <filter id="constellation-particle-glow" x="-150%" y="-150%" width="400%" height="400%">
             <feGaussianBlur stdDeviation="4" />
           </filter>
-          <filter id="constellation-edge-glow" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="2.5" />
+          {/* Three blur radii for the nebula's overlapping clouds — real
+              depth reads through varied softness, not just varied color,
+              so no two blobs look like copies of the same shape. */}
+          <filter id="constellation-nebula-blur-tight" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="38" />
           </filter>
           <filter id="constellation-nebula-blur" x="-60%" y="-60%" width="220%" height="220%">
             <feGaussianBlur stdDeviation="55" />
+          </filter>
+          <filter id="constellation-nebula-blur-wide" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="74" />
+          </filter>
+          <filter id="constellation-bg-star-glow" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur stdDeviation="2.2" />
           </filter>
         </defs>
 

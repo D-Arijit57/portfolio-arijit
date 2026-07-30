@@ -209,7 +209,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "React framework with App Router, Server Components and Route Handlers.",
       "tags": ["Core"],
       "importance": "primary",
-      "position": { "x": 0.24, "y": 0.60 },
+      "position": { "x": 0.29, "y": 0.60 },
       "connectsTo": ["React", "shadcn/ui + Radix UI"]
     },
     {
@@ -218,7 +218,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Component-based UI library for building interactive user interfaces.",
       "tags": ["Core"],
       "importance": "secondary",
-      "position": { "x": 0.04, "y": 0.34 },
+      "position": { "x": 0.13, "y": 0.34 },
       "connectsTo": ["TypeScript", "Tailwind CSS"]
     },
     {
@@ -227,7 +227,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Static typing across the entire frontend and backend codebase.",
       "tags": ["Core"],
       "importance": "supporting",
-      "position": { "x": 0.32, "y": 0.06 },
+      "position": { "x": 0.35, "y": 0.06 },
       "connectsTo": ["Stream"]
     },
     {
@@ -236,7 +236,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Utility-first CSS framework for rapid and consistent UI development.",
       "tags": ["Core"],
       "importance": "supporting",
-      "position": { "x": -0.44, "y": 0.46 }
+      "position": { "x": -0.26, "y": 0.46 }
     },
     {
       "technology": "shadcn/ui + Radix UI",
@@ -244,7 +244,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Accessible, unstyled primitives composed into the app's design system.",
       "tags": ["Core"],
       "importance": "supporting",
-      "position": { "x": 0.36, "y": 0.82 }
+      "position": { "x": 0.38, "y": 0.82 }
     }
   ],
   "backendAndData": [
@@ -254,7 +254,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Real-time backend platform with database, serverless functions, and live synchronization.",
       "tags": ["Database", "Realtime", "Queries", "Mutations", "Actions"],
       "importance": "secondary",
-      "position": { "x": 1.20, "y": 0.50 },
+      "position": { "x": 1.06, "y": 0.50 },
       "connectsTo": ["Vercel"]
     }
   ],
@@ -265,7 +265,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Authentication, user management, sessions and role-based access control.",
       "tags": ["Authentication", "Sessions", "RBAC", "JWT"],
       "importance": "secondary",
-      "position": { "x": 1.12, "y": 0.26 },
+      "position": { "x": 0.99, "y": 0.26 },
       "connectsTo": ["Convex", "Monaco Editor", "Convex Cloud"]
     }
   ],
@@ -276,7 +276,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Managed video SDK powering live interviews with audio, video, screen sharing and recording.",
       "tags": ["Video", "Audio", "Screen Sharing", "Recordings"],
       "importance": "supporting",
-      "position": { "x": 0.52, "y": -0.08 },
+      "position": { "x": 0.51, "y": -0.08 },
       "connectsTo": ["Stream Cloud"]
     }
   ],
@@ -287,7 +287,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "In-browser code editor with multi-language support and live code execution.",
       "tags": ["Multi-language", "Code Execution", "Hot Reload"],
       "importance": "supporting",
-      "position": { "x": 0.68, "y": 0.12 }
+      "position": { "x": 0.64, "y": 0.12 }
     }
   ],
   "deployment": [
@@ -297,7 +297,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Hosting and global delivery for the Next.js application.",
       "tags": ["Managed Service"],
       "importance": "supporting",
-      "position": { "x": 0.72, "y": 0.62 },
+      "position": { "x": 0.67, "y": 0.62 },
       "connectsTo": ["Next.js"]
     },
     {
@@ -306,7 +306,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Serverless backend platform with automatic scaling.",
       "tags": ["Managed Service"],
       "importance": "supporting",
-      "position": { "x": 1.40, "y": 0.14 }
+      "position": { "x": 1.22, "y": 0.14 }
     },
     {
       "technology": "Stream Cloud",
@@ -314,7 +314,7 @@ const CORTEXA_MANIFEST_YAML = `{
       "description": "Global media infrastructure for real-time communication.",
       "tags": ["Managed Service"],
       "importance": "supporting",
-      "position": { "x": 0.12, "y": -0.14 }
+      "position": { "x": 0.19, "y": -0.14 }
     }
   ]
 }

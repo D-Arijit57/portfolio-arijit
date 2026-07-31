@@ -31,5 +31,5 @@ export const config: AppConfig = {
   corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3000'),
   githubUsername: readOptionalEnv('GITHUB_USERNAME'),
   githubToken: readOptionalEnv('GITHUB_TOKEN'),
-  leetcodeUsername: readOptionalEnv('LEETCODE_USERNAME'),
+  leetcodeUsername: readOptionalEnv('LEETCODE_USERNAME'), 
 };

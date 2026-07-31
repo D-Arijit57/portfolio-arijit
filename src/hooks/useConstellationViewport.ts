@@ -42,6 +42,8 @@ interface Insets {
  */
 export interface ConstellationViewportOptions {
   reservedChromeRefs?: RefObject<HTMLElement | null>[];
+  /** CSS selector `.closest()` uses to tell "this pointerup landed on a node" from "this pointerup landed on empty canvas" — defaults to the Tech Stack Constellation's own attribute so existing callers are unaffected. The Knowledge Graph (Milestone 5) passes its own `[data-graph-node]`. */
+  nodeSelector?: string;
 }
 
 // How close (px) a panel's edge must sit to a container edge to be
@@ -149,7 +151,7 @@ export function useConstellationViewport(
   layout: { width: number; height: number },
   options: ConstellationViewportOptions = {},
 ) {
-  const { reservedChromeRefs = [] } = options;
+  const { reservedChromeRefs = [], nodeSelector = '[data-constellation-node]' } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewport, setViewport] = useState<ConstellationViewport>({ x: 0, y: 0, scale: 1 });
@@ -179,7 +181,7 @@ export function useConstellationViewport(
     return { container, usable: getUsableBox(container.clientWidth, container.clientHeight, insets) };
   };
 
-  const fitToScreen = () => {
+  const fitToScreen = (animated = false) => {
     if (layout.width === 0 || layout.height === 0) return;
     const measured = measureUsableBox();
     if (!measured) return;
@@ -193,7 +195,7 @@ export function useConstellationViewport(
     // bounding box — center that box within the *usable* area, not the
     // raw container, so reserved chrome (the legend/detail card, the
     // toolbar) never visually collides with the composition.
-    setViewportTransition(INSTANT_TRANSITION);
+    setViewportTransition(animated ? FOCUS_TRANSITION : INSTANT_TRANSITION);
     setViewport({
       scale,
       x: usable.centerX - (layout.width * scale) / 2,
@@ -204,6 +206,12 @@ export function useConstellationViewport(
   const fitToScreenManual = () => {
     resetInteraction();
     fitToScreen();
+  };
+
+  /** Same as `fitToScreenManual`, but eases (Milestone 5's "fit graph should ease" requirement) instead of snapping instantly — used for an explicit user-triggered re-fit (e.g. clicking empty canvas to deselect), never for the initial mount fit, which must stay instant so a file never visibly "flies in" on open. */
+  const fitToScreenAnimated = () => {
+    resetInteraction();
+    fitToScreen(true);
   };
 
   const resetView = () => {
@@ -299,7 +307,7 @@ export function useConstellationViewport(
     const pan = panState.current;
     if (!pan || pan.pointerId !== event.pointerId) return;
     const movedDistance = Math.hypot(event.clientX - pan.startX, event.clientY - pan.startY);
-    const clickedNode = (event.target as Element).closest('[data-constellation-node]');
+    const clickedNode = (event.target as Element).closest(nodeSelector);
     if (movedDistance < CLICK_DRAG_THRESHOLD && !clickedNode) {
       onBackgroundClick();
     }
@@ -336,6 +344,7 @@ export function useConstellationViewport(
     viewport,
     viewportTransition,
     fitToScreenManual,
+    fitToScreenAnimated,
     resetView,
     focusOnNode,
     resetInteraction,

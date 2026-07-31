@@ -665,7 +665,7 @@ No addition above requires changing `NotificationQueue`'s ordering/overflow/dedu
 
 ## Knowledge Graph Renderer
 
-**Status: Milestone 1 of Sprint 11 shipped 2026-07-31 (registry + routing + loader + Graph Model + placeholder rendering only). Graph Builder, Layout Engine, Physics Engine, and the real interactive renderer are not built yet — see §6.**
+**Status: Milestones 1-3 of Sprint 11 shipped and approved, Milestones 4-5 in progress, 2026-08-01. Milestone 1: registry + routing + loader + Graph Model + placeholder rendering. Milestone 2: Graph Builder — relationships + statistics, no coordinates. Milestone 3: Layout Engine — force-relaxed radial layout, FROZEN at its pass-3 baseline for this sprint — see §10. Milestone 4: the first production Renderer, now also FROZEN ("do not continue polishing... unless a genuine functional issue is discovered") — see §11. Milestone 5: Interaction & Motion Layer (hover, selection, drag, idle/breathing ambient motion, eased camera, reduced-motion support) — see §12. Inspector Panel, search, and filters are not built yet.**
 
 ### 0. Grounding — what already existed, what this reuses
 
@@ -729,6 +729,316 @@ Graph Builder (relationships-only, no coordinates), Layout Engine (`LayoutStrate
 
 `tsc --noEmit` passing on the new `'graph'` `FileType` union member did **not** catch a second, separate runtime whitelist: `server/types/vfs.types.ts`'s `FILE_TYPES` array (used by `isValidFileType()`, which `server/repositories/validation.ts` calls on every workspace-tree load) is a parallel, hand-maintained list the type checker can't see into. Missing the addition there took the backend down entirely (`WorkspaceIntegrityError: File "skills_graph" has invalid type "graph"`, crashing `InMemoryFileNodeRepository`'s constructor on startup) — caught via a live `curl` check against `/api/health`, not by the type checker. Fixed by adding `'graph'` to `FILE_TYPES` alongside the type union. Worth remembering for any future `FileType` addition: the TS union and this runtime array are two sources of truth that don't currently derive from each other.
 
-### 8. Next milestone
+### 8. Next milestone (superseded)
 
-Milestone 2 (Graph Builder) — pending review of this milestone.
+~~Milestone 2 (Graph Builder) — pending review of this milestone.~~ Shipped; see §9.
+
+### 9. Graph Builder (Milestone 2)
+
+**Status: shipped 2026-07-31, approved.** Consumes the Milestone 1 `GraphModel` and produces `GraphBuildResult` — the single source of truth every renderer, layout, and interaction layer downstream reads from. No SVG, no animation, no physics, no viewport, no coordinates: purely relationships. Files: `src/graph/builder/{types,validate,buildGraph,traversal}.ts`.
+
+### 9.1 Why a three-node-kind union, not one generic node type
+
+`GraphBuildNode` is `GraphRootBuildNode | GraphCategoryBuildNode | GraphLeafBuildNode`, a fixed two-level tree under one synthetic root (root -> category -> leaf):
+
+```ts
+interface GraphRootBuildNode { kind: 'root'; id: string; label: string; description?: string; depth: 0 }
+interface GraphCategoryBuildNode { kind: 'category'; id: string; key: string; label: string; depth: 1 }
+interface GraphLeafBuildNode { kind: 'leaf'; id: string; label: string; categoryKey: string; depth: 2; source: GraphNode }
+```
+
+A single node type with every field optional would let a renderer misread a category node's absent `source` as "a leaf with no data" instead of "not a leaf." The union makes that a compile error instead of a runtime guess. `source` on the leaf carries the full Milestone 1 `GraphNode` untouched (icon, description, proficiency, `relatedNodes`, etc.) — the builder never copies or reshapes those fields, only wraps them.
+
+Root and category ids are namespaced (`graph:root`, `graph:category:<key>`) so they can never collide with an author-chosen leaf id (`react`, `python`, ...); leaf ids are used verbatim since Milestone 1's YAML already treats them as globally unique within one graph.
+
+### 9.2 GraphBuildResult
+
+```ts
+interface GraphBuildResult {
+  nodes: GraphBuildNode[];             // root, then categories, then leaves — authored order
+  edges: GraphBuildEdge[];             // structural parent->child only: root->category, category->leaf
+  rootNode: GraphRootBuildNode;
+  categoryNodes: GraphCategoryBuildNode[];
+  leafNodes: GraphLeafBuildNode[];
+  nodeById: Map<string, GraphBuildNode>;
+  childrenById: Map<string, string[]>;
+  parentById: Map<string, string | undefined>;
+  neighborsById: Map<string, string[]>;  // parent + children (tree adjacency)
+  categoryLookup: Map<string, GraphCategoryBuildNode>;
+  warnings: GraphValidationWarning[];
+}
+```
+
+**`edges`/`neighborsById` are structural only** — they mirror the root->category->leaf tree, not `relatedNodes`/`prerequisites`. This carries forward Milestone 1's already-approved decision (§4: "`relatedNodes` is intentionally not rendered as a permanent graph edge") rather than reopening it. `relatedNodes`/`prerequisites` are still fully validated (§9.3) and remain readable off `leaf.source` for the Inspector Panel/hover-highlight to use later — they just don't become a second edge set the Layout Engine would have to reconcile against the tree.
+
+### 9.3 Validation strategy
+
+Runs during `buildGraph()`, never throws, never silently drops a problem — every issue becomes a typed `GraphValidationWarning` (`{ type, nodeId, message }`) collected in the result *and* `console.warn`'d immediately, so a broken YAML edit surfaces in the dev console the moment it's saved, not just when something inspects `result.warnings` later.
+
+| Check | Type | Behavior on failure |
+|---|---|---|
+| Duplicate category key | `duplicate-category` | Skip the repeat, keep the first |
+| Id collides with an existing node (category/root/leaf) | `duplicate-id` | Skip the offending node |
+| Leaf's `category` field disagrees with its actual parent, but names a real category | `category-mismatch` | Warn; structural nesting still wins |
+| Leaf's `category` field names no category that exists at all | `missing-category` | Warn; structural nesting still wins |
+| `relatedNodes`/`prerequisites` entry references a nonexistent leaf id | `invalid-related-node` / `invalid-prerequisite` | Warn; reference left as-authored |
+| `relatedNodes`/`prerequisites` entry names the node itself | `self-reference` | Warn |
+
+Verified against the real `skills.graph` content (37 nodes, 6 categories): zero warnings. Verified separately against a deliberately broken fixture (wrong category, dangling related-node id, self-reference) to confirm each rule fires independently without the build aborting.
+
+### 9.4 Deterministic ordering
+
+`GraphModel.categories`/`.nodes` are arrays (not object keys), so authored YAML order is already deterministic; `buildGraph()` processes them in one top-to-bottom pass and never aggregates through a Set/Map whose iteration order could vary. `nodes`/`edges`/`childrenById` are therefore always byte-identical for the same input — no extra sort step was needed beyond honoring the order the YAML already declares.
+
+### 9.5 Traversal API
+
+`src/graph/builder/traversal.ts` exports plain functions taking the result as their first argument — not methods on the result object, matching this codebase's existing "data and behavior kept separate, no classes" convention (`loadGraphModel`, `buildConstellationGraph`):
+
+```ts
+getChildren(result, id): GraphBuildNode[]
+getParent(result, id): GraphBuildNode | undefined
+getNeighbors(result, id): GraphBuildNode[]        // parent + children
+getDescendants(result, id): GraphBuildNode[]       // BFS, excludes id itself
+getAncestors(result, id): GraphBuildNode[]         // walk to root, excludes id itself
+```
+
+All five are the intended foundation for hover, selection, highlighting, search, filters, and every future layout — nothing downstream should ever walk `childrenById`/`parentById` directly.
+
+### 9.6 Remains generic
+
+Nothing in `src/graph/builder/` references "skills," a category name, or any specific domain — same guarantee Milestone 1 established for `src/graph/`. A future `resume.graph`/`projects.graph` gets the identical Graph Builder for free.
+
+### 9.7 Graph Statistics (approved refinement, shipped alongside Milestone 3)
+
+`GraphBuildResult` gained a `statistics: GraphStatistics` field, computed once in `buildGraph()` (`src/graph/builder/statistics.ts`) rather than left for a consumer to derive:
+
+```ts
+interface GraphStatistics {
+  totalNodes: number; totalEdges: number; totalCategories: number;
+  maxDepth: number; isolatedNodes: number; averageChildren: number;
+}
+```
+
+`isolatedNodes` counts nodes with zero tree neighbors (generic degree-0 check via `neighborsById`, not "leaf with no parent" specifically) — always 0 for any graph the current loader can produce, since Milestone 1 already drops empty categories and every leaf has a parent by construction; the check stays generic rather than hardcoding that assumption, so it stays meaningful if that upstream guarantee ever changes. `averageChildren` is `totalEdges / totalNodes` — mean branching factor across every node including leaves (which contribute 0), the least ambiguous denominator to define without picking a domain-specific "which nodes can have children" rule. Verified against `skills.graph`: `{ totalNodes: 44, totalEdges: 43, totalCategories: 6, maxDepth: 2, isolatedNodes: 0, averageChildren: 0.977 }`.
+
+### 9.8 Next milestone (superseded)
+
+~~Layout Engine (`LayoutStrategy` interface + `RadialLayout`, coordinates only) — pending review of this milestone.~~ Shipped; see §10.
+
+## Layout Engine (Milestone 3)
+
+**Status: FROZEN and approved for Sprint 11, 2026-07-31**, at the pass-3 (force-relaxed, scattered-leaf) implementation. Files: `src/graph/layout/{types,radialLayout.ts}`.
+
+Four passes were built over the course of this milestone:
+
+1. **Uniform wheel** (equal `360°/N` wedges, one shared leaf ring) — rejected: read as "a radial topology diagram."
+2. **Jittered polar formula** (weighted wedges + hashed angle/radius jitter, leaves fanned within a local arc) — closer, but still rejected: category radii clustered too tightly (`292–348`) to break the "invisible ring," and leaves-on-an-arc still read as a fan.
+3. **Force-relaxed, scattered leaves** (the frozen baseline, described below) — seeded categories/leaves, then relaxed to equilibrium via repel/spring. Called "by far the strongest version" and ~90% complete.
+4. **Composed** — a further artistic pass (weight-driven silhouette size + a deterministic walk seeding leaves instead of scattering them, for declaration-order visual flow) was implemented and reviewed favorably, but then **explicitly reverted** per sprint-direction: "good enough for this sprint... further tuning is producing diminishing returns," with development effort redirected to the renderer (Milestone 4). `radialLayout.ts` and `types.ts` were reverted byte-for-byte to their pass-3 state. Pass 4's design (weight-driven `clusterScale`, the meandering-walk leaf seed, its own trade-offs) remains recorded below for anyone who revisits the layout later — it is not live code.
+
+### 10.1 Why pass 2 still failed, and what a force relaxation fixes
+
+Pass 2 added per-category jitter to angle and radius, but a symmetric formula applied independently per node still produces a suspiciously uniform *spread* — every category's radius jitter was drawn from the same ±22% band around the same base, so the actual output band (`292–348`) was even tighter than the input band, because nothing in a pure per-node formula lets categories negotiate with each other. The fix isn't more jitter; it's replacing "assign a position" with "settle into a position": seed a starting guess per category, then let repulsion (push categories apart) and a spring (pull each category toward its own target distance) iterate to equilibrium. Two properties of that equilibrium matter:
+
+- With a **strong-enough spring**, each category actually holds close to *its own* target radius instead of being smoothed toward the group average — this was the first bug found empirically: an initial attempt used a weak spring (`springK = 0.06`) and measured output radii of `234–268`, tighter than the `292–348` pure-jitter version it was meant to improve on. N repelling bodies tethered to a shared center by a weak spring settle toward a near-regular polygon almost regardless of their individual targets — repulsion alone is a homogenizing force. Strengthening the spring (`springK = 0.2`) and widening the target range by category weight fixed this: category radii now range `158–420`, a `2.6×` spread.
+- The same fix applies one level down: each category's own leaves are seeded at **scattered, non-angular points** (2D hash jitter, not "evenly spaced across an arc plus a little jitter") and relaxed with their own strong individual spring, so leaf-to-parent distances within one category now range as widely as `50–188` (Backend) instead of clustering near one shared local radius.
+
+### 10.2 A hashing bug worth recording
+
+While tuning the per-category anisotropic stretch, `aspectX` and `aspectY` came out numerically identical for every category — `hashStringToIndex`'s hash is a left-to-right rolling hash (`hash = hash*31 + charCode`), so a string's *first* characters get multiplied by the largest powers of 31 (real mixing) while its *last* character only contributes `×1`. Seeds like `` `${category.id}:aspectx` `` vs `` `${category.id}:aspecty` `` differ **only in their final character**, so the two hashes differed by exactly 1 before the modulo — a negligible difference after normalizing to `[0,1)`. Fixed by moving the distinguishing token to the front of the seed string (`` `aspectx:${category.id}` `` vs `` `aspecty:${category.id}` ``), which gets real divergence from the hash. Worth remembering for any future id-seeded jitter in this codebase: **suffix-only differentiation on a rolling hash barely differentiates at all.**
+
+### 10.3 LayoutStrategy
+
+```ts
+interface LayoutStrategy {
+  id: string;
+  layout(result: GraphBuildResult): PositionedGraph;
+}
+export const RadialLayout: LayoutStrategy = { id: 'radial', layout };
+```
+
+The only implementation, per the explicit instruction not to scaffold placeholder strategies. The Renderer (Milestone 4, §11) is written against `PositionedGraph` alone and has no dependency on this interface or on `radialLayout.ts` — a future second `LayoutStrategy` can be swapped in with zero renderer changes.
+
+### 10.4 Coordinate generation strategy (frozen baseline)
+
+World-space coordinates, not normalized `[0,1]` — same contract as `manifest/constellationLayout.ts`. A shared, generic relaxation function (`relax(initial, anchor, restLengths, options)`) implements a fixed-iteration, Fruchterman-Reingold-style pass: every pair of points repels (`repulsionK / distance²`), every point is tethered to `anchor` by a spring toward its own rest length, and per-iteration movement is capped by a linearly-cooling step size so the system settles rather than oscillates. Pure arithmetic, no randomness inside the relaxation itself — used twice, at two scales:
+
+**Macro (hub ↔ category):**
+1. Seed: weighted-wedge angle (weight = leaf count + floor of `2`) for a non-degenerate starting angle, and a target radius that already varies by weight (`HUB_CATEGORY_WEIGHT_RADIUS_RANGE = 0.6`) plus `±30%` id-seeded jitter (`HUB_CATEGORY_RADIUS_SEED_JITTER`) around a base of `250` (`HUB_CATEGORY_BASE_RADIUS`).
+2. Relax for `90` iterations (`MACRO_ITERATIONS`) with `repulsionK = 16,000`, `springK = 0.2`, step cooling linearly from `14` to `0`.
+3. Final category position = wherever that settles — no longer decomposable into a clean `r(θ)` formula.
+
+**Micro (category ↔ its own leaves), entirely in the category's own local space:**
+1. Seed: each leaf at an independent 2D hash-jittered point within a `50`-unit disk (`LOCAL_SEED_RADIUS`) — deliberately NOT an angle assigned by sibling index, which is what produced the fan in earlier passes. Target radius per leaf = `92` (`LOCAL_CLUSTER_BASE_RADIUS`) `× (1 ± 45%)` (`LOCAL_RADIUS_SEED_JITTER`), id-seeded per leaf.
+2. Relax for `70` iterations (`MICRO_ITERATIONS`) with `repulsionK = 2,600`, `springK = 0.14`, step cooling from `9`.
+3. Apply a per-category anisotropic transform: independent stretch on each axis (`ANISOTROPY_MIN..MAX = 0.65..1.55`, hashed from the category's own id) then a rotation (also hashed) — gives each category its own silhouette instead of a uniform blob.
+4. Translate onto the category's final macro position.
+
+Every seed value comes from `hashStringToIndex` (`manifest/colorHash.ts`, reused not reimplemented). Verified: two calls to `RadialLayout.layout()` on the same `GraphBuildResult` produce byte-identical output.
+
+### 10.5 Spacing / collision safety
+
+No minimum-spacing *formula* — repulsion in the relaxation itself keeps siblings and categories from literally overlapping, verified empirically: minimum pairwise distance between category nodes `181` (footprint sum `56`), minimum sibling distance within any one category `58` (footprint sum `40`). Trade-off (§10.8): empirical per-graph-shape, not a closed-form guarantee for an arbitrary future graph.
+
+### 10.6 Category distribution strategy
+
+Categories are walked in the graph's own authored order for seeding; weight (leaf count + floor) shifts both the seed angle (via wedge share) and the target radius, but the *final* arrangement is whatever the relaxation settles to. Cloud (2 leaves) settled at radius `158`; Backend (9 leaves) settled at `420` — a `2.6×` spread driven by weight-influenced seeding plus relaxation.
+
+### 10.7 PositionedGraph
+
+```ts
+interface PositionedGraph {
+  nodes: PositionedNode[];       // GraphBuildNode & {x, y}
+  edges: PositionedEdge[];       // {from, to, fromPoint, toPoint}
+  bounds: LayoutBounds;
+  center: Point;
+  radius: number;                // measured from actual positions
+  categoryRings: CategoryRing[]; // per-category settled angle/radius, mean leaf radius, local aspect + rotation
+  viewportPadding: number;
+  statistics: GraphStatistics;
+  layoutMetadata: LayoutMetadata; // { strategy: 'radial', hubCategoryBaseRadius, localClusterBaseRadius, angleOffsetRadians, categoryRelaxationIterations, leafRelaxationIterations }
+}
+```
+
+This is the exact, frozen contract the Renderer (§11) consumes.
+
+### 10.8 Trade-offs
+
+- **Empirical collision safety over a proven spacing formula** — flagged rather than silently assumed safe; worth re-verifying if a future `.graph` file has a much larger or more skewed category.
+- **Tuned constants over derived ones** — `repulsionK`/`springK`/iteration counts were tuned empirically against `skills.graph`'s actual shape; a graph with very different scale might need retuning.
+- **`LayoutStrategy` interface with one implementation, no registry** — still judged premature; nothing yet needs to pick a strategy at runtime.
+- **Frozen at "~90% complete" rather than pursued to 100%** — an explicit sprint-scoping call: the renderer, interaction model, and visual language were judged to contribute more to the finished product than further coordinate tuning. Revisit only if the renderer surfaces an actual structural issue with the coordinates it's given.
+
+### 10.9 Pass 4 (implemented, reviewed, then reverted — not live code)
+
+Recorded for reference only, in case the layout is revisited later. Two changes on top of the frozen baseline:
+
+- **Weight-driven silhouette size**: the per-category anisotropic stretch was split into an overall `clusterScale` driven by the category's own weight (`CLUSTER_SCALE_MIN..MAX = 0.8..1.55`, denser categories scale up — "let larger clusters dominate more space") times a smaller hashed `axisVariation` per axis (`0.85..1.2`) for individual shape. Measured: local-cluster aspect magnitude ranged from Cloud's `0.93/0.78` to Backend's `1.79/1.75`, roughly `2×`.
+- **Meandering-walk leaf seeding**: instead of independent scattered points, each leaf was seeded relative to the PREVIOUS leaf's position (fixed step length + gentle angular drift + per-step jitter), so declaration-order siblings ended up spatially adjacent by construction — a traceable path ("AI → LangChain → Vector Stores → OpenAI"), not just organically-spaced points. A much lighter cleanup relaxation (`30` iterations vs. the baseline's `70`) preserved the walk's shape while resolving accidental non-adjacent overlaps.
+
+A scoping note also recorded at the time: that pass's brief illustrated the desired *kind* of variation using this graph's actual category names ("AI can become the visually largest," etc.) — read as illustrative outcomes for this data, not literal per-name hardcoding, consistent with this Layout Engine's standing "must not know about Skills/Frontend/Backend/AI/Cloud" constraint. Both pass-4 mechanisms remained fully generic (leaf count + hashed id only) under that reading.
+
+## Renderer (Milestone 4)
+
+**Status: shipped 2026-07-31, accepted as the frozen visual baseline 2026-08-01** ("the graph is now visually correct... freeze the current renderer unless a genuine functional issue is discovered"). The first production renderer, replacing Milestone 1's flat category/node-count placeholder. Files: `src/components/graph/{graphVisuals.ts,GraphBackground.tsx,GraphEdgeLine.tsx,GraphNode.tsx,KnowledgeGraphScene.tsx}`, plus a rewritten `KnowledgeGraphViewer.tsx`. Milestone 5 (§12) adds interaction/motion on top of these same files without changing any static visual value (color, size, spacing, background).
+
+### 11.1 Pipeline
+
+```
+Graph Loader -> Graph Builder -> Layout Engine -> Renderer
+loadGraphModel -> buildGraph -> RadialLayout.layout -> KnowledgeGraphScene
+```
+
+`KnowledgeGraphViewer.tsx` is the only file that wires the four stages together (one `useMemo` keyed on `file.content`); `KnowledgeGraphScene` and everything under it consumes `PositionedGraph` alone and imports nothing from `graph/builder` or a concrete `LayoutStrategy` — swapping `RadialLayout` for a future strategy touches exactly one line, in one file.
+
+### 11.2 Visual language
+
+Deliberately distinct from `manifest.constellation`'s nebula/star-field aesthetic (that visual language stays exclusive to the Tech Stack Constellation, per explicit instruction): a near-black (`#0b0d10`) flat surface, an extremely subtle grid (`stroke-opacity 0.035`), faint procedural noise (`feTurbulence` + `feColorMatrix`, alpha-only), and a soft vignette — all static, no motion. Three node hierarchies (root > category > leaf) differ in size, ring treatment, and glow restraint (a single small `feGaussianBlur` on the category ring is the only blur anywhere). Technology icons reuse the existing `resolveTechLogo` utility (`src/documentation/techLogos.ts`) rather than a new icon source; category/leaf colors reuse `colorForString` (`manifest/colorHash.ts`) — both existing, generic utilities, not reinvented.
+
+### 11.3 Live verification and a real defect it surfaced
+
+No project-specific run skill existed and the Chrome extension used for browser automation elsewhere in this environment wasn't connected, so verification used headless Chrome directly (`Google Chrome --headless=new --screenshot=...`) against the dev server, navigating to `/journey/skills/skills.graph` (the app's existing `useRouterSync` deep-linking already resolves this path to an exact file match, even though `.graph` isn't in that hook's extension-stripping allowlist — worth fixing whenever another `.graph`-typed file is added, not urgent with only one today).
+
+The real screenshot surfaced one genuine renderer bug: a category's label was always placed directly above the node, which collided with `TypeScript` (a leaf of Programming Languages) because that leaf happened to land above its own category under the force-relaxed layout — nothing in this layout assumes leaves fan outward from the graph center, so "always place the category label above" was never a safe assumption. **Fixed**: `GraphNode`'s label placement now takes a `labelDirection` vector computed once in `KnowledgeGraphScene` — for a category, away from the mean position of its own leaves; for a leaf, away from its own category — instead of a fixed direction or a horizontal-only heuristic. Verified fixed via a second screenshot.
+
+### 11.4 A known issue surfaced, NOT fixed (layout-level, not renderer-level)
+
+The same live check found `langchain` (Artificial Intelligence) and `vercel` (Cloud) sitting `34.2` units apart — the only cross-category leaf pair under `40` units anywhere in the graph (verified by checking all cross-category leaf distances programmatically). Their circles and labels visibly crowd each other in the render. This is a genuine coordinate proximity in the frozen Milestone 3 layout, not something the renderer can or should paper over (no per-pair label-collision avoidance was added — that would be renderer complexity standing in for a layout fix). Per Milestone 3's freeze condition ("revisit only if the renderer surfaces an actual structural issue"), this is reported rather than fixed: it requires touching `radialLayout.ts`, which is out of scope for a "check it visually" request and for Milestone 4 generally. Left for an explicit decision on whether to reopen the Layout Engine.
+
+### 11.5 What was deliberately not built (Milestone 4 scope)
+
+No pan/zoom/viewport system, no hover/selection, no Inspector Panel, no physics, no search/filters, no dragging — all explicitly deferred per the approved brief. Milestone 5 (§12) builds all of these on top without reopening this section's frozen visual design.
+
+## Interaction & Motion Layer (Milestone 5)
+
+**Status: shipped 2026-08-01, pending review.** Milestone 4's renderer is now frozen ("do not continue polishing... unless a genuine functional issue is discovered") — nothing in this milestone changes a base color, size, spacing value, or the background. Everything here is a new layer composed on top. Pipeline:
+
+```
+Graph Loader -> Graph Builder -> Layout Engine -> Renderer -> Interaction Layer
+```
+
+Files created: `src/hooks/{useGraphInteraction,useGraphMotion}.ts`. Files modified: `src/hooks/useConstellationViewport.ts` (generalized, not forked — see §12.1), `src/components/graph/{KnowledgeGraphScene,GraphNode,GraphEdgeLine}.tsx` (now accept interaction/motion props; no static visual value changed). The Interaction Layer never writes to `PositionedGraph` — every effect below is a presentation-layer offset/opacity/scale applied on top of the frozen layout position, never committed anywhere.
+
+### 12.1 Camera motion — generalized `useConstellationViewport`, not forked
+
+Per this codebase's "evolve don't fork" convention (and ARCHITECTURE.md's own Milestone 3 note flagging this hook as "generic enough... reuse directly for the graph's pan/zoom/fit once the real renderer needs a viewport" — exactly now), the Knowledge Graph reuses `useConstellationViewport` rather than duplicating pan/zoom/fit/focus logic. Two small, additive, backward-compatible generalizations were needed:
+
+- `nodeSelector` option (defaults to `'[data-constellation-node]'`, so the Tech Stack Constellation's existing call site is byte-for-byte unaffected) — lets the hook's "was this click on a node or empty canvas" check work for the Knowledge Graph's own `[data-graph-node]` attribute too.
+- `fitToScreenAnimated()` — a new sibling to the existing `fitToScreenManual()` (which stays instant, unchanged), for the one case Milestone 5 explicitly asks to ease that Milestone 3's viewport never needed: an explicit user-triggered re-fit (clicking empty canvas to deselect). The very first mount fit stays instant regardless — a file must never visibly "fly in" on open.
+
+Selecting a node (click or drag-release) calls the hook's existing `focusOnNode()`, exactly how `ConstellationScene` already uses it — the same `FOCUS_TRANSITION` (`0.8s`, `[0.22,1,0.36,1]` ease) both systems already share, comfortably inside the requested 400-600ms-ish "eases, never jumps" range (this ease is on the punchier/quicker end of what "600ms" implies since it's inherited unmodified from an already-tuned, already-shipped animation rather than re-tuned per-request).
+
+### 12.2 Hover, selection, and highlighting — `useGraphInteraction`
+
+A single hook, generic over any `PositionedGraph` (built only from its own `edges` — reusable by a future graph visualization with zero changes):
+
+```ts
+activeId = hoveredId ?? selectedId   // same precedence Constellation's own hover/select already uses
+visualStateForNode(id): 'default' | 'active' | 'connected' | 'dimmed'
+visualStateForEdge(fromId, toId): same four states
+```
+
+`connected` means a DIRECT graph neighbor of `activeId` (built from `positioned.edges` — the real topology, not the Graph Builder's broader `relatedNodes` concept) — "directly connected," per the brief, not Constellation's own full ancestor/descendant chain. Selection persists independently: a selected node stays visually distinguished (an extra thin white ring, `isSelected`) even when a *different* node is being hovered, satisfying "keep it highlighted" without a second parallel state machine — hover and selection share the same visual-state derivation, selection just adds one small always-on marker on top.
+
+Click-to-select toggles (clicking the same node again deselects — "single node selected at a time," never a dead click). Clicking empty canvas clears selection and calls `fitToScreenAnimated()`.
+
+### 12.3 Ambient motion — `useGraphMotion`, and where it lives (CSS, not Motion)
+
+`ConstellationStar.tsx` already established a working split in this codebase: **plain CSS `@keyframes` for infinite/ambient loops, Motion for discrete/interactive transitions** — an infinite CSS animation costs nothing per React render and never contends with Motion's own transform handling. Milestone 5 follows the identical split:
+
+- `useGraphMotionTiming(nodeId)` returns per-node **timing values only** (float duration/delay + three drift waypoints, breathe duration/delay/peak-scale) — deterministically hashed from the node's own id via `hashStringToIndex` (`manifest/colorHash.ts`, reused), never `Math.random`. Three waypoints (not a single back-and-forth pair) so the drift path reads as gentle wandering rather than an obviously-looping sine wave.
+- The actual animation is two `@keyframes` blocks declared once in `KnowledgeGraphScene`'s `<defs><style>` (`graph-node-float`, `graph-node-breathe`), applied per node via inline custom properties (`--float-x1`, `--breathe-scale`, etc.) — exactly `ConstellationStar`'s own `--float-dx`/`--float-dy` technique.
+- A third keyframe, `graph-edge-breathe`, gives every edge a barely-perceptible ambient opacity oscillation (`0.85 -> 1.0`), multiplying with (not replacing) its state-driven `stroke-opacity`.
+
+All three are skipped entirely when `prefersReducedMotion()` (`src/lib/typingReveal.ts`, reused — the same one-shot check `ManifestConstellation.tsx` already uses, not a new hook) returns true.
+
+### 12.4 A documented Motion+SVG bug this milestone deliberately avoided
+
+`ConstellationScene.tsx` carries its own comment documenting a real bug: animating `scale` via Motion's `animate` prop on an SVG element resolves `transform-origin` to the element's *content bounding box center* rather than the origin actually wanted — for a symmetric shape this is invisible, but the Knowledge Graph's per-node label sits *asymmetrically* beside its circle, so a bbox-center origin would visibly shift the circle on hover-grow. This milestone therefore does hover-grow (`~8%`) and idle-breathing via plain **CSS** `transform: scale(...)` with `transform-box: fill-box; transform-origin: center` — well-supported, well-understood, and immune to the Motion-specific issue — reserving Motion for the one thing here that's pure translation (drag), which the bug can't affect at all (transform-origin is meaningless for a pure translate). Each node nests four independent transform layers, outermost to innermost, so no two ever fight over the same CSS property:
+
+```
+translate(layout x, y)         <- static, from PositionedGraph, plain attribute
+  -> Motion: drag offset        <- spring on release, 1:1 while dragging
+    -> CSS keyframe: idle float
+      -> CSS keyframe: breathing
+        -> CSS transition: hover grow
+```
+
+### 12.5 Drag — presentation-only offset, spring-back, never touches topology
+
+`useGraphInteraction`'s `dragState = { nodeId, offset, isDragging }` is the ENTIRE drag model — `offset` is a world-space `Point` (screen-space pointer delta ÷ current viewport scale, so a drag feels 1:1 with the cursor at any zoom), applied by `GraphNode` as a Motion `animate={{x: offset.x, y: offset.y}}` on top of the node's real, unchanged `translate(layout x, y)`. While `isDragging` is true, `transition={{duration: 0}}` (1:1 tracking, no lag); on release, `transition={{type:'spring', stiffness:300, damping:22}}` eases the offset back to `{0,0}` — nothing about the node's actual `PositionedGraph` entry is ever read for writing or mutated.
+
+Connected edges follow the SAME offset via `GraphEdgeLine`'s `dragEndpoint` prop (which endpoint, the same offset, the same `isDragging` flag) — since both the node and its edges receive the identical target and the identical spring config in the same React commit, Motion runs matching independent spring animations that stay visually attached at every frame (spring physics with identical parameters and identical start/end delta trace the same curve, regardless of which element it's applied to). No shared `MotionValue`, no manual per-frame state pushing needed.
+
+Releasing also selects the dragged node (a release with near-zero movement reads the same as a click) and calls `focusOnNode` — this composition (drag-end triggers select triggers camera) is orchestrated by `KnowledgeGraphScene`, not `useGraphInteraction`, keeping the hook itself free of any viewport-specific knowledge.
+
+**Nodes may never disconnect, topology never changes**: trivially true by construction — `offset` is never written back into `positioned`, `edge.from`/`edge.to` never change, and the Graph Builder/Layout Engine are never invoked again after the initial `RadialLayout.layout()` call. A drag is 100% presentation state that resets to zero on release.
+
+### 12.6 Verification — real browser, real pointer events, not staged
+
+No project-specific run skill existed, and the Claude-in-Chrome extension used elsewhere in this environment wasn't connected, so verification used **Puppeteer (`puppeteer-core`, installed in an isolated scratch directory — not added to this project's `package.json`/`node_modules`)** driving the system's actual Chrome via `--remote-debugging-port`, against the real dev server. This gave real mouse move/down/up sequences, not just static screenshots:
+
+- **Idle floating/breathing**: two screenshots of the same idle graph, 4 seconds apart, pixel-diffed. `11,915` pixels changed by more than a small threshold, localized entirely to the graph's own nodes/edges/labels (confirmed via an amplified diff image) — every node moved slightly, none in an obviously uniform/synchronized pattern.
+- **Reduced motion**: with `prefers-reduced-motion: reduce` emulated, a node's on-screen x-position was queried twice, 4 seconds apart — **byte-identical** both times (`1201.71923828125` exactly), confirming idle motion is fully disabled. Selection was then triggered the same way — the root node's on-screen position moved (`979.18 -> 1184.23px`), confirming the camera-focus ease still runs under reduced motion, matching "Keep: selection, hover, viewport."
+- **Hover**: hovering `react` and diffing before/after showed the node's own area change most (new glow + grow), its parent `Frontend` brighten moderately (`connected`), consistent with the intended three-tier response.
+- **Selection**: clicking the `Artificial Intelligence` category node produced a full-frame change — the node grew/glowed, the camera visibly eased toward it, its direct children brightened, and unrelated clusters (Backend, Frontend, Developer Tools, Programming Languages) dimmed but stayed legible.
+- **Drag + spring-back, verified numerically, not just visually**: dragging `nodejs` and sampling its on-screen position relative to `Backend` at increasing delays after release showed it converging to a stable value — but a *different* absolute screen value than before the drag, because releasing also re-focuses the camera (change of zoom scale). Cross-checked against a THIRD, never-dragged reference node (`expressjs`) to compute the actual camera scale change (`1.5067×`), then used that to predict what the settled Backend→Node.js vector *should* be if the spring had returned the node to its exact original relative position: predicted `(-116.8, 39.4)` vs. measured `(-122.1, 38.9)` — a `5.3px` / `0.5px` residual at the post-zoom scale (≈`3.5px` in world space), confirming the spring-back genuinely returns to the frozen layout position rather than drifting.
+- **Camera easing on deselect**: clicking empty canvas cleared the selection and eased the view back to the full-graph fit.
+
+A screen recording of this exact sequence (captured frame-by-frame the same way, assembled into a GIF) accompanies this milestone's review.
+
+### 12.7 A test-tooling lesson worth recording
+
+Early verification runs showed selection appearing to do nothing. The cause was in the **verification script**, not the app: `getBoundingClientRect()` on a node's outer `<g>` includes its label text, and a category's label can extend far enough sideways that the group's bbox CENTER lands on empty space (or on a neighboring node's label) rather than on the actual circle — clicking that computed "center" missed the node entirely. Fixed by querying the node's own `<circle>` specifically. Worth remembering for any future automated interaction test against this renderer: **click the geometry, not the group's bounding box.**
+
+### 12.8 A genuine issue this surfaced (not fixed — Layout Engine is frozen)
+
+The same rigor applied to `langchain`/`vercel` (already flagged as a coordinate-proximity concern in §11.4) revealed it's worse than cosmetic: `document.elementFromPoint()` at `langchain`'s own circle center returned `vercel`'s **text label**, not `langchain`'s circle — meaning `langchain` is genuinely un-hoverable/un-draggable at that exact point, since a later-painted sibling's label captures the pointer event first. This elevates the finding from "visually crowded" (Milestone 4) to "an interaction is unreliable at this specific coordinate" (Milestone 5) — still a Layout Engine matter (34 world-unit proximity, the only cross-category pair that close), not something the Interaction Layer should paper over with per-pair click-target logic. Verification substituted an unaffected node (`nodejs`) to confirm the drag mechanic itself works correctly; this proximity issue is reported, not fixed, per the explicit freeze on both the Layout Engine and the Renderer this sprint.
+
+### 12.9 Performance
+
+44 nodes + 43 edges, each with up to 2-3 concurrent CSS keyframe animations (float, breathe, edge-breathe) plus Motion watching for drag/opacity changes — trivial for a graph this size. All ambient motion is CSS-driven (compositor-accelerated `transform`/`opacity`), so idle motion costs zero React re-renders; only hover/selection/drag state changes trigger a render, and only for the ~44-node component tree (not a virtualized/windowed structure, unnecessary at this scale).
+
+### 12.10 What was deliberately not built (per explicit instruction)
+
+Inspector Panel, search, filters, a physics redesign, new `LayoutStrategy` implementations, and further rendering polish — all explicitly deferred to later milestones.

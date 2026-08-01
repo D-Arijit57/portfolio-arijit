@@ -44,6 +44,13 @@ export interface ConstellationViewportOptions {
   reservedChromeRefs?: RefObject<HTMLElement | null>[];
   /** CSS selector `.closest()` uses to tell "this pointerup landed on a node" from "this pointerup landed on empty canvas" — defaults to the Tech Stack Constellation's own attribute so existing callers are unaffected. The Knowledge Graph (Milestone 5) passes its own `[data-graph-node]`. */
   nodeSelector?: string;
+  /** Animated fit/focus transition — defaults to the Tech Stack Constellation's own frozen 800ms ease-out timing so that already-approved feature is completely unaffected. The Knowledge Graph (Milestone 5) passes its own spec-mandated 400-600ms ease-in-out instead. */
+  focusTransition?: ViewportTransition;
+  /** Overrides the default fit padding ratio / cover boost (see the module-level constants' own comments) — defaults preserve Constellation's exact existing fit exactly. The Knowledge Graph passes a tighter padding and a much higher cover boost so its fit reads as "automatically centered with no large empty regions" rather than Constellation's more conservative hero-with-margins fit. */
+  fitPaddingRatio?: number;
+  coverBoost?: number;
+  /** When true, a resize-triggered re-fit (post-initial-settle only) eases instead of snapping instantly. Defaults to false — Constellation's own resize behavior is an intentional instant snap and stays that way. */
+  animateResizeFit?: boolean;
 }
 
 // How close (px) a panel's edge must sit to a container edge to be
@@ -132,7 +139,7 @@ const MAX_SCALE = 3;
 // 1 - 2*0.13 = 0.74 — the graph occupies ~74% of the *usable* canvas on
 // the constraining axis, squarely in the "70-80% hero" range with
 // comfortable margins on all sides.
-const FIT_PADDING_RATIO = 0.13;
+const DEFAULT_FIT_PADDING_RATIO = 0.13;
 // The authored layout's bounding box is roughly square, while the actual
 // drawable canvas (editor pane minus header/terminal) is a wide letterbox
 // shape — pure "contain" fit (scale bound by whichever axis is smaller)
@@ -142,16 +149,23 @@ const FIT_PADDING_RATIO = 0.13;
 // fraction beyond the contain scale — a hero visualization is allowed to
 // bleed past the frame's top/bottom a little, but shouldn't crop stars
 // out of an already-tight composition.
-const COVER_BOOST = 0.55;
+const DEFAULT_COVER_BOOST = 0.55;
 const CLICK_DRAG_THRESHOLD = 4;
 const INSTANT_TRANSITION: ViewportTransition = { duration: 0 };
-const FOCUS_TRANSITION: ViewportTransition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
+const DEFAULT_FOCUS_TRANSITION: ViewportTransition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
 
 export function useConstellationViewport(
   layout: { width: number; height: number },
   options: ConstellationViewportOptions = {},
 ) {
-  const { reservedChromeRefs = [], nodeSelector = '[data-constellation-node]' } = options;
+  const {
+    reservedChromeRefs = [],
+    nodeSelector = '[data-constellation-node]',
+    focusTransition: FOCUS_TRANSITION = DEFAULT_FOCUS_TRANSITION,
+    fitPaddingRatio: FIT_PADDING_RATIO = DEFAULT_FIT_PADDING_RATIO,
+    coverBoost: COVER_BOOST = DEFAULT_COVER_BOOST,
+    animateResizeFit = false,
+  } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewport, setViewport] = useState<ConstellationViewport>({ x: 0, y: 0, scale: 1 });
@@ -160,6 +174,12 @@ export function useConstellationViewport(
     null,
   );
   const hasInteractedRef = useRef(false);
+  // Flips true once the initial-mount settle window (below) has finished
+  // — a resize before that point is the mount itself still converging on
+  // its final container size, which must stay instant; a resize after it
+  // is a genuine later resize, which `animateResizeFit` callers want to
+  // ease rather than snap.
+  const hasSettledRef = useRef(false);
 
   const resetInteraction = () => {
     hasInteractedRef.current = false;
@@ -242,6 +262,7 @@ export function useConstellationViewport(
   };
 
   useLayoutEffect(() => {
+    hasSettledRef.current = false;
     // Synchronous (pre-paint) fit — the graph must already be centered on
     // the very first frame the user sees, never a flash of an unfit/
     // default-positioned graph that then snaps into place a frame later.
@@ -263,9 +284,13 @@ export function useConstellationViewport(
         if (!hasInteractedRef.current) fitToScreen();
       }, ms),
     );
+    const settledTimer = window.setTimeout(() => {
+      hasSettledRef.current = true;
+    }, 650);
     return () => {
       cancelAnimationFrame(raf);
       timers.forEach((t) => window.clearTimeout(t));
+      window.clearTimeout(settledTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout]);
@@ -274,7 +299,7 @@ export function useConstellationViewport(
     const container = containerRef.current;
     if (!container) return;
     const observer = new ResizeObserver(() => {
-      if (!hasInteractedRef.current) fitToScreen();
+      if (!hasInteractedRef.current) fitToScreen(animateResizeFit && hasSettledRef.current);
     });
     observer.observe(container);
     return () => observer.disconnect();

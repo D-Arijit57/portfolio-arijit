@@ -65,7 +65,10 @@ const MIN_DISTANCE = 1;
 // their individual target distances — repulsion alone is a homogenizing
 // force. A strong spring is what lets each category actually hold its OWN
 // target radius instead of being smoothed toward its neighbors' average.
-const HUB_CATEGORY_BASE_RADIUS = 250;
+// Bumped 250 -> 290 (+16%) per explicit "slightly increase spacing,
+// reduce visual crowding" direction — a pure magnitude tune of this same
+// constant, not a change to the relaxation algorithm itself.
+const HUB_CATEGORY_BASE_RADIUS = 290;
 /** How much a category's own weight (leaf count + floor) shifts its target radius — denser categories are seeded to want more room, sparser ones less. */
 const HUB_CATEGORY_WEIGHT_RADIUS_RANGE = 0.6;
 const HUB_CATEGORY_RADIUS_SEED_JITTER = 0.3;
@@ -80,7 +83,9 @@ const MACRO_INITIAL_STEP = 14;
 // balance as the macro pass, for the same reason: individual leaves need
 // to keep their own jittered target distance rather than being smoothed
 // into one shared inner ring, which is what still read as "a fan."
-const LOCAL_CLUSTER_BASE_RADIUS = 92;
+// Bumped 92 -> 112 (+22%) alongside HUB_CATEGORY_BASE_RADIUS above, same
+// "increase average leaf distance, let the graph breathe" direction.
+const LOCAL_CLUSTER_BASE_RADIUS = 112;
 const LOCAL_RADIUS_SEED_JITTER = 0.45;
 /** Radius of the scattered (non-angular) disk leaves are seeded within, before relaxation pulls/pushes them into their final arrangement. */
 const LOCAL_SEED_RADIUS = 50;

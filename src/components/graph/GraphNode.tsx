@@ -1,43 +1,48 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { motion } from 'motion/react';
 import type { Point, PositionedNode } from '../../graph/layout/types';
-import { resolveTechLogo } from '../../documentation/techLogos';
 import type { GraphVisualState } from '../../hooks/useGraphInteraction';
 import { useGraphMotionTiming } from '../../hooks/useGraphMotion';
-import { NODE_RADIUS, categoryColorForNode } from './graphVisuals';
+import { NODE_RADIUS, ROOT_FILL, categoryColorForNode } from './graphVisuals';
 
 /**
- * A single node — root, category, or technology — rendered purely from
- * `PositionedGraph`'s own `{x, y}`. This component never computes a
- * position, never mutates the node, and knows nothing about how the
- * coordinate was produced. Milestone 5 adds four independent motion
- * layers on top of the frozen Milestone 4 visual design, nested
- * outermost-to-innermost so each owns exactly one transform and none
- * fight each other:
+ * A single node — root, category, or technology. Position is owned
+ * entirely by `useGraphSimulation`'s continuous physics loop: this
+ * component's OWN root `<g>` starts at the Layout Engine's static anchor
+ * (`node.x`/`node.y`, for a correct first paint before the simulation's
+ * first tick) and is handed to the caller via `nodeRef` — every frame
+ * after that, the simulation writes a fresh `transform` attribute onto
+ * that exact DOM node directly, bypassing React entirely. This component
+ * never re-renders for ordinary ambient motion or dragging; it only
+ * re-renders for discrete state changes (hover/select/reduced-motion).
  *
- *   translate(layout x,y)              <- static, from PositionedGraph
- *     -> Motion: drag offset (x, y)    <- spring on release, 1:1 while dragging
- *       -> CSS keyframe: idle float    <- ambient, deterministic per id
- *         -> CSS keyframe: breathing   <- ambient scale, deterministic per id
- *           -> CSS transition: hover grow (~8%)
- *             -> circle / glow / icon (label stays OUTSIDE the scaled group)
+ * Two remaining motion layers nest outermost-to-innermost inside that
+ * simulation-driven root:
+ *
+ *   (simulation writes transform directly to the ref'd <g>)
+ *     -> CSS keyframe: breathing        <- ambient scale, deterministic per id, cosmetic only
+ *       -> CSS transition: hover grow (~8%)
+ *         -> soft shadow / filled circle / brighten overlay (label stays OUTSIDE the scaled group)
+ *
+ * Visual language (approved reference, Obsidian-inspired): flat,
+ * moderately-saturated category-colored filled circles with a subtle
+ * dark outline and a restrained blurred-disc shadow — matte, not glowy;
+ * no per-technology logos. Color, size, and hierarchy alone communicate
+ * identity.
  *
  * Scale lives entirely in plain CSS (`transform-box: fill-box` +
- * `transform-origin: center`), not Motion — ConstellationScene's own
- * comment documents a real Motion+SVG bug where animating `scale`
- * resolves `transform-origin` to the element's content bounding box
- * instead of a specified origin, which would visibly throw off a
- * symmetric circle's hover-grow. Motion is used only for the one thing
- * it's actually needed for here: the drag offset's spring-back, which is
- * pure translation (origin-independent, so that bug can't apply) and
- * benefits from real spring physics a CSS transition can't provide.
+ * `transform-origin: center`) — ConstellationScene's own comment
+ * documents a real Motion+SVG bug where animating `scale` resolves
+ * `transform-origin` to the element's content bounding box instead of a
+ * specified origin, which would visibly throw off a symmetric circle's
+ * hover-grow. Nothing here needs Motion any more: the simulation's own
+ * spring integration replaces what the old Motion-driven drag offset did.
  */
 export interface GraphNodeProps {
   node: PositionedNode;
+  nodeRef: (el: SVGGElement | null) => void;
   labelDirection: Point;
   visualState: GraphVisualState;
   isSelected: boolean;
-  dragOffset: Point;
   isDragging: boolean;
   reduceMotion: boolean;
   onHoverStart: () => void;
@@ -45,16 +50,23 @@ export interface GraphNodeProps {
   onDragStart: (point: Point, event: ReactPointerEvent<SVGGElement>) => void;
 }
 
-const NODE_FILL = '#14161a';
+const OUTLINE_COLOR = '#0b0d10';
 const LABEL_GAP = 8;
 
 const NODE_OPACITY: Record<GraphVisualState, number> = { default: 1, active: 1, connected: 1, dimmed: 0.55 };
 const HOVER_SCALE: Record<GraphVisualState, number> = { default: 1, active: 1.08, connected: 1, dimmed: 1 };
-const CATEGORY_GLOW_OPACITY: Record<GraphVisualState, number> = { default: 0.35, active: 0.6, connected: 0.45, dimmed: 0.18 };
-const LEAF_GLOW_OPACITY: Record<GraphVisualState, number> = { default: 0, active: 0.45, connected: 0.22, dimmed: 0 };
-const STATE_TRANSITION = { duration: 0.22, ease: [0.4, 0, 0.2, 1] as const };
-const DRAG_TRANSITION = { duration: 0 };
-const SPRING_BACK_TRANSITION = { type: 'spring' as const, stiffness: 300, damping: 22 };
+// Restrained, blurred-disc shadow behind the node — a soft ambient bleed,
+// not a stroked halo ring. Kept deliberately faint (matte, "minimal
+// bloom/glow" per the approved reference) — category nodes carry only a
+// touch more presence than leaves since they're the graph's visual hubs;
+// root gets its own (colorless) record below.
+const CATEGORY_SHADOW_OPACITY: Record<GraphVisualState, number> = { default: 0.08, active: 0.22, connected: 0.13, dimmed: 0.03 };
+const LEAF_SHADOW_OPACITY: Record<GraphVisualState, number> = { default: 0.04, active: 0.14, connected: 0.07, dimmed: 0.02 };
+const ROOT_SHADOW_OPACITY: Record<GraphVisualState, number> = { default: 0.05, active: 0.16, connected: 0.09, dimmed: 0.02 };
+// A `mix-blend-mode: screen` white overlay — "brighten node" on hover
+// without washing the fill out to flat white the way a plain alpha
+// overlay would. Toned down alongside the shadow opacities above.
+const BRIGHTEN_OPACITY: Record<GraphVisualState, number> = { default: 0, active: 0.14, connected: 0.05, dimmed: 0 };
 
 /** Places a label along `direction` from the node's own origin, picking a horizontal anchor (and re-centering when the direction is mostly vertical) so text never defaults to a single fixed side regardless of where it actually has room. */
 function placeLabel(radius: number, direction: Point) {
@@ -69,10 +81,10 @@ function placeLabel(radius: number, direction: Point) {
 
 export function GraphNode({
   node,
+  nodeRef,
   labelDirection,
   visualState,
   isSelected,
-  dragOffset,
   isDragging,
   reduceMotion,
   onHoverStart,
@@ -87,21 +99,6 @@ export function GraphNode({
     (event.target as Element).setPointerCapture(event.pointerId);
     onDragStart({ x: event.clientX, y: event.clientY }, event);
   };
-
-  const floatStyle = reduceMotion
-    ? undefined
-    : ({
-        transformBox: 'fill-box',
-        transformOrigin: 'center',
-        animation: `graph-node-float ${timing.floatDurationS}s ease-in-out infinite`,
-        animationDelay: `${timing.floatDelayS}s`,
-        '--float-x1': `${timing.floatWaypoints[0].x}px`,
-        '--float-y1': `${timing.floatWaypoints[0].y}px`,
-        '--float-x2': `${timing.floatWaypoints[1].x}px`,
-        '--float-y2': `${timing.floatWaypoints[1].y}px`,
-        '--float-x3': `${timing.floatWaypoints[2].x}px`,
-        '--float-y3': `${timing.floatWaypoints[2].y}px`,
-      } as React.CSSProperties);
 
   const breatheStyle = reduceMotion
     ? undefined
@@ -122,94 +119,104 @@ export function GraphNode({
   };
 
   if (node.kind === 'root') {
+    const shadowOpacity = ROOT_SHADOW_OPACITY[visualState];
+    const brightenOpacity = BRIGHTEN_OPACITY[visualState];
+    const label = placeLabel(radius, labelDirection);
     return (
-      <g transform={`translate(${node.x}, ${node.y})`} data-graph-node={node.id}>
-        <motion.g
-          animate={{ x: dragOffset.x, y: dragOffset.y }}
-          transition={isDragging ? DRAG_TRANSITION : SPRING_BACK_TRANSITION}
-          onPointerDown={handlePointerDown}
-        >
-          <g style={floatStyle}>
-            <g style={breatheStyle}>
-              <g style={hoverScaleStyle}>
-                <circle r={radius + 7} fill="none" stroke="#ffffff" strokeOpacity={0.16} strokeWidth={1} />
-                <circle r={radius} fill={NODE_FILL} stroke="#eaeaea" strokeWidth={2} />
-                <text textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700} fill="#ffffff">
-                  {node.label}
-                </text>
-              </g>
+      <g
+        ref={nodeRef}
+        transform={`translate(${node.x}, ${node.y})`}
+        data-graph-node={node.id}
+        onPointerDown={handlePointerDown}
+        onPointerEnter={onHoverStart}
+        onPointerLeave={onHoverEnd}
+      >
+        <g style={breatheStyle}>
+          <g style={{ opacity: NODE_OPACITY[visualState], transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)' }}>
+            <g style={hoverScaleStyle}>
+              <circle
+                r={radius * 1.25}
+                fill={ROOT_FILL}
+                filter="url(#graph-soft-glow)"
+                style={{ opacity: shadowOpacity, transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)' }}
+              />
+              <circle r={radius} fill={ROOT_FILL} stroke={OUTLINE_COLOR} strokeOpacity={0.45} strokeWidth={1.5} />
+              <circle
+                r={radius}
+                fill="#ffffff"
+                style={{
+                  opacity: brightenOpacity,
+                  mixBlendMode: 'screen',
+                  transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+              {isSelected && <circle r={radius + 4} fill="none" stroke="#ffffff" strokeOpacity={0.7} strokeWidth={1} />}
             </g>
+            <text
+              x={label.x}
+              y={label.y}
+              textAnchor={label.anchor}
+              dominantBaseline="middle"
+              fontSize={13}
+              fontWeight={700}
+              fill="#f2f2f2"
+            >
+              {node.label}
+            </text>
           </g>
-        </motion.g>
+        </g>
       </g>
     );
   }
 
   const color = categoryColorForNode(node) ?? '#8a8f98';
   const label = placeLabel(radius, labelDirection);
-  const glowOpacity = (node.kind === 'category' ? CATEGORY_GLOW_OPACITY : LEAF_GLOW_OPACITY)[visualState];
+  const shadowOpacity = (node.kind === 'category' ? CATEGORY_SHADOW_OPACITY : LEAF_SHADOW_OPACITY)[visualState];
+  const brightenOpacity = BRIGHTEN_OPACITY[visualState];
 
   return (
-    <g transform={`translate(${node.x}, ${node.y})`} data-graph-node={node.id}>
-      <motion.g
-        animate={{ x: dragOffset.x, y: dragOffset.y }}
-        transition={isDragging ? DRAG_TRANSITION : SPRING_BACK_TRANSITION}
-        onPointerDown={handlePointerDown}
-        onPointerEnter={onHoverStart}
-        onPointerLeave={onHoverEnd}
-      >
-        <g style={floatStyle}>
-          <g style={breatheStyle}>
-            <motion.g animate={{ opacity: NODE_OPACITY[visualState] }} transition={STATE_TRANSITION}>
-              <g style={hoverScaleStyle}>
-                {glowOpacity > 0 && (
-                  <circle
-                    r={radius + (node.kind === 'category' ? 4 : 5)}
-                    fill="none"
-                    stroke={color}
-                    strokeOpacity={glowOpacity}
-                    strokeWidth={node.kind === 'category' ? 4 : 3}
-                    filter="url(#graph-soft-glow)"
-                    style={{ transition: 'stroke-opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)' }}
-                  />
-                )}
-                <circle
-                  r={radius}
-                  fill={NODE_FILL}
-                  stroke={color}
-                  strokeOpacity={node.kind === 'leaf' ? 0.8 : 1}
-                  strokeWidth={node.kind === 'category' ? 2 : 1.25}
-                />
-                {isSelected && (
-                  <circle r={radius + 3} fill="none" stroke="#ffffff" strokeOpacity={0.7} strokeWidth={1} />
-                )}
-                {node.kind === 'leaf' &&
-                  (() => {
-                    const logo = resolveTechLogo(node.source.name);
-                    if (!logo) return null;
-                    const iconSize = radius * 1.15;
-                    return (
-                      <svg x={-iconSize / 2} y={-iconSize / 2} width={iconSize} height={iconSize} viewBox="0 0 24 24" aria-hidden="true">
-                        <path d={logo.path} fill={logo.color} />
-                      </svg>
-                    );
-                  })()}
-              </g>
-              <text
-                x={label.x}
-                y={label.y}
-                textAnchor={label.anchor}
-                dominantBaseline="middle"
-                fontSize={node.kind === 'category' ? 12.5 : 10.5}
-                fontWeight={node.kind === 'category' ? 700 : 400}
-                fill={node.kind === 'category' ? '#f2f2f2' : '#c9c9c9'}
-              >
-                {node.label}
-              </text>
-            </motion.g>
+    <g
+      ref={nodeRef}
+      transform={`translate(${node.x}, ${node.y})`}
+      data-graph-node={node.id}
+      onPointerDown={handlePointerDown}
+      onPointerEnter={onHoverStart}
+      onPointerLeave={onHoverEnd}
+    >
+      <g style={breatheStyle}>
+        <g style={{ opacity: NODE_OPACITY[visualState], transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)' }}>
+          <g style={hoverScaleStyle}>
+            <circle
+              r={radius * (node.kind === 'category' ? 1.2 : 1.35)}
+              fill={color}
+              filter="url(#graph-soft-glow)"
+              style={{ opacity: shadowOpacity, transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)' }}
+            />
+            <circle r={radius} fill={color} stroke={OUTLINE_COLOR} strokeOpacity={0.45} strokeWidth={1.25} />
+            <circle
+              r={radius}
+              fill="#ffffff"
+              style={{
+                opacity: brightenOpacity,
+                mixBlendMode: 'screen',
+                transition: 'opacity 220ms cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            />
+            {isSelected && <circle r={radius + 3} fill="none" stroke="#ffffff" strokeOpacity={0.7} strokeWidth={1} />}
           </g>
+          <text
+            x={label.x}
+            y={label.y}
+            textAnchor={label.anchor}
+            dominantBaseline="middle"
+            fontSize={node.kind === 'category' ? 12.5 : 10.5}
+            fontWeight={node.kind === 'category' ? 700 : 400}
+            fill={node.kind === 'category' ? '#f2f2f2' : '#c9c9c9'}
+          >
+            {node.label}
+          </text>
         </g>
-      </motion.g>
+      </g>
     </g>
   );
 }

@@ -1,26 +1,27 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { Point, PositionedGraph } from '../../graph/layout/types';
 import { useConstellationViewport } from '../../hooks/useConstellationViewport';
 import { useGraphInteraction } from '../../hooks/useGraphInteraction';
+import { useGraphSimulation } from '../../hooks/useGraphSimulation';
 import { prefersReducedMotion } from '../../lib/typingReveal';
 import { GraphBackground } from './GraphBackground';
 import { GraphEdgeLine } from './GraphEdgeLine';
 import { GraphNode } from './GraphNode';
-import { categoryColorForNode } from './graphVisuals';
+import { InspectorPanel } from './InspectorPanel';
+import { NEUTRAL_EDGE_COLOR, categoryColorForNode } from './graphVisuals';
 
 /**
- * The Knowledge Graph's scene — Milestone 4's static renderer plus
- * Milestone 5's Interaction Layer, composed on top without either the
- * Layout Engine or the renderer's own drawing rules changing. The
- * pipeline stays:
+ * The Knowledge Graph's scene — composes the deterministic renderer with
+ * two independent runtime layers on top, neither of which ever touches
+ * the Layout Engine's own `{x, y}`:
  *
- *   Graph Loader -> Graph Builder -> Layout Engine -> Renderer -> Interaction Layer
+ *   Graph Loader -> Graph Builder -> Layout Engine -> Renderer
+ *     -> useGraphInteraction (hover/selection, discrete React state)
+ *     -> useGraphSimulation  (continuous physics: drift, breathing's
+ *        position counterpart, dragging — imperative, never re-renders)
  *
- * This file is the ONLY place that composes the two new hooks
- * (`useConstellationViewport`, generalized rather than forked, and
- * `useGraphInteraction`) with the drawing components — GraphNode and
- * GraphEdgeLine receive plain state/handler props and never reach back
- * into either hook themselves.
+ * GraphNode/GraphEdgeLine receive plain state/handler props and a DOM
+ * ref callback each; they never reach back into either hook themselves.
  *
  * Renders ONLY `positioned.edges` — the real graph topology. No sibling
  * helper lines, declaration-order paths, or other diagnostic overlays.
@@ -61,6 +62,15 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
     return map;
   }, [categoryNodes, leafNodes, positioned.center]);
 
+  // The Inspector Panel's own ref (see useConstellationViewport's
+  // `reservedChromeRefs`) — same pattern ConstellationScene's info card
+  // already established: a selected node focuses within whatever area the
+  // panel ISN'T currently covering, rather than centering underneath it.
+  // Only ever non-null while a node is selected (the panel unmounts
+  // otherwise), so this has zero effect on the initial, nothing-selected
+  // fit.
+  const inspectorPanelRef = useRef<HTMLDivElement>(null);
+
   const {
     containerRef,
     svgRef,
@@ -71,9 +81,34 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
     handlePointerDown: viewportPointerDown,
     handlePointerMove: viewportPointerMove,
     handlePointerUp: viewportPointerUp,
-  } = useConstellationViewport(positioned.bounds, { nodeSelector: '[data-graph-node]' });
+  } = useConstellationViewport(positioned.bounds, {
+    nodeSelector: '[data-graph-node]',
+    reservedChromeRefs: [inspectorPanelRef],
+    // Spec: "Duration: 400-600ms. Ease In Out" — distinct from the
+    // Constellation's own frozen 800ms ease-out default (see
+    // useConstellationViewport's `focusTransition` option), reusing the
+    // same standard ease-in-out curve GraphNode/GraphEdgeLine's own
+    // hover/selection transitions already use.
+    focusTransition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+    // The graph should read as "automatically fit and centered, no large
+    // empty regions" — a tighter padding ratio and a much higher cover
+    // boost than Constellation's own (still capped by MAX_SCALE) so the
+    // fit is effectively a full "cover" rather than a conservative
+    // "contain" with a small boost. RadialLayout's own `viewportPadding`
+    // is already baked into `positioned.bounds` specifically as
+    // crop-tolerance for exactly this kind of fit. Deterministic bounds
+    // in, deterministic fit out — the graph opens in the exact same spot
+    // every time.
+    fitPaddingRatio: 0.06,
+    coverBoost: 4,
+    // Spec: "On window resize: recalculate, smoothly animate to the new
+    // fit, do not snap" — opt-in only, so Constellation's own resize
+    // behavior (an intentional instant snap) is unaffected.
+    animateResizeFit: true,
+  });
 
-  const interaction = useGraphInteraction(positioned, viewport.scale);
+  const interaction = useGraphInteraction(positioned);
+  const simulation = useGraphSimulation(positioned, viewport.scale, reduceMotion);
 
   const selectAndFocus = (nodeId: string) => {
     interaction.handleNodeSelect(nodeId);
@@ -81,32 +116,45 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
     if (node) focusOnNode({ x: node.x, y: node.y });
   };
 
+  // Shared by every "deselect" trigger — clicking empty canvas, the
+  // Inspector Panel's own close button, and Escape — so all three behave
+  // identically (clear selection, ease back to the full-graph fit).
+  const deselectAndRefit = () => {
+    interaction.clearSelection();
+    fitToScreenAnimated();
+  };
+
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     viewportPointerMove(event);
-    interaction.updateDrag({ x: event.clientX, y: event.clientY });
+    simulation.updateDragPointer({ x: event.clientX, y: event.clientY });
   };
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
-    const draggedId = interaction.dragState?.nodeId;
+    const draggedId = simulation.draggedNodeId;
     if (draggedId) selectAndFocus(draggedId);
-    interaction.endDrag();
-    viewportPointerUp(event, () => {
-      interaction.clearSelection();
-      fitToScreenAnimated();
-    });
+    simulation.endDrag();
+    viewportPointerUp(event, deselectAndRefit);
   };
 
-  const dragEndpointFor = (nodeId: string, end: 'from' | 'to') => {
-    if (!interaction.dragState || interaction.dragState.nodeId !== nodeId) return null;
-    return { end, offset: interaction.dragState.offset, isDragging: interaction.dragState.isDragging };
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') deselectAndRefit();
   };
+
+  const selectedNode = interaction.selectedId ? nodeById.get(interaction.selectedId) : undefined;
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[#0b0d10] font-sans">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden bg-[#1e1e1e] font-sans"
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
+      <GraphBackground />
+
       <svg
         ref={svgRef}
         viewBox={`0 0 ${positioned.bounds.width} ${positioned.bounds.height}`}
-        className="h-full w-full cursor-grab touch-none active:cursor-grabbing"
+        className="relative h-full w-full cursor-grab touch-none active:cursor-grabbing"
         onPointerDown={viewportPointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -115,13 +163,6 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
         <defs>
           <style>
             {`
-              @keyframes graph-node-float {
-                0%   { transform: translate(0px, 0px); }
-                30%  { transform: translate(var(--float-x1), var(--float-y1)); }
-                62%  { transform: translate(var(--float-x2), var(--float-y2)); }
-                85%  { transform: translate(var(--float-x3), var(--float-y3)); }
-                100% { transform: translate(0px, 0px); }
-              }
               @keyframes graph-node-breathe {
                 0%, 100% { transform: scale(1); }
                 50% { transform: scale(var(--breathe-scale)); }
@@ -132,23 +173,10 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
               }
             `}
           </style>
-          <pattern id="graph-grid" width={44} height={44} patternUnits="userSpaceOnUse">
-            <path d="M 44 0 L 0 0 0 44" fill="none" stroke="#ffffff" strokeOpacity={0.035} strokeWidth={1} />
-          </pattern>
-          <filter id="graph-noise" x="0%" y="0%" width="100%" height="100%">
-            <feTurbulence type="fractalNoise" baseFrequency={0.85} numOctaves={2} stitchTiles="stitch" result="noise" />
-            <feColorMatrix in="noise" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.05 0" />
-          </filter>
-          <radialGradient id="graph-vignette" cx="50%" cy="50%" r="75%">
-            <stop offset="55%" stopColor="#000000" stopOpacity={0} />
-            <stop offset="100%" stopColor="#000000" stopOpacity={0.55} />
-          </radialGradient>
-          <filter id="graph-soft-glow" x="-100%" y="-100%" width="300%" height="300%">
-            <feGaussianBlur stdDeviation={3} />
+          <filter id="graph-soft-glow" x="-150%" y="-150%" width="400%" height="400%">
+            <feGaussianBlur stdDeviation={2.5} />
           </filter>
         </defs>
-
-        <GraphBackground width={positioned.bounds.width} height={positioned.bounds.height} />
 
         <g
           style={{
@@ -166,17 +194,21 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
             {positioned.edges.map((edge) => {
               const targetNode = nodeById.get(edge.to);
               if (!targetNode) return null;
-              const color = categoryColorForNode(targetNode) ?? '#5a5a5a';
+              // Root -> category edges stay neutral chrome; only
+              // category -> leaf edges carry the category's color — per
+              // the approved reference, color marks "this is a specific
+              // technology," not "this connects to the hub."
+              const color = targetNode.kind === 'leaf' ? (categoryColorForNode(targetNode) ?? NEUTRAL_EDGE_COLOR) : NEUTRAL_EDGE_COLOR;
               const edgeKey = `${edge.from}->${edge.to}`;
               return (
                 <GraphEdgeLine
                   key={edgeKey}
                   edgeKey={edgeKey}
+                  edgeRef={simulation.registerEdgeEl(edgeKey)}
                   from={edge.fromPoint}
                   to={edge.toPoint}
                   color={color}
                   visualState={interaction.visualStateForEdge(edge.from, edge.to)}
-                  dragEndpoint={dragEndpointFor(edge.from, 'from') ?? dragEndpointFor(edge.to, 'to')}
                   reduceMotion={reduceMotion}
                 />
               );
@@ -186,62 +218,63 @@ export function KnowledgeGraphScene({ positioned }: { positioned: PositionedGrap
           <g>
             {leafNodes.map((node) => {
               const categoryPos = categoryPositionByKey.get(node.categoryKey) ?? positioned.center;
-              const drag = interaction.dragState?.nodeId === node.id ? interaction.dragState : null;
               return (
                 <GraphNode
                   key={node.id}
                   node={node}
+                  nodeRef={simulation.registerNodeEl(node.id)}
                   labelDirection={{ x: node.x - categoryPos.x, y: node.y - categoryPos.y }}
                   visualState={interaction.visualStateForNode(node.id)}
                   isSelected={interaction.selectedId === node.id}
-                  dragOffset={drag?.offset ?? { x: 0, y: 0 }}
-                  isDragging={drag?.isDragging ?? false}
+                  isDragging={simulation.draggedNodeId === node.id}
                   reduceMotion={reduceMotion}
                   onHoverStart={() => interaction.handleNodeHoverStart(node.id)}
                   onHoverEnd={() => interaction.handleNodeHoverEnd(node.id)}
-                  onDragStart={(point) => interaction.startDrag(node.id, point)}
+                  onDragStart={(point) => simulation.beginDrag(node.id, point)}
                 />
               );
             })}
-            {categoryNodes.map((node) => {
-              const drag = interaction.dragState?.nodeId === node.id ? interaction.dragState : null;
-              return (
-                <GraphNode
-                  key={node.id}
-                  node={node}
-                  labelDirection={categoryLabelDirectionByKey.get(node.key) ?? { x: 0, y: -1 }}
-                  visualState={interaction.visualStateForNode(node.id)}
-                  isSelected={interaction.selectedId === node.id}
-                  dragOffset={drag?.offset ?? { x: 0, y: 0 }}
-                  isDragging={drag?.isDragging ?? false}
-                  reduceMotion={reduceMotion}
-                  onHoverStart={() => interaction.handleNodeHoverStart(node.id)}
-                  onHoverEnd={() => interaction.handleNodeHoverEnd(node.id)}
-                  onDragStart={(point) => interaction.startDrag(node.id, point)}
-                />
-              );
-            })}
-            {rootNodes.map((node) => {
-              const drag = interaction.dragState?.nodeId === node.id ? interaction.dragState : null;
-              return (
-                <GraphNode
-                  key={node.id}
-                  node={node}
-                  labelDirection={{ x: 0, y: -1 }}
-                  visualState={interaction.visualStateForNode(node.id)}
-                  isSelected={interaction.selectedId === node.id}
-                  dragOffset={drag?.offset ?? { x: 0, y: 0 }}
-                  isDragging={drag?.isDragging ?? false}
-                  reduceMotion={reduceMotion}
-                  onHoverStart={() => interaction.handleNodeHoverStart(node.id)}
-                  onHoverEnd={() => interaction.handleNodeHoverEnd(node.id)}
-                  onDragStart={(point) => interaction.startDrag(node.id, point)}
-                />
-              );
-            })}
+            {categoryNodes.map((node) => (
+              <GraphNode
+                key={node.id}
+                node={node}
+                nodeRef={simulation.registerNodeEl(node.id)}
+                labelDirection={categoryLabelDirectionByKey.get(node.key) ?? { x: 0, y: -1 }}
+                visualState={interaction.visualStateForNode(node.id)}
+                isSelected={interaction.selectedId === node.id}
+                isDragging={simulation.draggedNodeId === node.id}
+                reduceMotion={reduceMotion}
+                onHoverStart={() => interaction.handleNodeHoverStart(node.id)}
+                onHoverEnd={() => interaction.handleNodeHoverEnd(node.id)}
+                onDragStart={(point) => simulation.beginDrag(node.id, point)}
+              />
+            ))}
+            {rootNodes.map((node) => (
+              <GraphNode
+                key={node.id}
+                node={node}
+                nodeRef={simulation.registerNodeEl(node.id)}
+                labelDirection={{ x: 0, y: -1 }}
+                visualState={interaction.visualStateForNode(node.id)}
+                isSelected={interaction.selectedId === node.id}
+                isDragging={simulation.draggedNodeId === node.id}
+                reduceMotion={reduceMotion}
+                onHoverStart={() => interaction.handleNodeHoverStart(node.id)}
+                onHoverEnd={() => interaction.handleNodeHoverEnd(node.id)}
+                onDragStart={(point) => simulation.beginDrag(node.id, point)}
+              />
+            ))}
           </g>
         </g>
       </svg>
+
+      <InspectorPanel
+        panelRef={inspectorPanelRef}
+        positioned={positioned}
+        selectedNode={selectedNode}
+        onClose={deselectAndRefit}
+        onSelectNode={selectAndFocus}
+      />
     </div>
   );
 }

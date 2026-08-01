@@ -29,7 +29,7 @@ export function KnowledgeGraphViewer({ file }: { file: VirtualFile }) {
 
   if (!positioned || positioned.nodes.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#0b0d10] text-sm font-mono text-[#6b6b6b]">
+      <div className="flex h-full w-full items-center justify-center bg-[#1e1e1e] text-sm font-mono text-[#6b6b6b]">
         No graph data to display.
       </div>
     );

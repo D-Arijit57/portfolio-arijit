@@ -51,6 +51,12 @@ export interface ConstellationViewportOptions {
   coverBoost?: number;
   /** When true, a resize-triggered re-fit (post-initial-settle only) eases instead of snapping instantly. Defaults to false — Constellation's own resize behavior is an intentional instant snap and stays that way. */
   animateResizeFit?: boolean;
+  /** When true, releasing a pan gesture continues the motion briefly with a decaying velocity instead of stopping dead on pointerup — "buttery smooth... no abrupt stopping" (Milestone 8). Defaults to false — Constellation's own pan stays an instant stop. Automatically skipped when `reduceMotion` is true. */
+  panInertia?: boolean;
+  /** Eases each wheel-zoom step over this many milliseconds instead of snapping instantly. Defaults to 0 (instant — Constellation's existing behavior). Milestone 8 passes a short duration so scroll-zooming the Knowledge Graph doesn't feel like a series of abrupt jumps. */
+  wheelZoomTransitionMs?: number;
+  /** Gates `panInertia` (and nothing else — fit/focus easing already has its own, separate reduced-motion handling one layer up). Defaults to false. */
+  reduceMotion?: boolean;
 }
 
 // How close (px) a panel's edge must sit to a container edge to be
@@ -154,6 +160,16 @@ const CLICK_DRAG_THRESHOLD = 4;
 const INSTANT_TRANSITION: ViewportTransition = { duration: 0 };
 const DEFAULT_FOCUS_TRANSITION: ViewportTransition = { duration: 0.8, ease: [0.22, 1, 0.36, 1] };
 
+// Pan inertia — a frame-rate-independent exponential velocity decay, the
+// same technique (and dt-clamping) the Knowledge Graph's own physics
+// simulation already uses, applied here to camera panning instead of node
+// positions. Tuned for a brief, natural-feeling coast (roughly settles
+// within half a second for a typical flick), never a long drift.
+const INERTIA_DAMPING_PER_S = 4.5;
+const INERTIA_MIN_SPEED_PX_S = 12;
+const INERTIA_MAX_DT = 1 / 30;
+const EASE_IN_OUT: [number, number, number, number] = [0.4, 0, 0.2, 1];
+
 export function useConstellationViewport(
   layout: { width: number; height: number },
   options: ConstellationViewportOptions = {},
@@ -165,14 +181,23 @@ export function useConstellationViewport(
     fitPaddingRatio: FIT_PADDING_RATIO = DEFAULT_FIT_PADDING_RATIO,
     coverBoost: COVER_BOOST = DEFAULT_COVER_BOOST,
     animateResizeFit = false,
+    panInertia = false,
+    wheelZoomTransitionMs = 0,
+    reduceMotion = false,
   } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewport, setViewport] = useState<ConstellationViewport>({ x: 0, y: 0, scale: 1 });
   const [viewportTransition, setViewportTransition] = useState<ViewportTransition>(INSTANT_TRANSITION);
-  const panState = useRef<{ pointerId: number; startX: number; startY: number; lastX: number; lastY: number } | null>(
+  const panState = useRef<{ pointerId: number; startX: number; startY: number; lastX: number; lastY: number; lastMoveTime: number } | null>(
     null,
   );
+  // A smoothed (not raw-instantaneous) pan velocity — raw per-event deltas
+  // are noisy (irregular pointermove timing), so this is an exponential
+  // moving average updated on every move, read once on release to seed
+  // the inertia coast.
+  const panVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
+  const inertiaRafRef = useRef<number | null>(null);
   const hasInteractedRef = useRef(false);
   // Flips true once the initial-mount settle window (below) has finished
   // — a resize before that point is the mount itself still converging on
@@ -183,6 +208,13 @@ export function useConstellationViewport(
 
   const resetInteraction = () => {
     hasInteractedRef.current = false;
+  };
+
+  const cancelInertia = () => {
+    if (inertiaRafRef.current !== null) {
+      cancelAnimationFrame(inertiaRafRef.current);
+      inertiaRafRef.current = null;
+    }
   };
 
   /** Measures the container and every reserved-chrome ref right now and
@@ -202,6 +234,7 @@ export function useConstellationViewport(
   };
 
   const fitToScreen = (animated = false) => {
+    cancelInertia();
     if (layout.width === 0 || layout.height === 0) return;
     const measured = measureUsableBox();
     if (!measured) return;
@@ -235,6 +268,7 @@ export function useConstellationViewport(
   };
 
   const resetView = () => {
+    cancelInertia();
     const measured = measureUsableBox();
     if (!measured) return;
     const { usable } = measured;
@@ -248,6 +282,7 @@ export function useConstellationViewport(
   };
 
   const focusOnNode = (pos: { x: number; y: number }) => {
+    cancelInertia();
     const measured = measureUsableBox();
     if (!measured) return;
     const { usable } = measured;
@@ -307,6 +342,7 @@ export function useConstellationViewport(
   }, [layout]);
 
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    cancelInertia();
     (event.target as Element).setPointerCapture(event.pointerId);
     panState.current = {
       pointerId: event.pointerId,
@@ -314,18 +350,54 @@ export function useConstellationViewport(
       startY: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
+      lastMoveTime: performance.now(),
     };
+    panVelocityRef.current = { vx: 0, vy: 0 };
   };
 
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!panState.current || panState.current.pointerId !== event.pointerId) return;
     const dx = event.clientX - panState.current.lastX;
     const dy = event.clientY - panState.current.lastY;
+    const now = performance.now();
+    // Floor dt so two events landing in the same tick (dt≈0) can't produce
+    // a spurious huge instantaneous velocity spike.
+    const dt = Math.max(1, now - panState.current.lastMoveTime) / 1000;
     panState.current.lastX = event.clientX;
     panState.current.lastY = event.clientY;
+    panState.current.lastMoveTime = now;
+    // Exponential moving average, not the raw instantaneous sample —
+    // pointermove timing is irregular enough that a single sample would
+    // make the inertia coast's starting speed noisy/inconsistent.
+    const smoothing = 0.35;
+    panVelocityRef.current = {
+      vx: panVelocityRef.current.vx * (1 - smoothing) + (dx / dt) * smoothing,
+      vy: panVelocityRef.current.vy * (1 - smoothing) + (dy / dt) * smoothing,
+    };
     hasInteractedRef.current = true;
     setViewportTransition(INSTANT_TRANSITION);
     setViewport((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
+  };
+
+  /** Continues panning with the release velocity, decaying it exponentially (frame-rate-independent, same technique the physics simulation uses) until it's imperceptibly slow. Cancelable by `cancelInertia()` — any subsequent pointerdown/wheel/programmatic camera move stops it immediately rather than fighting it. */
+  const startInertiaCoast = (initialVx: number, initialVy: number) => {
+    let vx = initialVx;
+    let vy = initialVy;
+    let lastT = performance.now();
+    const step = (now: number) => {
+      const dt = Math.min((now - lastT) / 1000, INERTIA_MAX_DT);
+      lastT = now;
+      const decay = Math.exp(-INERTIA_DAMPING_PER_S * dt);
+      vx *= decay;
+      vy *= decay;
+      setViewport((v) => ({ ...v, x: v.x + vx * dt, y: v.y + vy * dt }));
+      if (Math.hypot(vx, vy) > INERTIA_MIN_SPEED_PX_S) {
+        inertiaRafRef.current = requestAnimationFrame(step);
+      } else {
+        inertiaRafRef.current = null;
+      }
+    };
+    inertiaRafRef.current = requestAnimationFrame(step);
   };
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>, onBackgroundClick: () => void) => {
@@ -335,6 +407,9 @@ export function useConstellationViewport(
     const clickedNode = (event.target as Element).closest(nodeSelector);
     if (movedDistance < CLICK_DRAG_THRESHOLD && !clickedNode) {
       onBackgroundClick();
+    } else if (panInertia && !reduceMotion) {
+      const { vx, vy } = panVelocityRef.current;
+      if (Math.hypot(vx, vy) > INERTIA_MIN_SPEED_PX_S) startInertiaCoast(vx, vy);
     }
     panState.current = null;
   };
@@ -344,13 +419,19 @@ export function useConstellationViewport(
     if (!svg) return undefined;
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
+      cancelInertia();
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const cursorX = event.clientX - rect.left;
       const cursorY = event.clientY - rect.top;
       hasInteractedRef.current = true;
-      setViewportTransition(INSTANT_TRANSITION);
+      // A short ease (opt-in via `wheelZoomTransitionMs`) instead of an
+      // instant jump per tick — "buttery smooth... no abrupt stopping."
+      // Short enough that rapid successive wheel ticks still feel
+      // responsive, not laggy; a new tick's transition simply overrides
+      // the prior one from whatever the current interpolated value is.
+      setViewportTransition(wheelZoomTransitionMs > 0 ? { duration: wheelZoomTransitionMs / 1000, ease: EASE_IN_OUT } : INSTANT_TRANSITION);
       setViewport((v) => {
         const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
         const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * zoomFactor));

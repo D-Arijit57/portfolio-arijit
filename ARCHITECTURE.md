@@ -665,7 +665,7 @@ No addition above requires changing `NotificationQueue`'s ordering/overflow/dedu
 
 ## Knowledge Graph Renderer
 
-**Status: Milestones 1-6 of Sprint 11 shipped, 2026-08-01. Milestone 1: registry + routing + loader + Graph Model + placeholder rendering. Milestone 2: Graph Builder — relationships + statistics, no coordinates. Milestone 3: Layout Engine — force-relaxed radial layout — see §10. Milestone 4: the first production Renderer — see §11. Milestone 5: Interaction & Motion Layer (hover, selection, drag, camera, reduced-motion support) — see §12; §12 also carries a same-day revision note (§12.11) superseding its original CSS-ambient-motion/color/spacing/background description with the real physics-simulation rewrite that replaced it — read §12.11 before trusting §11.2/§12.3/§12.5's numbers. Milestone 6: Inspector Panel — see §13. The renderer/layout/physics/color/spacing baseline is now explicitly FROZEN ("do not redesign... unless strictly required for the next milestone — a dedicated Visual Polish sprint happens at the end") — functionality is next: Search and Category Filters remain unbuilt (roadmap order: Inspector Panel ✓, Node Selection ✓, Hover States ✓, Search, Category Filters, Advanced Physics Polish).**
+**Status: Milestones 1-8 of Sprint 11 shipped, 2026-08-01. Milestone 1: registry + routing + loader + Graph Model + placeholder rendering. Milestone 2: Graph Builder — relationships + statistics, no coordinates. Milestone 3: Layout Engine — force-relaxed radial layout — see §10. Milestone 4: the first production Renderer — see §11. Milestone 5: Interaction & Motion Layer (hover, selection, drag, camera, reduced-motion support) — see §12; §12 carries a revision note (§12.11) superseding its original CSS-ambient-motion/color/spacing/background description with the physics-simulation rewrite that replaced it, and §15 (Milestone 8) supersedes §12.11's OWN damping description in turn — read §15 for the current, authoritative physics model. Milestone 6: Inspector Panel — see §13. Milestone 7: Hover & Focus Interaction System — a dedicated Interaction Resolver (`graph/interaction/`) — see §14. Milestone 8: Obsidian Interaction & Motion Engine — proper critically-damped spring physics (replacing the earlier decoupled velocity-decay approximation), a cluster-distance-decay verified live, and opt-in camera smoothing (pan inertia, eased wheel-zoom) — see §15. The renderer/layout/topology/spacing/color/Inspector-Panel/Interaction-Resolver baseline remains explicitly FROZEN — functionality is next: Search and Category Filters remain unbuilt (roadmap order: Inspector Panel ✓, Node Selection ✓, Hover States ✓, Search, Category Filters, Advanced Physics Polish — Milestone 8 addressed motion quality ahead of "Advanced Physics Polish" per explicit instruction, so that roadmap item may already be substantially satisfied when it comes up for formal review).**
 
 ### 0. Grounding — what already existed, what this reuses
 
@@ -1084,3 +1084,216 @@ Live via Playwright driving real Chrome (`channel: 'chrome'` — the Claude-in-C
 ### 13.5 What was deliberately not built (per explicit instruction)
 
 Search, category filters, and any further physics/visual polish — explicitly deferred to their own later milestones per the roadmap order given (Inspector Panel -> Node Selection -> Hover States -> Search -> Category Filters -> Advanced Physics Polish; Node Selection and Hover States were already shipped as part of Milestone 5/§12, so this milestone's only net-new roadmap item was the Inspector Panel itself).
+
+## Hover & Focus Interaction System (Milestone 7)
+
+**Status: shipped 2026-08-01, pending review.** Explicit brief: "build a reusable Interaction Layer rather than isolated hover effects... this system will become the single source of truth for visual emphasis" that Search/Filters/Keyboard Navigation feed into later, without the renderer ever needing to know which of those triggered a given state. Renderer/layout/physics/visual baseline stays frozen — every file this milestone touches was touched because the STATE VOCABULARY changed underneath it (4 states -> 6), not because any color/size/spacing value was redesigned.
+
+### 14.1 Architecture — a pure Interaction Resolver, one hook, memoized renderers
+
+```
+Interaction State (selectedId, hoveredId, focusedId)
+  -> Interaction Resolver (graph/interaction/interactionResolver.ts — pure, no React)
+    -> useGraphInteraction (React glue: owns state, memoizes, caches per-node handlers)
+      -> GraphNode / GraphEdgeLine (React.memo'd — ask ONE question: "what state am I in")
+```
+
+New files: `src/graph/interaction/{types,interactionResolver}.ts` (pure — `buildHighlightIndex`, `resolveNodeState`, `resolveEdgeState`, `resolveAnchorId`, `isPointerOnSelected`; zero DOM, zero React, unit-testable in isolation, matching this codebase's established `graph/*` pure-data convention). Rewritten: `src/hooks/useGraphInteraction.ts` (the only consumer of the resolver — GraphNode/GraphEdgeLine/InspectorPanel never import from `graph/interaction/` directly). Modified: `GraphNode.tsx`, `GraphEdgeLine.tsx` (new 6-/3-state vocabulary, `React.memo`), `KnowledgeGraphScene.tsx` (wiring only). A future Search or Filter milestone adds its own field to `InteractionState` and its own line inside `resolveNodeState`/`resolveEdgeState` — the renderer components need zero changes, which is the whole point of the indirection.
+
+### 14.2 Node state machine
+
+Six states, exactly one per node per render (`src/graph/interaction/types.ts`'s `NodeVisualState`): `default | hovered | selected | related | dimmed | hidden`. `hidden` is reserved for a future filtering milestone — nothing in this milestone's resolver ever produces it (no filtering exists yet), but `GraphNode` already renders it correctly (`opacity: 0`, `pointer-events: none`, `tabIndex: -1`) so wiring a filter in later touches neither this file nor the resolver's contract.
+
+**Precedence** (`resolveAnchorId` in `interactionResolver.ts`): `anchorId = selectedId ?? (hoveredId ?? focusedId)`. Selection always wins — once ANYTHING is selected, hovering a DIFFERENT node never changes the highlight partition; the anchor stays pinned to the selection. This is a genuine bug fix, not just a rewrite: Milestone 5's original `useGraphInteraction` computed `activeId = hoveredId ?? selectedId` — hover took priority over selection — so hovering an unrelated node while something was selected silently reshuffled which nodes read as related/dimmed, then reshuffled back on mouse-out. Caught and verified via a live isolated test: selecting a category, then hovering a completely different leaf, and confirming (via direct opacity readout, not just eyeballing) that every other node's resolved opacity was **byte-identical** before and during the hover. `isPointerOnSelected(nodeId)` is a narrow supplementary signal (true only when hover/focus lands on the already-selected node itself) — NOT a 7th state; it nudges the node's own scale by an extra 3% on top of `selected`'s unbumped baseline, matching "if a selected node is hovered, selection styling remains dominant; hover only contributes cursor + a tiny scale adjustment" without inventing a state the brief didn't name.
+
+**Relationship highlighting** (`buildHighlightIndex`, O(n) once per graph): every node's own precomputed highlight set —
+- root anchor -> the entire graph (every node id)
+- category anchor -> `{root, itself, all its own leaf children}`
+- leaf anchor -> `{itself, its own category, root}` (the "connecting path")
+
+A node resolves to `related` if it's in the anchor's highlight set (and isn't the anchor/selection itself), else `dimmed`. Verified live for all three anchor kinds via direct opacity readout — category hover puts all 9 Backend leaves + root at the `related` tier while unrelated leaves (`cpp`, `react`) sit at `dimmed`; leaf hover (`python`) puts python itself, its category, and root at the emphasized tiers while SIBLING leaves under the same category (`cpp`, `javascript`) correctly stay `dimmed`, not `related` — confirming the highlight set is genuinely path-based, not "everything in the same category."
+
+**Opacity tiers** (`GraphNode.tsx`'s `NODE_OPACITY`): `default/hovered/selected` 100%, `related` 65%, `dimmed` 35%, `hidden` 0% — the explicitly requested "~100/65/35, not 100/20/0" readability target, replacing Milestone 5's effectively 2-tier system (`connected` nodes stayed at full 100% opacity; only `dimmed` dropped, to 55%). Shadow/glow/brighten-overlay opacity records were relabeled onto the new 6 state names with their EXACT prior numeric values reused (hovered and selected both reuse the old "active" figure, related reuses "connected," dimmed/default unchanged) — a rename, not a redesign, per the explicit freeze on visual styling.
+
+### 14.3 Edge state machine
+
+Three states (`EdgeVisualState`): `default | highlighted | dimmed` — no `related` tier for edges, matching the brief's own edge section exactly. An edge is `highlighted` iff BOTH endpoints are members of the current anchor's highlight set (the identical set node resolution uses — one precomputed structure drives both, not two parallel implementations). `default` opacity unchanged (0.4); `highlighted` reuses the old "active" figure (0.75); `dimmed` reuses the old "dimmed" figure (0.18). No edge glow, no particles, no pulsing — untouched from Milestone 5.
+
+### 14.4 Cursor and z-index — small, deliberate interpretations flagged
+
+**Cursor**: `cursorForNode(isDragging)` returns `'pointer'` at rest, `'grabbing'` only during an actual active drag — centralized in the resolver's exposed API (`useGraphInteraction`) rather than inline-computed in `GraphNode`, per the brief's "already prepare API if helpful." Flagged interpretation: the brief listed `grab`/`grabbing` as "future milestone" cursor values, but dragging already exists today (Milestone 5's physics-based drag) — read literally, that would mean downgrading the existing hover cursor from `grab` to `pointer`, which is what shipped; `grabbing` is kept for the literal drag-in-progress moment since the brief names it explicitly in the same breath. Trivial to revert to `grab`-at-rest if this reading wasn't intended.
+
+**Z-index ("raise z-index" on hover/focus/selection)**: SVG has no z-index — paint order IS stacking order. `KnowledgeGraphScene.tsx`'s `orderedNodes` moves whichever node `emphasizedNodeId` currently points to (same precedence as the resolver's own anchor) to the END of the render array, so it paints over every other node regardless of kind (a hovered leaf can now visually sit on top of a category it overlaps, which the old fixed leaf-then-category-then-root layer order never allowed). Stable `key={node.id}` means React moves the existing DOM node rather than remounting it, so this doesn't disrupt the physics simulation's own DOM ref.
+
+**A real regression this specific change caused, caught by the existing drag regression test, not assumed safe**: reordering the DOM while a node is being ACTIVELY DRAGGED measurably weakened the drag's own physics propagation — a category-drag that should pull a leaf child up to ~54px was measured dropping to ~2.9px with reordering enabled during the drag. Root cause (empirically isolated via an A/B test: disable reordering entirely -> numbers return exactly to baseline): moving a DOM element that currently holds `setPointerCapture` appears to disrupt that capture in this browser, breaking the pointer-move stream the drag depends on. Fixed by freezing z-order (falling back to the base leaf-then-category-then-root order) for the entire duration of any active drag — `simulation.draggedNodeId ? null : interaction.emphasizedNodeId` as the reorder anchor. Dragging already has its own visual prominence (scale/shadow/brighten) and is explicitly out of scope to modify this milestone, so simply not touching its DOM order during a drag is the correct fix, not a workaround. Re-verified after the fix: both the drag-physics regression test (back to ~54px/~1.49px) and every hover/selection opacity check pass simultaneously.
+
+### 14.5 Keyboard focus — accessibility designed now, navigation deferred
+
+"Keyboard focus should produce the same interaction state as hover... design this now even if keyboard navigation is implemented later." Implemented: every node's outer `<g>` gained `tabIndex={0}`, `role="button"`, `aria-label={node.label}`, `aria-pressed={isSelected}`, and `onFocus`/`onBlur` handlers feeding a NEW `focusedId` state that the resolver treats identically to `hoveredId` (`emphasizedId = hoveredId ?? focusedId`) — a node can be reached via `Tab` today and reads with the exact same resolved visual state hovering it would produce (verified live: `element.focus()` on `python` produced the identical opacity pattern the mouse-hover test did). The browser's native focus outline is suppressed (`outline: none`) since the resolved visual state IS the focus indicator here, not a rectangle. Deliberately NOT built: `Tab` currently follows raw DOM order (not graph-aware traversal), and `Enter`/`Space` don't trigger selection — both are "keyboard navigation," which the brief explicitly defers to a later milestone; this milestone only guarantees focus and hover share one resolver, which is the part that had to be designed now to avoid a second, divergent interaction system being bolted on later.
+
+### 14.6 Performance
+
+Per the brief's explicit requirement, not just claimed:
+- `highlightIndex` (`buildHighlightIndex`) is built ONCE per `positioned` via `useMemo` — O(n) total, never re-walked on hover/focus/select. Resolving any node/edge's state at render time is a `Map.get` + `Set.has`, not a traversal.
+- `visualStateForNode`/`visualStateForEdge`/`cursorForNode`/`isPointerOnSelected` are `useCallback`'d against `[state, highlightIndex]`.
+- Hover/focus handlers are cached per node id (`Map` in a `ref`, reset only when `positioned` changes) — the same pattern `useGraphSimulation`'s `registerNodeEl`/`registerEdgeEl` already established — rather than allocated fresh every render.
+- `GraphNode`/`GraphEdgeLine` are both wrapped in `React.memo`. This only pays off if EVERY prop passed down is reference-stable when its value hasn't changed — caught and fixed one real leak during implementation: `labelDirection` was being computed as a fresh `{x, y}` object literal inline in JSX on every render (even when the underlying numbers never changed), which would have silently defeated `React.memo` for all ~44 nodes on every hover. Fixed by precomputing a `labelDirectionById: Map<string, Point>` once via `useMemo`, reusing stable object references across renders; a single module-level `UP_DIRECTION` constant replaces what were three separate `{x:0,y:-1}` literals. `onDragStart` was reworked so the scene passes `simulation.beginDrag` straight through (already stable) instead of wrapping it in a fresh per-render arrow function — `GraphNode` now calls `onDragStart(node.id, point)` itself rather than receiving a pre-bound closure.
+- CDP `Performance.getMetrics` (same method used in Milestone 5's physics revision): `ScriptDuration` ~0.7% of wall time over a 3s idle window — consistent with the pre-Milestone-7 measurement, confirming the resolver adds no meaningful cost.
+
+### 14.7 Verification
+
+Live via Playwright driving real Chrome. Confirmed via direct DOM/opacity readout (not just screenshots): root hover elevates the entire graph off the `dimmed` tier; category hover (`Backend`) puts exactly its 9 leaves + root at `related` and everything else at `dimmed`; leaf hover (`python`) puts python/its category/root at the emphasized tiers while sibling leaves under the same category correctly stay `dimmed`; selecting a category then hovering an unrelated leaf produces byte-identical opacities across the board (the flicker bug, fixed); the Inspector Panel still opens/updates correctly under the new resolver; keyboard `.focus()` on a node produces the same resolved state hovering it does; z-index raise confirmed via DOM order inspection (hovering `python` moves it to the last child, painting over root/categories); the drag-physics regression test (category-drag pulling a leaf child, leaf-drag barely moving its category) passes at the same magnitudes measured in Milestone 5's physics revision, after the z-index/drag conflict was found and fixed. `reduceMotion` reconfirmed unaffected (idle drift stays exactly frozen). `tsc --noEmit` and `npm run build` both clean.
+
+### 14.8 What was deliberately not built (per explicit instruction)
+
+Search, category filters, graph-aware keyboard navigation (arrow-key traversal, Enter/Space-to-select), and any further physics/visual/renderer redesign — all explicitly out of scope this milestone. Stop condition: do not begin Search until this milestone is reviewed.
+
+## Obsidian Interaction & Motion Engine (Milestone 8)
+
+**Status: shipped 2026-08-01, pending review.** Explicit brief: "study how Obsidian behaves and reproduce its interaction characteristics... do not invent your own physics." No reference video/image/GIF was actually attached to the brief despite being referenced repeatedly ("the attached Obsidian Knowledge Graph is the benchmark") — flagged directly rather than guessing at unseen material; the user chose to proceed grounding the work in Obsidian's own well-documented, genuinely well-known force-directed graph behavior (a real, observable product any user of the app can compare against) rather than inventing something arbitrary. Every physics change below is stated as an explicit, checkable claim for exactly that reason. Freeze carried forward: Graph Builder, Layout Engine, topology, node positions, spacing, colors, Inspector Panel, the Interaction Resolver ITSELF (only `useGraphInteraction`'s cursor logic — the React glue layer, not the pure resolver module — changed), hover/selection hierarchy, and renderer architecture are all untouched. Files touched: `src/hooks/useGraphSimulation.ts` (full physics rewrite), `src/hooks/useGraphInteraction.ts` (cursor only), `src/hooks/useConstellationViewport.ts` (new opt-in camera-smoothing options), `src/components/graph/KnowledgeGraphScene.tsx` (wiring the new options).
+
+### 15.1 The core fix: a real damped harmonic oscillator, not an approximation
+
+Every prior milestone's physics (§12.11, §14) used a decoupled model: integrate spring/noise/neighbor forces normally, THEN apply `velocity *= exp(-DAMPING_RATE * dt)` as a separate, disconnected multiplicative decay. This could never make a genuine, verifiable "critically damped" claim — the decay constant had no mathematical relationship to the spring stiffness driving it.
+
+Milestone 8 replaces this with a real `F = -k*(pos-anchor) - c*v` system, where the damping coefficient `c` is DERIVED from the spring stiffness `k` and mass `m` to hit a target damping ratio:
+
+```
+c = dampingRatio * 2 * sqrt(k * m)      // dampingRatio = 1 → exactly critical
+```
+
+Computed per node PER REGIME (ambient spring `k=5.5` vs. drag spring `k=55` use different `c`, since a stiffer spring needs proportionally more damping to stay at the same ratio) rather than one global constant. This single change is what makes BOTH halves of the brief true simultaneously without needing two different tuned systems: "critically damped, never snaps" (the general resting behavior — a critically damped system decays toward equilibrium as fast as possible without oscillating) AND "on release: continue briefly, overshoot slightly, naturally settle" (a critically damped system given nonzero release velocity genuinely coasts further in the direction of that velocity before the restoring force pulls it back — a real, single-crossing "overshoot," not a bounce-back oscillation). Verified live, not just derived on paper: dragged a leaf node with a fast release ("flick"), then sampled its distance-from-anchor at ~30ms resolution for 1.5s — the curve rises from ~24px to a peak of ~66px (the coast), then decreases **monotonically** all the way back down, with exactly ONE direction change in the entire trace (confirming a genuine single overshoot-then-settle, not an oscillating wobble).
+
+### 15.2 Cluster response — decay-with-distance, verified as an emergent property
+
+The brief's own diagram (`dragged node -> immediate neighbors -> category -> root -> far clusters, each level reacts less`) is not separately implemented — it emerges from the existing mass-averaged neighbor-coupling mechanism (unchanged from Milestone 5/7: each node feels an averaged, mass-scaled pull from its DIRECT structural neighbors' own current displacement). A 2-hop node only ever feels its 1-hop neighbor's own (already-partial, already-damped) displacement, one coupling step removed, every single frame — multi-hop decay is a natural consequence of chaining 1-hop couplings through the network, not a distance calculation anywhere in the code. Verified live rather than assumed: dragging the `Backend` category ~185px and measuring every level's response after 1s of propagation —
+
+| Level | Node | Response |
+|---|---|---|
+| 1-hop (direct child) | `nodejs` | 30.67px |
+| 1-hop (direct parent) | root | 1.49px |
+| 2-hop (sibling category via root) | `Frontend` | 0.04px |
+| 3-hop (leaf under a different category) | `react` | 0.09px |
+
+Each level reacts less, exactly as specified, with the 2-/3-hop response reading as "essentially still" relative to the 1-hop response — matching "the graph should absorb movement," not transmit it uniformly.
+
+### 15.3 Idle motion — retuned for "breathing," not "wiggling"
+
+Still hash-seeded continuous value noise (`graph/motion/valueNoise.ts`, untouched — never a sine wave, never loops, never comes to rest, per both this milestone's and Milestone 5's own "no fake sine-wave floating" instruction). Amplitude retuned down from the prior "living neural network" framing's target (`NOISE_FORCE`: leaf 16->9, category 10->6, root 5.5->3) — this milestone explicitly asks for something more restrained ("never look animated... only notice after staring for a few seconds") than the previous milestone's more overtly "alive" framing did. Measured live: max drift over an 18s window now leaf ~1.8px / category ~0.9px / root ~0.7px (previously ~3.8/1.3/1.1px) — visibly reads as microscopic equilibrium adjustment rather than perceptible wandering, especially over the first few seconds of any given window, where the underlying noise signal itself has barely moved (deliberately slow `NOISE_TIME_SCALE`).
+
+### 15.4 Reduced motion — a real early-exit, not a parameter tweak
+
+"Disable idle movement, settling, breathing, inertia — while preserving usability." Implemented as a genuine branch at the top of the simulation tick, not a very-high damping ratio (which would still integrate a fast-but-nonzero-duration settle): under `reduceMotion`, every non-dragged node's `pos`/`vel` are set DIRECTLY to `{anchor, 0}` every frame (no noise, no spring integration, no lingering motion at all), and a dragged node's `pos` is set directly to the cursor target with `vel=0` (still fully responsive/usable — dragging isn't decorative animation, it's core interaction) so release has nothing to coast from. Camera pan inertia (§15.5) is separately gated off the same flag. Verified live: a node's `transform` attribute is byte-identical 6 seconds apart at rest, and a pan gesture's end position is byte-identical 500ms after release (no coast at all) under `reducedMotion: 'reduce'` emulation.
+
+### 15.5 Camera — opt-in smoothing, viewport architecture untouched
+
+"Do NOT redesign the viewport. Only improve feel... if pan/zoom already exist, make them buttery smooth." Two additions to `useConstellationViewport.ts`, both new options defaulting OFF so the Tech Stack Constellation's own call site (which passes neither) stays byte-identical — same "evolve the shared hook via opt-in options" pattern every prior Knowledge-Graph-specific viewport change has used (`fitPaddingRatio`, `coverBoost`, `animateResizeFit`, `focusTransition` before it):
+
+- **`panInertia`**: on pointer release, an exponentially-decaying "coast" continues the pan using a smoothed (EMA, not raw-instantaneous) release velocity — the same frame-rate-independent exponential-decay technique the physics simulation itself uses, applied to camera position instead of node position. Cancelable by any subsequent interaction (a new pointerdown, a wheel tick, or a programmatic fit/focus/reset all call the same `cancelInertia()`), so it never fights a user's next action. Verified live: post-release movement-per-sample starts nonzero and decays to imperceptible (<1px/sample) within ~1.2s, never re-accelerating.
+- **`wheelZoomTransitionMs`**: each wheel tick now eases over 120ms (ease-in-out) instead of snapping the scale instantly. Verified live via `getComputedStyle` (the raw style ATTRIBUTE updates to the target instantly regardless of the CSS transition — only the actual rendered/computed value interpolates, which is what was measured): a single wheel tick's rendered scale ramps `0.8513 -> 0.8755 -> 0.9062 -> 0.9225 -> 0.9350 -> 0.9364` (settled) over the expected ~120ms window, not one instant jump.
+
+### 15.6 Cursor
+
+"default -> grab -> grabbing." `useGraphInteraction`'s `cursorForNode` changed from Milestone 7's `pointer`-at-rest (a flagged, explicitly-reversible interpretation call made when the brief's own cursor section was ambiguous about whether dragging counted as "future") to `grab`-at-rest / `grabbing`-while-dragging, now that this milestone restates the exact intended sequence unambiguously. Verified live via `getComputedStyle`.
+
+### 15.7 Performance
+
+Per the brief's explicit "target 60 FPS... avoid React re-renders every frame... motion values, refs, imperative updates" — no architectural change was needed here since Milestones 5-7 already established the imperative-DOM-write pattern (the simulation writes `transform`/`x1,y1,x2,y2` attributes directly via cached refs, never triggering a React re-render for motion) and this milestone's changes are purely to the FORCE MATH inside that already-imperative loop, plus a new but equally-imperative pan-inertia RAF loop. CDP `Performance.getMetrics` (same method used throughout this sprint): `ScriptDuration` ~0.6% of a 3s idle window — consistent with every prior measurement, confirming the more physically rigorous force model (an extra `sqrt` and a few multiplications per node per frame) adds no measurable cost at this graph's scale (44 nodes).
+
+### 15.8 Verification
+
+Live via Playwright driving real Chrome. Confirmed: critically-damped overshoot-then-monotonic-settle on drag release (§15.1); cluster response decays correctly across 1/2/3 hops (§15.2); idle drift measurably more subtle than the prior milestone while remaining non-zero and non-periodic; reduced motion produces exact stillness at rest AND exact instant-stop on pan release; pan inertia coasts-then-stops smoothly and is fully cancelable; wheel-zoom eases over its configured duration (confirmed via computed style, not the target-only style attribute); cursor is `grab`/`grabbing`; the Milestone 7 hover/selection/keyboard-focus/Inspector-Panel test suite re-run and passes unchanged (one flaky re-run was caught and independently reproduced correctly, treated as environment noise, not a regression, since two subsequent runs were clean); the drag-neighbor asymmetry regression test still passes at the same order of magnitude. `tsc --noEmit` and `npm run build` both clean throughout. Constellation's own call sites (`ConstellationScene.tsx`) pass none of the new options, confirmed unaffected by inspection (no code path in `useConstellationViewport.ts` executes the new behavior unless explicitly opted in).
+
+### 15.9 What was deliberately not built (per explicit instruction)
+
+Category filters, visual polish, and any redesign of layout/topology/colors/spacing/the Inspector Panel/the Interaction Resolver's own logic — all explicitly out of scope this milestone. Stop condition: do not begin category filters or visual polish until this milestone is reviewed.
+
+---
+
+## Graph Lifecycle & True Elastic Physics (Milestone 10)
+
+The brief: make `skills.graph` read as "a real living knowledge graph," not "a graph with animations." Eight phases — construction animation, elastic physics, drag mechanics, idle life, camera, motion quality, visual refinement, performance. The simulation from Milestone 9 was declared feature-complete and frozen going in; one part of it turned out to be the direct cause of the problem the sprint existed to fix, and was replaced with prior approval (§16.1).
+
+### 16.1 The architectural correction — why the graph felt "glued to invisible nails"
+
+Milestone 9 gave every node an always-on spring toward its own frozen Layout Engine coordinate, and gated the real network forces (link + many-body repulsion) behind an alpha that cooled to exactly zero at rest. The consequence, visible in the code:
+
+```
+useGraphSimulation.ts   fx = SPRING_K * (n.anchor.x - n.pos.x)   // always on, never gated
+                        if (alpha > 0) { link…; repulsion… }     // ALPHA_TARGET_IDLE = 0
+```
+
+At rest the network forces were multiplied by zero. The graph was not a network — it was 44 independent particles, each leashed to a remembered coordinate and coupled to nothing. Dragging deformed almost nothing (the anchor spring, `SPRING_K = 5.5` critically damped, dominated the briefly-reheated link force), and releasing returned every node to its exact stored `(x, y)`. That is the "chewing gum attached to invisible nails" feeling precisely, and it was architectural: no constant could fix it, because raising the link force only made it fight a spring that always won.
+
+The offending assumption was Milestone 9's own approved reconciliation — *"Obsidian's centering force toward the viewport origin becomes a spring toward THIS node's own frozen anchor."* That decision protected the Layout Engine's exact output, and it is the same decision that forbade organic deformation. The two are mutually exclusive.
+
+**The correction (approved before implementation): demote the Layout Engine's output from PERMANENT PER-NODE ATTRACTOR to INITIAL CONDITION PLUS REST-LENGTH SOURCE.**
+
+- The anchor spring is deleted. `anchor` seeds `pos` at t=0 and is never a force target again. **`radialLayout.ts` is not modified** — it still decides where the graph starts and still produces the `bounds` the camera fits against.
+- Link force and many-body repulsion run **continuously**. This is the load-bearing part: each edge's `restLength` is that edge's own length in the frozen layout, so the equilibrium the network seeks *is the layout's own spacing* — encoded as **relative distances** rather than **absolute coordinates**. The shape is preserved; the positional memory is not, which is exactly what lets the graph deform and stay deformed.
+- Centering is d3's `forceCenter`, not `forceX`/`forceY`: it measures the centroid and rigidly translates the whole system. Translation-only, so it holds the graph in frame without ever collapsing it inward.
+- Alpha modulates **intensity** and never gates to zero. Because it scales link and repulsion together, it does not move *where* the network settles, only how briskly it gets there.
+
+Accepted, stated consequence: **resting positions are no longer pixel-identical to `radialLayout`'s output.** The graph relaxes into a force equilibrium near it, ~7% roomier. Exact-coordinate fidelity and organic deformation cannot coexist; this milestone chose deformation.
+
+### 16.2 Three measured corrections to that model
+
+Each of these was a real defect found by measurement, not a preference:
+
+1. **Repulsion was reshaping the graph globally.** Unbounded, every node pushes every other regardless of distance and those far-field terms sum into a pressure that rearranged the whole composition — measured at 362 world units of node movement, still creeping after 12s. Fixed with d3's `distanceMax` (340 units, just above the layout's inter-category spacing): repulsion now provides local breathing room and drag shouldering, while the link network owns large-scale structure. Rearrangement dropped to ~150 units and converges.
+2. **Centering was aiming at the wrong point.** It targeted `positioned.center`, but the graph's *centroid* is a different point (categories carry uneven leaf counts), so centering translated the entire composition on startup to reconcile the difference. Retargeted at the layout's own centroid, making the force a true no-op at rest — whole-graph shift fell from a systematic offset to ~2 units.
+3. **The graph took ~10s to reach equilibrium**, so the post-construction camera fit framed a composition still expanding underneath it. Alpha is now seeded to `ALPHA_SETTLE_BOOST` (0.35) at handover, so relaxation completes in ~2s and reads as the last beat of the construction.
+
+### 16.3 Two pre-existing bugs this sprint exposed
+
+Both were latent before this milestone and are unrelated to the physics rewrite; both were surfaced by measuring rather than assuming.
+
+**Drag was not actually a hard pin.** `updateDragPointer` converted pointer travel to world units by dividing by `viewport.scale` alone. But the scene's `<svg>` carried a `viewBox` that is itself scaled to fit the container, so the true world-to-screen factor was that fit scale *times* the pan/zoom group's scale — measured at **0.417 actual versus 0.851 assumed**. Every drag therefore moved the node roughly half as far as the cursor: a measured 58–102px lag on what was documented as a zero-lag hard pin. `DragState` now captures the real factor from the dragged element's own `getScreenCTM()` at grab time. Lag is now **0.02px**.
+
+**The camera fit was double-transformed.** `useConstellationViewport` computes `x`/`y`/`scale` in *container pixels*, but the graph applied them inside an SVG that established a second user-space scale via `viewBox`. The two multiplied, halving every translation the hook produced. Horizontally the viewBox's own letterboxing absorbed most of the error; vertically there was no letterbox, so the graph sat ~150px too high and was **clipped off the top edge** while 223px went unused at the bottom. The `viewBox` is removed — SVG user units are now CSS pixels, which is the coordinate system the hook was written against, and world coordinates reach the screen through exactly one transform.
+
+Removing it also revealed that `coverBoost: 4` had only ever looked reasonable *because* it was being halved. At its true value it crops ~170px from both top and bottom, so this graph moved to a near-contain fit (`coverBoost: 0.12`). The graph is roughly square while its panel is wide and short, so nothing can fill both axes — Phase 5 asks for "never clipped, perfectly centered, equal margins," so the spare width is left as margin.
+
+### 16.4 Construction animation
+
+`graph/motion/revealSchedule.ts` produces two delay tables once; the renderer hands them to CSS as per-element `animation-delay`. The browser's compositor runs the entire construction — no timers, no per-frame React state, no RAF. JavaScript waits on exactly one `setTimeout` (`schedule.totalMs`) to flip physics on.
+
+- Root appears at t=0; every other node is shuffled into one flat randomized order, so a leaf can surface before its own category (as the brief's own example order shows). Delays are spread evenly across a 1150ms window with per-slot jitter — an even spread alone reads metronomic, pure randomness clumps.
+- Nodes fade `opacity 0→1` and pop `scale 0.7→1.05→1`. These are deliberately on **two different elements**: scaling a group that also contains an offset text label would scale about the combined bounding box and visibly slide the node sideways as it grew.
+- Edges draw on via `stroke-dashoffset` against `pathLength="1"`, which normalizes the dash pattern to the line's own length — this matters because the simulation rewrites both endpoints every frame the moment construction ends, and a dash pattern in user units would visibly re-scale as the graph relaxes. The pattern starts at `(x1,y1)`, the parent, so lines grow parent→child.
+- Edge delay is `max(fromDelay, toDelay) + 70ms`, not just the destination's. The brief requires an edge to start after its *destination* appears, but because the shuffle lets a leaf precede its category, a line growing out of a still-invisible parent reads as a glitch.
+- **Randomization is two-layered.** Exactly one nondeterministic value enters the system — a seed drawn once per mount — and everything downstream is derived from it via `mulberry32`. Same seed, byte-identical schedule; `Math.random()` is never called during the animation. This is the documented exception to the codebase's "never `Math.random` for motion" rule, which exists to keep motion reproducible across builds; here per-instance variation is the explicit requirement.
+
+Measured: nodes ramp 0→44 over ~1.45s, all 45 edges fully drawn by ~1.65s, each after its endpoints.
+
+### 16.5 Drag mechanics
+
+Hard pin, zero lag, zero interpolation (§16.3). Milestone 9 zeroed the pinned node's velocity every tick — an exact reading of Obsidian's pin, and explicitly reversed here: *"do NOT instantly zero all momentum."* The tick loop now keeps the pinned node's velocity equal to a damped copy of its hand-velocity (`RELEASE_MOMENTUM = 0.6`), so the moment the pin lifts, momentum is already there for the network to absorb — nothing has to be handed across the release boundary. That velocity also feeds the link force's anticipated positions, so neighbours lean toward where the drag is *heading*, not only where it has been.
+
+### 16.6 Idle life
+
+Position drift already used per-node value-noise generators with independent phases. The remaining "looping animation" tell was in the periodic CSS layers: node scale breathing spanned only 8–14s and every node shared one peak scale, so groups visibly re-synchronized. Durations now span 7–21s, delays 0–14s, and each node breathes to its **own** peak (1.016–1.034) — a single shared amplitude is itself a giveaway. Edge opacity breathing widened to 7–19s likewise.
+
+Noise amplitude was cut ~2.4x from the first pass, which read as a slow churn. Residual idle motion measures ~13 world units mean over 12s — roughly 4px on screen. Worth recording: this was *initially misread as non-convergence*. It is not. `NOISE_TIME_SCALE = 0.06` means one noise lattice step spans ~17 seconds, so each node feels an effectively constant force for many seconds and settles at a small offset rather than oscillating. Amplified by genuinely soft modes (a leaf is held by one link, which fixes its distance from its category but not its angle), that produces exactly the slow, desynchronized, non-periodic wander Phase 4 asks for.
+
+### 16.7 Visual refinement
+
+Bloom reduced: blur `stdDeviation` 2.5 → 1.6, shadow discs tightened (`r*1.35` → `r*1.25` for leaves, `1.2` → `1.15` for categories), and every shadow opacity cut roughly a third. Node outlines slightly firmed (`strokeOpacity` 0.45 → 0.5) for crisper edges. The intent is a node that reads as sitting slightly above the canvas rather than emitting light. Palette, node sizes, edge widths, and the category color table are unchanged — they were already matte and Obsidian-like.
+
+Cluster spacing is now an **emergent** property (~7% roomier at equilibrium) rather than a layout constant, which is what "improve the equilibrium spacing, do not simply scale" requires. This was only possible *because* of §16.1: while positions were pinned to layout output, spacing was fixed by frozen constants in `radialLayout.ts` and could not be changed without editing the Layout Engine.
+
+### 16.8 Performance
+
+60 FPS during the construction reveal and 60 FPS idle. Idle `ScriptDuration` 0.045s per 3s window (~1.5%), up from ~0.7% pre-sprint — expected and accepted, since link and repulsion now run every frame instead of being gated off at rest. Sustained-drag script cost ~2%. A `MutationObserver` over all node groups during 2s of idle recorded **zero** `childList` mutations, confirming motion never passes through React; all movement is attribute writes from the simulation's own loop. `distanceMax` also cuts the repulsion pair count well below the O(n²) ceiling.
+
+### 16.9 Verification
+
+Live via Playwright driving real Chrome, measuring DOM state rather than relying on screenshots. Confirmed: construction grows from the root alone in randomized order with edges following their endpoints; physics activates only at handover; hard pin tracks the cursor to 0.02px across four in-bounds waypoints; release momentum is non-zero; **displacement persists** — after a 240px drag the node retained 48% of its displacement, its sibling 58 units, its category 126 units, with the settle curve monotone and **zero direction reversals** (no bounce, no oscillation, no snap-back); neighbour deformation decays correctly with distance (dragged 600 → linked category 234 → sibling 166 → root 15 → unrelated 9); the graph is never clipped and sits within a few px of centered; reduced motion holds exact stillness (0.0000 drift) while dragging, hover, selection and the Inspector Panel all still work; the Milestone 7 hover/selection/keyboard-focus suite passes unchanged. `tsc --noEmit` clean throughout.
+
+One verification-tooling note: the existing Milestone 7 regression script probes hover 1.5s after opening the file, which now lands *mid-construction*, and reported every node at full opacity. Re-probing after the reveal shows the correct 1.0/0.65/0.35 tiers. The hover system was never affected — the test's timing assumption was.
+
+### 16.10 Known limitations
+
+- The resting layout is no longer pixel-identical to `radialLayout`'s output (§16.1) — nodes settle up to ~150 world units from their layout coordinates, mean ~50. This is inherent to the correction, not a defect.
+- The graph occupies the centre of a wide, short panel with substantial left/right margin. Its aspect ratio and the panel's disagree; filling the width would clip the height.
+- Parity with Obsidian is **not** claimed. The deformation, drag, momentum-handoff and settling behaviour are genuinely force-driven and behave like Obsidian's. Not implemented: Barnes-Hut approximation, Web Worker offload, WebGL rendering, node sizing by backlink count, edge arrows, distance-based label fade, and user-facing physics sliders. At 44 nodes none of these are needed, but their absence means this is an Obsidian-*equivalent* interaction model at small scale, not a reimplementation of Obsidian's renderer.

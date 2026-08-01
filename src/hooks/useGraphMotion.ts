@@ -18,14 +18,20 @@ import { hashStringToIndex } from '../manifest/colorHash';
  * still the right tool for it.
  */
 
-const BREATHE_DURATION_MIN_S = 8;
-const BREATHE_DURATION_MAX_S = 14;
-const BREATHE_DELAY_WINDOW_S = 9;
-// Spec gives a single literal peak ("1.00 -> 1.03 -> 1.00"), not a range
-// — every node breathes to the same peak scale; only its duration/delay
-// (jittered below) vary, which is what "randomized phase, never
-// synchronized" actually calls for.
-const BREATHE_PEAK_SCALE = 1.03;
+// Widened well past the original 8-14s. A narrow band means dozens of
+// nodes share near-identical periods and visibly re-synchronize every
+// minute or so, which reads as a loop; spreading periods over more than
+// a 2x range keeps them incommensurable for long enough that they never
+// visibly line up.
+const BREATHE_DURATION_MIN_S = 7;
+const BREATHE_DURATION_MAX_S = 21;
+const BREATHE_DELAY_WINDOW_S = 14;
+// Each node also breathes to its OWN slightly different peak. A single
+// shared peak makes the amplitude itself the giveaway — every node
+// swelling by the identical amount is the sort of uniformity nothing
+// organic has.
+const BREATHE_PEAK_MIN = 1.016;
+const BREATHE_PEAK_MAX = 1.034;
 
 function jitter(seed: string, mod: number): number {
   return hashStringToIndex(seed, mod) / mod;
@@ -42,10 +48,12 @@ export function useGraphMotionTiming(nodeId: string): GraphNodeMotionTiming {
     const breatheDurationS = BREATHE_DURATION_MIN_S + jitter(`breathe-dur:${nodeId}`, 4127) * (BREATHE_DURATION_MAX_S - BREATHE_DURATION_MIN_S);
     const breatheDelayS = jitter(`breathe-delay:${nodeId}`, 4159) * BREATHE_DELAY_WINDOW_S;
 
+    const breathePeakScale = BREATHE_PEAK_MIN + jitter(`breathe-peak:${nodeId}`, 4211) * (BREATHE_PEAK_MAX - BREATHE_PEAK_MIN);
+
     return {
       breatheDurationS,
       breatheDelayS,
-      breathePeakScale: BREATHE_PEAK_SCALE,
+      breathePeakScale,
     };
   }, [nodeId]);
 }

@@ -5,12 +5,13 @@
  * fullstack-ai.ts), and components/resume/variants/resumeRegistry.ts
  * decides which variant is canonical at any given time.
  *
- * RFC-2026: this used to also hold `generateResumeMarkdown()` (produced
- * RESUME.md's raw markdown from this data) and `getResumeOverview()` (fed
- * the old left-panel resume overview component). Both are gone — the left
- * panel no longer renders a second copy of the resume, it renders an RFC
- * document (see components/resume/RfcDocumentView.tsx), so there is
- * nothing left to generate from this data for that purpose. `ResumeData`
+ * This used to also hold `generateResumeMarkdown()` (produced the left
+ * panel's raw markdown from this data) and `getResumeOverview()` (fed the
+ * old left-panel resume overview component). Both are gone — the left
+ * panel no longer renders a second copy of the resume, it renders
+ * hire_me.md's CLI-report artifact instead (see
+ * components/resume/HireMeDocumentView.tsx), so there is nothing left to
+ * generate from this data for that purpose. `ResumeData`
  * itself survives because the right panel's variant registry
  * (variants/resumeRegistry.ts) still types its `data` field with it; the
  * 3D preview and PDF download remain driven by the static PDF asset, not

@@ -5,55 +5,46 @@ import type { VirtualFile, VirtualFolder } from '../../types';
 // of the frontend, per the "no frontend imports" rule and PROJECT_CONTEXT.md's
 // "Decoupled" backend philosophy.
 
-// RFC-2026: kept textually identical to src/content/workspaceSeed.ts's
-// RFC_MARKDOWN — same duplication convention as every other seed file here.
-// The left panel no longer renders a generated view of the resume data; it
-// renders this hand-authored RFC document instead (see that file's comment
-// for the full rationale).
-const RFC_MARKDOWN = `# RFC-2026
+// hire_me.md: kept textually identical to src/content/workspaceSeed.ts's
+// HIRE_ME_REPORT — same duplication convention as every other seed file
+// here. The left panel renders this hand-authored, CLI-report-styled
+// artifact instead of a generated view of the resume data (see that file's
+// comment for the full rationale).
+const HIRE_ME_REPORT = `$ review candidate
 
-## Title
+Loading profile...
 
-Hiring Arijit Das
+Candidate ........... Arijit Das
+Role ................ Software Engineer
+Focus ............... Backend • AI • Developer Tools
+Status .............. AVAILABLE
 
-## Status
+Strengths
+─────────
+✓ Builds production-ready software
+✓ Backend engineering
+✓ AI-powered applications
+✓ Product-first mindset
+✓ Strong ownership
+✓ Rapid learner
 
-PROPOSED
+Recent Highlights
+─────────────────
+• Built LLM-powered workflow automation
+• Integrated production RAG pipeline
+• Reduced search time from 5 min → <2 min
+• Reduced recurring production issues by 35%
+• Built full-stack AI interview platform
 
-## Author
+Recommendation
+──────────────
+✓ Strong candidate for Backend & AI Engineering roles.
 
-Engineering Hiring Committee
-
-## Motivation
-
-Need an engineer capable of building
-AI-powered developer tools and production
-backend systems.
-
-## Proposal
-
-Hire Arijit Das.
-
-## Benefits
-
-+ Strong ownership
-+ Backend engineering
-+ AI Engineering
-+ Product mindset
-+ Rapid learner
-
-## Tradeoffs
-
-- Distributed systems depth
-- Enterprise scale experience
-
-## Risk
-
-LOW
-
-## Recommendation
-
-✅ ACCEPT
+Learn More
+──────────
+→ Download resume.pdf
+→ Explore projects/
+→ View github.com/D-Arijit57
 `;
 
 // ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): kept textually
@@ -715,10 +706,10 @@ print(f"Welcome to {me.name}'s workspace.")
     } as VirtualFile,
     {
       id: 'resume',
-      name: 'RESUME.md',
+      name: 'hire_me.md',
       type: 'markdown',
-      path: '/RESUME.md',
-      content: RFC_MARKDOWN,
+      path: '/hire_me.md',
+      content: HIRE_ME_REPORT,
     } as VirtualFile,
     {
       id: 'about',

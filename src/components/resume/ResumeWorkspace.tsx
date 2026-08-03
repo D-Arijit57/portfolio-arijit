@@ -3,7 +3,7 @@ import { RefreshCw, RotateCcw, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ResizeHandle } from '../shared/ResizeHandle';
-import { RfcDocumentView } from './RfcDocumentView';
+import { HireMeDocumentView } from './HireMeDocumentView';
 import { ResumeStage } from './preview/ResumeStage';
 import { SceneControlsPanel } from './preview/SceneControlsPanel';
 import { ResumeScene, type ResumeSceneHandle } from './ResumeScene';
@@ -54,14 +54,12 @@ const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
  * page as a whole. RIGHT is the Three.js preview of the actual downloadable
  * resume; this has never changed.
  *
- * RFC-2026: LEFT used to be ResumeOverview, a condensed second copy of the
- * resume's own content. It is now an RFC document — a hiring committee's
- * proposal to hire the candidate — answering "why hire this engineer" while
- * the PDF on the right continues answering "what has this engineer done."
- * The two panels are deliberately different artifacts rather than the same
- * content twice. `RfcDocumentView` renders it through the app's *generic*
- * markdown pipeline (the same one README.md and other plain docs use), not
- * through resume-styled components — see that file's doc comment.
+ * hire_me.md: LEFT is a hand-authored, CLI-report-styled artifact — "why
+ * hire this engineer" — while the PDF on the right continues answering
+ * "what has this engineer done." The two panels are deliberately different
+ * artifacts rather than the same content twice. `HireMeDocumentView` renders
+ * it through its own line-based terminal parser, not the generic markdown
+ * pipeline README.md and other plain docs use — see that file's doc comment.
  *
  * Sprint 12: the resume PDF is a static asset (public/resume/), not a
  * backend-generated document — the dynamic LaTeX/Tectonic pipeline was
@@ -84,8 +82,10 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
   const resumeVariant = getDefaultResumeVariant();
 
   const [isNarrow, setIsNarrow] = useState(false);
-  // Sprint 10F.1: 45/55 (was 48/52) — the preview is the hero, per the brief.
-  const [ratio, setRatio] = useState(0.45);
+  // Terminal SVG Integration: 53/47 (was 45/55) — the hire_me.md terminal
+  // window is now the hero on this side, and it needs the extra width to
+  // read as a real terminal report rather than a cramped inset panel.
+  const [ratio, setRatio] = useState(0.53);
   const [phase, setPhase] = useState<BuildPhase>('idle');
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [version, setVersion] = useState(0);
@@ -174,7 +174,7 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         style={isNarrow ? undefined : { width: `${ratio * 100}%` }}
         className={cn('min-w-0 min-h-0 border-[#333333]', isNarrow ? 'w-full h-1/2 border-b' : 'shrink-0 border-r')}
       >
-        <RfcDocumentView file={file} onRevealComplete={handleRevealComplete} />
+        <HireMeDocumentView file={file} onRevealComplete={handleRevealComplete} />
       </div>
 
       {!isNarrow && <ResizeHandle direction="horizontal" onResize={handleResize} />}

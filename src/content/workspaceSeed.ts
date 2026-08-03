@@ -4,59 +4,49 @@ import { cortexaArchitecture } from './architecture/cortexa';
 import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
 import { workHistory } from './workHistory';
 
-// RFC-2026: RESUME.md's content is no longer a generated view of the resume
-// data (that was `generateResumeMarkdown(getDefaultResumeVariant().data)`,
-// now removed along with the left-panel resume-overview it fed) — the left
-// panel is an RFC document instead, a hand-authored artifact answering "why
-// hire this engineer" rather than restating the resume the PDF on the right
-// already covers. Still duplicated as a literal string in
+// hire_me.md: the left panel's content is a hand-authored artifact styled
+// like generated CLI output — "why hire this engineer" — rather than
+// restating the resume the PDF on the right already covers. Rendered by
+// HireMeDocumentView.tsx's own line-based terminal parser, not the generic
+// markdown pipeline. Still duplicated as a literal string in
 // server/repositories/seed/workspaceSeed.ts (that seed can't import from
 // src/, same "no frontend imports" convention every backend seed file
 // already follows) — keep both copies byte-identical by hand.
-const RFC_MARKDOWN = `# RFC-2026
+const HIRE_ME_REPORT = `$ review candidate
 
-## Title
+Loading profile...
 
-Hiring Arijit Das
+Candidate ........... Arijit Das
+Role ................ Software Engineer
+Focus ............... Backend • AI • Developer Tools
+Status .............. AVAILABLE
 
-## Status
+Strengths
+─────────
+✓ Builds production-ready software
+✓ Backend engineering
+✓ AI-powered applications
+✓ Product-first mindset
+✓ Strong ownership
+✓ Rapid learner
 
-PROPOSED
+Recent Highlights
+─────────────────
+• Built LLM-powered workflow automation
+• Integrated production RAG pipeline
+• Reduced search time from 5 min → <2 min
+• Reduced recurring production issues by 35%
+• Built full-stack AI interview platform
 
-## Author
+Recommendation
+──────────────
+✓ Strong candidate for Backend & AI Engineering roles.
 
-Engineering Hiring Committee
-
-## Motivation
-
-Need an engineer capable of building
-AI-powered developer tools and production
-backend systems.
-
-## Proposal
-
-Hire Arijit Das.
-
-## Benefits
-
-+ Strong ownership
-+ Backend engineering
-+ AI Engineering
-+ Product mindset
-+ Rapid learner
-
-## Tradeoffs
-
-- Distributed systems depth
-- Enterprise scale experience
-
-## Risk
-
-LOW
-
-## Recommendation
-
-✅ ACCEPT
+Learn More
+──────────
+→ Download resume.pdf
+→ Explore projects/
+→ View github.com/D-Arijit57
 `;
 
 // ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): architecture.mmd is now
@@ -699,10 +689,10 @@ print(f"Welcome to {me.name}'s workspace.")
     } as VirtualFile,
     {
       id: 'resume',
-      name: 'RESUME.md',
+      name: 'hire_me.md',
       type: 'markdown',
-      path: '/RESUME.md',
-      content: RFC_MARKDOWN,
+      path: '/hire_me.md',
+      content: HIRE_ME_REPORT,
     } as VirtualFile,
     {
       id: 'about',

@@ -7,13 +7,14 @@ import type { ResumeData } from '../../../content/resume';
  * adding a sibling file here in the same shape, then one entry in the
  * registry — nothing in this file's shape is FullStack+AI-specific.
  *
- * RFC-2026: this data's only live consumer is `ResumeVariant.downloadFilename`
- * (the static PDF the right panel previews/downloads). The rich fields below
- * — summary, skills, experience, projects, achievements — used to also
- * drive RESUME.md's generated markdown and the left-panel resume overview;
- * both were removed when the left panel became an RFC document instead (see
- * ../RfcDocumentView.tsx). Left in place as the resume's structured source
- * of record rather than deleted with those renderers.
+ * This data's only live consumer is `ResumeVariant.downloadFilename` (the
+ * static PDF the right panel previews/downloads). The rich fields below —
+ * summary, skills, experience, projects, achievements — used to also drive
+ * the left panel's generated markdown and its resume overview component;
+ * both were removed when the left panel became the hire_me.md CLI-report
+ * artifact instead (see ../HireMeDocumentView.tsx). Left in place as the
+ * resume's structured source of record rather than deleted with those
+ * renderers.
  *
  * Content verified verbatim against the actual resume
  * (public/resume/Arijit_Das_Resume.pdf) — wording, dates, and numbers are

@@ -93,20 +93,17 @@ function bold(text: string): string {
   return `**${text}**`;
 }
 
-/**
- * Splits a `**bold**`-marked string into plain/bold segments — the one
- * place that interprets a resume variant's inline emphasis as JSX, reused
- * by ResumeOverview.tsx (left panel) so it doesn't hardcode its own `<b>`
- * spans. Deliberately not a full markdown
- * parser: resume content only ever uses `**bold**`, nothing else needs
- * support.
- */
-export function renderInlineMarkdown(text: string): (string | { bold: string })[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part) => {
-    const match = /^\*\*([^*]+)\*\*$/.exec(part);
-    return match ? { bold: match[1] } : part;
-  });
-}
+// Sprint 17: renderInlineMarkdown() is gone. It existed to turn the
+// `**bold**` markers that used to be embedded in variant prose into JSX
+// <strong> spans; that emphasis model has been replaced wholesale by the
+// token registry (components/resume/tokens/tokenRegistry.ts), which colors
+// known terms by role instead of bolding author-marked ones. The variant
+// data's prose is now plain text, so there is nothing left to parse.
+//
+// The bold() helper below survives because it serves a different purpose:
+// generateResumeMarkdown() still emits **structural** emphasis (institution
+// names, skill category labels, achievement titles) in the raw RESUME.md
+// text, which is document structure rather than body emphasis.
 
 /**
  * Regenerates RESUME.md's exact markdown text from a resume variant's
@@ -136,15 +133,20 @@ export function generateResumeMarkdown(data: ResumeData): string {
     lines.push(`*${edu.degree}* — ${edu.detail}`, '');
   }
 
-  lines.push('## Technical Skills', '');
-  lines.push(...skills.map((g) => `- ${bold(g.category + ':')} ${g.items.join(', ')}`), '');
-
+  // Sprint 17 (RESUME.md spec §3): Experience now precedes Technical
+  // Skills, so the raw markdown's section order matches the rendered
+  // document's exactly. That equivalence is what lets the Explorer's
+  // OUTLINE panel derive its entries from this file's `## ` headings and
+  // still describe what the reader actually sees.
   lines.push('## Experience', '');
   for (const job of experience) {
     lines.push(`${bold(job.company)} — ${job.startDate} – ${job.endDate}`);
     lines.push(`*${job.role}* — ${job.location}`, '');
     lines.push(...job.highlights.map((h) => `- ${h}`), '');
   }
+
+  lines.push('## Technical Skills', '');
+  lines.push(...skills.map((g) => `- ${bold(g.category + ':')} ${g.items.join(', ')}`), '');
 
   lines.push('## Projects', '');
   for (const project of projects) {
@@ -166,10 +168,13 @@ export interface ResumeOverviewModel {
   summary: string;
   highlights: string[];
   skills: ResumeSkillGroup[];
-  featuredProjects: { name: string; oneLiner: string; techStack: string[]; dateRange: string; link?: ResumeLink; impact?: string[] }[];
+  /** Sprint 17: now carries `highlights` too — the document renders projects through the same Entry component as Experience, so it needs the full bullet list, not just the one-liner. */
+  featuredProjects: { name: string; oneLiner: string; techStack: string[]; dateRange: string; link?: ResumeLink; highlights: string[]; impact?: string[] }[];
   /** Sprint 12 Phase 2: added so the overview can render a real Experience section (company/role/duration/highlights) — previously only `highlights` (thematic labels) surfaced here, with the full experience array reaching only the PDF/markdown outputs. */
   experience: { company: string; role: string; location: string; startDate: string; endDate: string; highlights: string[]; impact?: string[] }[];
   education: { institution: string; degree: string; dateRange: string; detail: string }[];
+  /** Sprint 17: the document's final section (RESUME.md spec §3's section order) — previously reached only the raw markdown output. */
+  achievements: ResumeAchievement[];
 }
 
 const MAX_FEATURED_PROJECTS = 3;
@@ -196,6 +201,7 @@ export function getResumeOverview(data: ResumeData): ResumeOverviewModel {
       techStack: p.techStack,
       dateRange: p.dateRange,
       link: p.link,
+      highlights: p.highlights,
       impact: p.impact,
     })),
     experience: data.experience.map((e) => ({
@@ -208,5 +214,6 @@ export function getResumeOverview(data: ResumeData): ResumeOverviewModel {
       impact: e.impact,
     })),
     education: data.education.map((e) => ({ institution: e.institution, degree: e.degree, dateRange: e.dateRange, detail: e.detail })),
+    achievements: data.achievements,
   };
 }

@@ -5,7 +5,10 @@ import { cn } from '../../lib/utils';
 import { ResizeHandle } from '../shared/ResizeHandle';
 import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 import { ResumeOverview } from './ResumeOverview';
+import { ResumeStage } from './preview/ResumeStage';
+import { SceneControlsPanel } from './preview/SceneControlsPanel';
 import { ResumeScene, type ResumeSceneHandle } from './ResumeScene';
+import { StageFallback, detectWebGLSupport } from './preview/StageFallback';
 import { fetchResumePdf, downloadResumePdf } from './export/fetchResumePdf';
 import { renderPdfPageToCanvas } from './preview/pdfTexture';
 import { getDefaultResumeVariant } from './variants/resumeRegistry';
@@ -31,6 +34,15 @@ const MIN_ASSEMBLING_MS = 450;
 const READY_HOLD_MS = 450;
 
 type BuildPhase = 'idle' | 'assembling' | 'ready';
+
+type PreviewTab = 'PREVIEW' | '3D CONTROLS';
+
+const PREVIEW_TABS: PreviewTab[] = ['PREVIEW', '3D CONTROLS'];
+
+// Probed once per session, not per mount — the answer cannot change while
+// the page is open, and each probe costs a real (if short-lived) WebGL
+// context.
+const WEBGL_SUPPORTED = detectWebGLSupport();
 
 const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
   assembling: 'Assembling resume...',
@@ -72,6 +84,11 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
   // yet. Starts true: before the very first build ever runs, the paper
   // should already read as "assembling," not the old flat blank material.
   const [isAssembling, setIsAssembling] = useState(true);
+  // Spec §9.4: PREVIEW is the zero-configuration default; 3D CONTROLS is
+  // where expert affordances (and the clamped orbit) live.
+  const [tab, setTab] = useState<PreviewTab>('PREVIEW');
+  const [viewDirty, setViewDirty] = useState(false);
+  const webglSupported = WEBGL_SUPPORTED;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -128,6 +145,18 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
     downloadResumePdf(resumeVariant.downloadFilename);
   };
 
+  const handleResetView = () => {
+    sceneRef.current?.resetView();
+  };
+
+  // Spec §3.4 / §9.4: entering 3D CONTROLS is what unlocks the clamped
+  // orbit; leaving it returns the stage to its hero framing, so a visitor
+  // can never carry an inspect-state camera back into the default tab.
+  const handleTabChange = (next: PreviewTab) => {
+    setTab(next);
+    sceneRef.current?.setState(next === '3D CONTROLS' ? 'inspect' : 'staged');
+  };
+
   return (
     <div ref={containerRef} className={cn('flex h-full w-full min-h-0 bg-[#1e1e1e]', isNarrow && 'flex-col')}>
       <div
@@ -135,19 +164,40 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         className={cn('min-w-0 min-h-0 border-[#333333]', isNarrow ? 'w-full h-1/2 border-b' : 'shrink-0 border-r')}
       >
         <ResumePanelReveal file={file} onRevealComplete={handleRevealComplete}>
-          <ResumeOverview onDownloadPdf={handleDownloadPdf} />
+          <ResumeOverview />
         </ResumePanelReveal>
       </div>
 
       {!isNarrow && <ResizeHandle direction="horizontal" onResize={handleResize} />}
 
       <div className={cn('flex flex-col min-w-0 min-h-0', isNarrow ? 'w-full h-1/2' : 'flex-1')}>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 px-3 py-2 border-b border-[#333333] bg-[#252526] shrink-0">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <ToolbarButton onClick={runBuildPipeline} icon={<RefreshCw size={13} />} label="Refresh Preview" />
-            <ToolbarButton onClick={() => sceneRef.current?.resetView()} icon={<RotateCcw size={13} />} label="Reset View" />
-            <ToolbarButton onClick={handleDownloadPdf} icon={<Download size={13} />} label="Download PDF" />
-          </div>
+        {/* Sprint 17 (spec §5.1): tab strip above, toolbar below it. The
+            two were previously one left-aligned row of equal-weight
+            buttons, which gave the pane no sense of what it *is* — the
+            tabs name the surface, and the toolbar acts on it. */}
+        <div className="flex shrink-0 items-center gap-6 border-b border-[var(--resume-rule)] bg-[#252526] px-4">
+          {/* Without WebGL there is no scene to control, and a tab that
+              opens an inert panel is worse than no tab. */}
+          {(webglSupported ? PREVIEW_TABS : (['PREVIEW'] as PreviewTab[])).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => handleTabChange(t)}
+              aria-selected={t === tab}
+              className={cn(
+                'relative py-2.5 text-[11.5px] font-medium uppercase tracking-[0.12em] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--resume-accent)]',
+                t === tab
+                  ? 'text-[var(--resume-fg-strong)]'
+                  : 'text-[var(--resume-fg-faint)] hover:text-[var(--resume-fg-muted)]'
+              )}
+            >
+              {t}
+              {t === tab && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--resume-accent)]" />}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1.5 border-b border-[var(--resume-rule)] bg-[#252526] px-3 py-2">
           <AnimatePresence mode="wait">
             {phase !== 'idle' && (
               <motion.span
@@ -156,26 +206,49 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
-                className="text-[11px] text-[#858585] font-mono shrink-0"
+                className="mr-auto shrink-0 font-mono text-[11px] text-[var(--resume-fg-muted)]"
               >
                 {PHASE_LABEL[phase]}
               </motion.span>
             )}
           </AnimatePresence>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ToolbarButton onClick={runBuildPipeline} icon={<RefreshCw size={13} />} label="Refresh Preview" />
+            {/* Sprint 18 (spec §9.5 / §12.1): disabled until the view is
+                actually dirty. A permanently live reset button advertises
+                that the thing gets broken. */}
+            <ToolbarButton
+              onClick={handleResetView}
+              icon={<RotateCcw size={13} />}
+              label="Reset View"
+              disabled={!viewDirty}
+            />
+            {/* The one filled button in this pane — everything else is a
+                ghost, so the primary action is unambiguous. */}
+            <ToolbarButton onClick={handleDownloadPdf} icon={<Download size={13} />} label="Download PDF" primary />
+          </div>
         </div>
 
-        {/* Sprint 15 (revised): a subtle radial vignette behind the WebGL
-            canvas (which renders with alpha:true, so this shows through).
-            First pass went lighter at the center (#252526) than the edges,
-            but a light backdrop competes with a bright white paper rather
-            than framing it — inverted so the immediate surroundings stay at
-            the workspace's own base tone (#1e1e1e) and fade toward black at
-            the edges, the darkest tone already used in this app (the boot
-            terminal's bg-black), for real contrast against the paper rather
-            than just a "stage" separation. */}
-        <div className="flex-1 min-h-0 relative bg-[radial-gradient(ellipse_at_center,_#1e1e1e_0%,_#000000_85%)]">
-          <ResumeScene ref={sceneRef} canvas={canvas} version={version} isAssembling={isAssembling} />
-        </div>
+        <ResumeStage>
+          {/* Spec §8.3: the fallback ladder. WebGL is never on the critical
+              path — tier 3/4 renders from the same rasterised page the
+              scene would have textured, so the panel is meaningful with a
+              blocklisted GPU, a disabled flag, or no WebGL at all. */}
+          {webglSupported ? (
+            <>
+              <ResumeScene
+                ref={sceneRef}
+                canvas={canvas}
+                version={version}
+                isAssembling={isAssembling}
+                onDirtyChange={setViewDirty}
+              />
+              {tab === '3D CONTROLS' && <SceneControlsPanel scene={sceneRef} />}
+            </>
+          ) : (
+            <StageFallback canvas={canvas} />
+          )}
+        </ResumeStage>
       </div>
     </div>
   );
@@ -238,23 +311,36 @@ function ResumePanelReveal({
   );
 }
 
+/**
+ * Sprint 17 (spec §5.1): `primary` is the filled accent treatment, used by
+ * exactly one button in this pane (Download PDF). Everything else is a
+ * ghost with a hairline border — previously all three were the same filled
+ * grey, which made the pane's actual purpose ambiguous.
+ */
 function ToolbarButton({
   onClick,
   icon,
   label,
   disabled,
+  primary,
 }: {
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
   disabled?: boolean;
+  primary?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#cccccc] bg-[#2d2d2d] hover:bg-[#3c3c3c] active:bg-[#333333] active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed border border-[#3c3c3c] rounded-md outline-none focus-visible:ring-1 focus-visible:ring-[#007acc] transition-[background-color,transform] duration-150"
+      className={cn(
+        'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] outline-none transition-[background-color,border-color,transform] duration-150 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50',
+        primary
+          ? 'border border-transparent bg-[var(--resume-accent)] text-white hover:bg-[#5b52ea] focus-visible:ring-2 focus-visible:ring-[var(--resume-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#252526]'
+          : 'border border-[var(--resume-rule)] bg-transparent text-[var(--resume-fg)] hover:border-[#3c3c3c] hover:bg-[#2d2d2d] focus-visible:ring-1 focus-visible:ring-[var(--resume-accent)]'
+      )}
     >
       {icon}
       <span>{label}</span>

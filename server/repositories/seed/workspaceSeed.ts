@@ -13,12 +13,22 @@ const RESUME_MARKDOWN = `# Arijit Das
 
 ## Summary
 
-Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack development, building **AI-powered applications** and developer tools. Possesses high learning velocity through shipping side projects and hackathons. Familiar with **LLM primitives** (tokens, embeddings), **Transformer architecture**, and experimenting with open-source **LLMs** (Llama, Mistral). Capable of building basic **RAG pipelines**, applying structured **prompting techniques**, and writing testable code with a strong **evaluation mindset** to monitor expected behavior and safety.
+Software Engineer with a strong foundation in C++, OOP, and full-stack development, building AI-powered applications and developer tools. Possesses high learning velocity through shipping side projects and hackathons. Familiar with LLM primitives (tokens, embeddings), Transformer architecture, and experimenting with open-source LLMs (Llama, Mistral). Capable of building basic RAG pipelines, applying structured prompting techniques, and writing testable code with a strong evaluation mindset to monitor expected behavior and safety.
 
 ## Education
 
 **Vellore Institute of Technology** — Oct 2022 – Jun 2026
 *Bachelor of Technology (B.Tech), Computer Science and Engineering* — CGPA: 8.80/10.0
+
+## Experience
+
+**American Chase** — Mar 2025 – Present
+*Software Engineer* — Indore, MP
+
+- Developed an LLM-powered document workflow using OpenAI API and LangChain, automating key-field extraction and saving 2 hrs/week for a US operations team.
+- Resolved 5+ production defects in a Node.js/Express backend, reducing recurring issues by 35% through root-cause analysis and improved logging.
+- Integrated a RAG pipeline into an internal business tool, enabling natural language search across 200+ documents and reducing lookup time from 5 mins to under 2 mins.
+- Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.
 
 ## Technical Skills
 
@@ -26,29 +36,19 @@ Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack d
 - **AI & LLM Tools:** RAG, Vector Stores, Prompt Engineering, Open-Source LLMs (Llama, Mistral), Hugging Face
 - **Developer Tools & Tech:** React.js, Next.js, Node.js, Express.js, REST APIs, Git, GitHub, AWS, JIRA, Postman
 
-## Experience
-
-**American Chase** — Mar 2025 – Present
-*Software Engineer* — Indore, MP
-
-- Developed an LLM-powered document workflow using **OpenAI API** and **LangChain**, automating key-field extraction and saving **2 hrs/week** for a US operations team.
-- Resolved **5+ production defects** in a Node.js/Express backend, reducing recurring issues by **35%** through root-cause analysis and improved logging.
-- Integrated a **RAG pipeline** into an internal business tool, enabling natural language search across **200+ documents** and reducing lookup time from **5 mins to under 2 mins**.
-- Contributed to the delivery of **2 AI-assisted workflow features**, collaborating with US stakeholders from requirements gathering through production rollout.
-
 ## Projects
 
 **Cortexa Remote Interview Platform** | React.js, Next.js, Node.js, TypeScript | [GitHub] — May – Jul 2025
 
-- Built a full-stack video interviewing platform utilizing a strong software engineering foundation, featuring real-time video calls and an interactive code editor supporting **4 languages** including Python and C++.
-- Developed robust backend workflows and **API integrations** for live coding capabilities, focusing on writing readable, testable code and ensuring secure session management without leaking sensitive data.
+- Built a full-stack video interviewing platform utilizing a strong software engineering foundation, featuring real-time video calls and an interactive code editor supporting 4 languages including Python and C++.
+- Developed robust backend workflows and API integrations for live coding capabilities, focusing on writing readable, testable code and ensuring secure session management without leaking sensitive data.
 - Designed an scalable scheduling system with calendar integration, applying an evaluation mindset to write simple test cases validating user roles and data synchronization across the platform.
 
-**RakshaChakra - Secure Mobile Banking** | Python, Machine Learning, AWS, Flutter | [GitHub] — Jun – Jul 2025
+**RakshaChakra - Secure Mobile Banking** | Python, Machine Learning, AWS, Flutter | [GitHub] — Jun - Jul 2025
 
-- Developed a **Python-based** fraud detection backend, evaluating machine learning models against expected behavior and achieving **92% accuracy** in identifying suspicious transactions.
-- Implemented a cloud-based behavioral analytics system on **AWS EC2**, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.
-- Built on-device ML processing to keep **95% of sensitive data** local, maintaining strict privacy standards parallel to **data safety** requirements.
+- Developed a Python-based fraud detection backend, evaluating machine learning models against expected behavior and achieving 92% accuracy in identifying suspicious transactions.
+- Implemented a cloud-based behavioral analytics system on AWS EC2, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.
+- Built on-device ML processing to keep 95% of sensitive data local, maintaining strict privacy standards parallel to data safety requirements.
 
 ## Achievements & Certifications
 

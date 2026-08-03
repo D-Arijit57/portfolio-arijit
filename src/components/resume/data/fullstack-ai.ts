@@ -26,17 +26,19 @@ export const fullstackAiResumeData: ResumeData = {
     },
   },
 
-  // Inline **bold** spans mirror the source resume's own emphasis exactly —
-  // parsed by renderInlineMarkdown() (content/resume.ts) wherever this needs
-  // to render as styled text (ResumeOverview), used as-is in the raw
-  // markdown (generateResumeMarkdown), so which terms are emphasized only
-  // has to be decided once.
+  // Sprint 17: prose is now plain text — the inline `**bold**` spans that
+  // used to live here are gone. Emphasis is applied at render time by
+  // ../tokens/tokenRegistry.ts, which colors known terms by what kind of
+  // thing they are (language / concept / metric) rather than by an author
+  // marking up a particular sentence. That means a term emphasized in one
+  // bullet is emphasized in every bullet, automatically, and the same
+  // decision no longer has to be re-made per variant.
   summary:
-    'Software Engineer with a strong foundation in **C++**, **OOP**, and full-stack development, building ' +
-    '**AI-powered applications** and developer tools. Possesses high learning velocity through shipping side ' +
-    'projects and hackathons. Familiar with **LLM primitives** (tokens, embeddings), **Transformer architecture**, ' +
-    'and experimenting with open-source **LLMs** (Llama, Mistral). Capable of building basic **RAG pipelines**, ' +
-    'applying structured **prompting techniques**, and writing testable code with a strong **evaluation mindset** ' +
+    'Software Engineer with a strong foundation in C++, OOP, and full-stack development, building ' +
+    'AI-powered applications and developer tools. Possesses high learning velocity through shipping side ' +
+    'projects and hackathons. Familiar with LLM primitives (tokens, embeddings), Transformer architecture, ' +
+    'and experimenting with open-source LLMs (Llama, Mistral). Capable of building basic RAG pipelines, ' +
+    'applying structured prompting techniques, and writing testable code with a strong evaluation mindset ' +
     'to monitor expected behavior and safety.',
 
   highlights: [
@@ -61,10 +63,10 @@ export const fullstackAiResumeData: ResumeData = {
       startDate: 'Mar 2025',
       endDate: 'Present',
       highlights: [
-        'Developed an LLM-powered document workflow using **OpenAI API** and **LangChain**, automating key-field extraction and saving **2 hrs/week** for a US operations team.',
-        'Resolved **5+ production defects** in a Node.js/Express backend, reducing recurring issues by **35%** through root-cause analysis and improved logging.',
-        'Integrated a **RAG pipeline** into an internal business tool, enabling natural language search across **200+ documents** and reducing lookup time from **5 mins to under 2 mins**.',
-        'Contributed to the delivery of **2 AI-assisted workflow features**, collaborating with US stakeholders from requirements gathering through production rollout.',
+        'Developed an LLM-powered document workflow using OpenAI API and LangChain, automating key-field extraction and saving 2 hrs/week for a US operations team.',
+        'Resolved 5+ production defects in a Node.js/Express backend, reducing recurring issues by 35% through root-cause analysis and improved logging.',
+        'Integrated a RAG pipeline into an internal business tool, enabling natural language search across 200+ documents and reducing lookup time from 5 mins to under 2 mins.',
+        'Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.',
       ],
       impact: ['2 hrs/week saved', '35% fewer defects', '200+ docs searchable'],
     },
@@ -78,8 +80,8 @@ export const fullstackAiResumeData: ResumeData = {
       dateRange: 'May – Jul 2025',
       oneLiner: 'Full-stack video interviewing platform with real-time calls and a 4-language interactive code editor.',
       highlights: [
-        'Built a full-stack video interviewing platform utilizing a strong software engineering foundation, featuring real-time video calls and an interactive code editor supporting **4 languages** including Python and C++.',
-        'Developed robust backend workflows and **API integrations** for live coding capabilities, focusing on writing readable, testable code and ensuring secure session management without leaking sensitive data.',
+        'Built a full-stack video interviewing platform utilizing a strong software engineering foundation, featuring real-time video calls and an interactive code editor supporting 4 languages including Python and C++.',
+        'Developed robust backend workflows and API integrations for live coding capabilities, focusing on writing readable, testable code and ensuring secure session management without leaking sensitive data.',
         'Designed an scalable scheduling system with calendar integration, applying an evaluation mindset to write simple test cases validating user roles and data synchronization across the platform.',
       ],
       impact: ['4 languages supported'],
@@ -91,9 +93,9 @@ export const fullstackAiResumeData: ResumeData = {
       dateRange: 'Jun - Jul 2025',
       oneLiner: 'Python fraud-detection  backend at 92% accuracy, with on-device ML keeping 95% of sensitive data local.',
       highlights: [
-        'Developed a **Python-based** fraud detection backend, evaluating machine learning models against expected behavior and achieving **92% accuracy** in identifying suspicious transactions.',
-        'Implemented a cloud-based behavioral analytics system on **AWS EC2**, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.',
-        'Built on-device ML processing to keep **95% of sensitive data** local, maintaining strict privacy standards parallel to **data safety** requirements.',
+        'Developed a Python-based fraud detection backend, evaluating machine learning models against expected behavior and achieving 92% accuracy in identifying suspicious transactions.',
+        'Implemented a cloud-based behavioral analytics system on AWS EC2, demonstrating a solid grasp of data pipelines and real-time monitoring for enhanced application security.',
+        'Built on-device ML processing to keep 95% of sensitive data local, maintaining strict privacy standards parallel to data safety requirements.',
       ],
       impact: ['92% accuracy', '95% data kept local'],
     },

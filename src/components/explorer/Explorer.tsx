@@ -6,6 +6,7 @@ import { ExplorerNode, VirtualFile, VirtualFolder } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SearchPanel } from './SearchPanel';
+import { ExplorerPanels } from './ExplorerPanels';
 import { ResizeHandle } from '../shared/ResizeHandle';
 import { shouldRunOnboarding } from '../../lib/onboardingScope';
 
@@ -53,6 +54,10 @@ export function Explorer() {
           <FolderNode node={fileSystem} level={0} />
         )}
       </div>
+      {/* Sprint 17 (RESUME.md spec §6): pinned below the tree, not inside
+          its scroll area — they're sibling panels in VS Code, and putting
+          them in the scroller would bury them under a tall file tree. */}
+      {!isSearchView && <ExplorerPanels />}
       <ResizeHandle
         direction="horizontal"
         onResize={setExplorerWidth}

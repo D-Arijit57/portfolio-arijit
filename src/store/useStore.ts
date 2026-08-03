@@ -266,7 +266,12 @@ export const useStore = create<StoreState>((set, get) => ({
     input: '',
     status: 'idle',
     cwd: '/',
-    height: 200,
+    // Sprint 17 (RESUME.md spec §6): 200 -> 140. At 200px the panel took
+    // roughly a quarter of the viewport to show two lines of output and a
+    // prompt, which is the main reason the workspace read as bottom-heavy;
+    // the editor wants that room more than an idle terminal does. Still
+    // drag-resizable, so anyone actually using the terminal can reclaim it.
+    height: 140,
     history: [
       {
         id: 'hist-welcome-1',

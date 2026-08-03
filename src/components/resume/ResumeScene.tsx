@@ -1,12 +1,99 @@
 import React, { useEffect, useImperativeHandle, useRef } from 'react';
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RESUME_PAGE_WIDTH_PX, RESUME_PAGE_HEIGHT_PX } from './specification/resumeSpec';
 import { prefersReducedMotion } from '../../lib/typingReveal';
+import { Spring } from './scene/spring';
+import { createGround } from './scene/ground';
+import { createBackdrop } from './scene/backdrop';
+import { createPaperGeometry } from './scene/paperGeometry';
+import { createLightRig } from './scene/lightRig';
+import { createShadows } from './scene/shadows';
+import {
+  PAGE_HEIGHT,
+  PAGE_WIDTH,
+  CORNER_RADIUS,
+  CAMERA_FOV_DEG,
+  CAMERA_DISTANCE,
+  CAMERA_ELEVATION_DEG,
+  CAMERA_TARGET_Y,
+  CAMERA_TARGET_X,
+  REST_YAW_DEG,
+  REST_PITCH_DEG,
+  REST_ROLL_DEG,
+  GROUND_CLEARANCE,
+  PARALLAX_YAW_DEG,
+  PARALLAX_PITCH_DEG,
+  LIGHT_PARALLAX_FOLLOW,
+  PARALLAX_RETURN_MS,
+  HOVER_LIFT,
+  HOVER_MS,
+  ENTRANCE_MS,
+  ENTRANCE_STAGGER_MS,
+  STATE_TRANSITION_MS,
+  REDUCED_MOTION_MS,
+  halfLifeFor,
+  FOCUS_YAW_DEG,
+  FOCUS_PITCH_DEG,
+  FOCUS_DOLLY,
+  FOCUS_ELEVATION_DEG,
+  FOCUS_GRID_FADE,
+  INSPECT_AZIMUTH_DEG,
+  INSPECT_ELEVATION_MIN_DEG,
+  INSPECT_ELEVATION_MAX_DEG,
+  INSPECT_ZOOM_STEPS,
+  ENV_INTENSITY,
+  TONE_MAPPING,
+  TONE_MAPPING_EXPOSURE,
+  PAPER_ROUGHNESS,
+  PAPER_METALNESS,
+  PAPER_SHEEN,
+  PAPER_EDGE_COLOR,
+  PAPER_FACE_COLOR,
+  DPR_REST,
+  DPR_MOTION,
+  RESIZE_DEBOUNCE_MS,
+  deg,
+} from './scene/stageConfig';
+
+export type StageState = 'staged' | 'focused' | 'inspect';
+
+/** Spec §12.3: named presets, not raw intensity sliders. */
+export type LightingPreset = 'studio' | 'soft' | 'contrast';
+
+/**
+ * `soft` is 1 — the identity scale, and the one nothing here ever multiplies
+ * down from by default. `lightRig`'s own intensities (scene/lightRig.ts)
+ * were tuned directly against that unscaled baseline across the Priority 3
+ * lighting-hierarchy pass (paper neutrality, the 12-18% falloff, the
+ * paper:backdrop contrast ratio), so keeping it at 1 means the default view
+ * — before anyone ever opens 3D CONTROLS — renders exactly that calibrated
+ * look, labelled correctly as "soft" rather than as "studio".
+ *
+ * `studio` and `contrast` are brighter alternates a visitor can opt into.
+ */
+export const LIGHTING_PRESETS: Record<LightingPreset, number> = {
+  soft: 1,
+  studio: 1.28,
+  contrast: 1.6,
+};
+
+export interface SceneDiagnostics {
+  fps: number;
+  drawCalls: number;
+  dpr: number;
+  textureSize: string;
+}
 
 export interface ResumeSceneHandle {
-  /** Eases the camera/orbit back to its dead-on resting view and restores the fit-to-view distance (does not touch the texture). */
+  /** Returns the stage to its hero framing and rest pose (spec §3.4). */
   resetView: () => void;
+  /** Spec §9.4: the 3D CONTROLS tab is what unlocks clamped orbit. */
+  setState: (state: StageState) => void;
+  /** Spec §12.3 "View": stepped zoom only — never wheel-driven (§9.2). */
+  stepZoom: (direction: 1 | -1) => void;
+  setLightingPreset: (preset: LightingPreset) => void;
+  setGridVisible: (visible: boolean) => void;
+  setShadowVisible: (visible: boolean) => void;
+  getDiagnostics: () => SceneDiagnostics;
 }
 
 interface ResumeSceneProps {
@@ -14,703 +101,772 @@ interface ResumeSceneProps {
   canvas: HTMLCanvasElement | null;
   /** Bump whenever `canvas` has been re-rasterized in place and the texture must be rebuilt. */
   version: number;
-  /** Sprint 16: true from the moment a build starts until it resolves — drives the Assembling/Resolve reconstruction below, independent of whether `canvas` itself has changed yet. */
+  /** True from the moment a build starts until it resolves. */
   isAssembling: boolean;
+  /**
+   * Spec §9.5 / §12.1: Reset View is disabled until the view is dirty — a
+   * permanently visible reset button advertises that the thing gets broken.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
+  onStateChange?: (state: StageState) => void;
 }
 
-const PAPER_ASPECT = RESUME_PAGE_HEIGHT_PX / RESUME_PAGE_WIDTH_PX;
-const PAPER_WIDTH = 1.5;
-const PAPER_HEIGHT = PAPER_WIDTH * PAPER_ASPECT;
-const PAPER_DEPTH = 0.012;
+const REDUCE_MOTION = prefersReducedMotion();
 
-// Sprint 12 Phase 3: primary float + a second, non-harmonic-ratio sine (0.37x
-// the primary frequency) so the combined motion's apparent period is many
-// minutes long instead of the ~14s a single sine repeats at — reads as
-// gently existing in the scene rather than an obviously looping animation.
-// A tiny rotation.z sway (also off-ratio) sells the same "settled paper"
-// feel without adding a third position axis.
-const FLOAT_AMPLITUDE = 0.045;
-const FLOAT_SPEED = 0.42;
-const FLOAT_SECONDARY_RATIO = 0.37;
-const FLOAT_SECONDARY_AMPLITUDE = FLOAT_AMPLITUDE * 0.32;
-const SWAY_AMPLITUDE = 0.012;
-const SWAY_SPEED_RATIO = 0.63;
-
-// Sprint 12 Phase 3: half-lives (seconds), not per-frame factors — a
-// `+= (target - current) * 0.06` constant applied once per animation frame
-// would visibly ease at a different real-world speed on a 30Hz vs 120Hz
-// display. dampen() below scales by `dt` so easing speed is identical
-// regardless of refresh rate. Used by Reset View's smooth settle.
-const RESET_HALF_LIFE_S = 0.2;
-const RESET_EPSILON = 0.001;
-
-// Resume Studio redesign: the paper's own fixed resting tilt (mesh-level,
-// independent of camera orbit) — it's never perfectly flat, unlike the old
-// hover-parallax system this replaces (which rested at 0,0 the instant the
-// cursor left). Midpoints of the requested -12to-18/6to10 degree ranges.
-const REST_ROTATION_Y = THREE.MathUtils.degToRad(-15);
-const REST_ROTATION_X = THREE.MathUtils.degToRad(8);
-
-// OrbitControls constraints — camera orbits around its dead-on home
-// position within these bounds; the paper's own REST_ROTATION_* above is a
-// completely separate transform, so the two compose rather than fight.
-// "Google Model Viewer, not a free 3D editor": generous enough to feel like
-// real interaction, tight enough that the page can never be seen edge-on,
-// from directly overhead, or from behind.
-const ORBIT_AZIMUTH_RANGE_DEG = 26;
-const ORBIT_POLAR_RANGE_DEG = 18;
-const ORBIT_MIN_DISTANCE_RATIO = 0.72;
-const ORBIT_MAX_DISTANCE_RATIO = 1.45;
-const ORBIT_PAN_LIMIT = 0.16;
-const ORBIT_DAMPING_FACTOR = 0.08;
-
-// One-time entrance: fade in / translate up / rotate into the resting pose,
-// separate from (and independent of) the Assembling/Resolve *content*
-// reveal below — this one is about the physical paper object arriving in
-// frame, which plays once on mount regardless of how long the content
-// itself takes to resolve.
-const ENTRANCE_DURATION_S = 0.6; // within the requested 500-700ms
-const ENTRANCE_START_Y_OFFSET = -0.18;
-const ENTRANCE_START_ROTATION_SCALE = 0.35; // fraction of resting tilt at t=0
-
-const CAMERA_FOV_DEG = 36;
-// Target fraction of the constraining viewport dimension the page should
-// fill — midpoint of the requested 80-85% range.
-const FIT_FRACTION = 0.82;
-const FALLBACK_DISTANCE = 2.9;
-
-/** Frame-rate-independent exponential ease: `current` moves toward `target`, closing half the remaining distance every `halfLifeS` seconds regardless of `dt`. */
-function dampen(current: number, target: number, halfLifeS: number, dt: number): number {
-  const factor = 1 - Math.pow(2, -dt / halfLifeS);
-  return current + (target - current) * factor;
-}
-
-// Sprint 16: Assembling/Resolve reconstruction — replaces Phase 3's dim->white
-// color-lerp entirely (single visual language, not layered). The paper's
-// front face is backed by one persistent "display canvas" whose content this
-// component composites by hand each frame; the same CanvasTexture/needsUpdate
-// mechanism Phase 3 already used, just with richer content than a flat color.
-//
-// Assembling: a field of faint monospace glyphs — generated once (mount-time,
-// not per-frame — a few thousand fillText calls is a one-off cost, not a
-// render-loop cost), then only ever re-composited at varying alpha for a
-// slow "breathing" pulse. Not code the user could read, not Matrix-style
-// rain — a static field standing in for "unresolved information."
-//
-// Resolve: once real data arrives (and the minimum presentation time in
-// ResumeWorkspace.tsx has elapsed), a single ~260ms crossfade blends the
-// glyph field into the crisp rasterized resume, holistically (the whole
-// page at once, no moving boundary/scanline) — "order emerging from noise."
-// After that one crossfade, the front face swaps to a fresh native-resolution
-// texture built directly from the real canvas, so final quality/anisotropy
-// exactly matches what Phase 3 already guaranteed — the display canvas is
-// only ever the source of truth during the transient assembling/resolve
-// states, never for the settled final view.
+// --- assembling / resolve texture states (carried over from Sprint 16) ---
 const RESOLVE_MS = 260;
 const BREATH_PERIOD_S = 3.6;
 const BREATH_MIN_ALPHA = 0.5;
 const BREATH_MAX_ALPHA = 0.8;
-// 2x the page's own base resolution (resumeSpec.ts) — sharp enough for a
-// ~260ms transient blend without being wastefully large; the final settled
-// texture is always built from the real, full-resolution rasterized canvas.
-const DISPLAY_CANVAS_WIDTH = RESUME_PAGE_WIDTH_PX * 2;
-const DISPLAY_CANVAS_HEIGHT = RESUME_PAGE_HEIGHT_PX * 2;
-const PAPER_BASE_COLOR_CSS = '#f3f3f3';
+const DISPLAY_CANVAS_WIDTH = 1024;
+const DISPLAY_CANVAS_HEIGHT = Math.round(1024 / (PAGE_WIDTH / PAGE_HEIGHT));
+const PAPER_BASE_COLOR_CSS = '#ffffff';
 const NOISE_GLYPHS = '01{}[]()<>/\\;:=+-#*'.split('');
 
-/** Generated once per mount — a static field of faint monospace glyphs on a transparent background, drawn at a fixed grid so it never needs to be redrawn per frame, only recomposited at varying alpha. */
 function createGlyphNoiseSource(): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = DISPLAY_CANVAS_WIDTH;
   canvas.height = DISPLAY_CANVAS_HEIGHT;
   const ctx = canvas.getContext('2d');
   if (!ctx) return canvas;
-  ctx.font = '22px "JetBrains Mono", ui-monospace, monospace';
+  ctx.font = '18px "Geist Mono", ui-monospace, monospace';
   ctx.fillStyle = 'rgba(20, 20, 20, 0.15)';
   ctx.textBaseline = 'top';
-  const cellW = 28;
-  const cellH = 32;
-  for (let y = 10; y < canvas.height; y += cellH) {
-    for (let x = 10; x < canvas.width; x += cellW) {
+  for (let y = 8; y < canvas.height; y += 26) {
+    for (let x = 8; x < canvas.width; x += 22) {
       ctx.fillText(NOISE_GLYPHS[Math.floor(Math.random() * NOISE_GLYPHS.length)], x, y);
     }
   }
   return canvas;
 }
 
-/** Assembling frame: opaque paper-base fill, glyph field composited on top at `alpha` (the "breathing" value). Always fills the base first so the canvas never has a transparent/black gap — the material never runs `transparent: true`. */
-function paintAssembling(ctx: CanvasRenderingContext2D, noiseSource: HTMLCanvasElement, alpha: number, w: number, h: number) {
+function paintAssembling(ctx: CanvasRenderingContext2D, noise: HTMLCanvasElement, alpha: number) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = PAPER_BASE_COLOR_CSS;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
   ctx.globalAlpha = alpha;
-  ctx.drawImage(noiseSource, 0, 0, w, h);
+  ctx.drawImage(noise, 0, 0, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
   ctx.globalAlpha = 1;
 }
 
-/** Resolve frame: a holistic crossfade — the glyph field fades out while the real rasterized resume fades in, over the whole page at once (no scanline/boundary). */
 function paintResolve(
   ctx: CanvasRenderingContext2D,
-  noiseSource: HTMLCanvasElement,
-  realCanvas: HTMLCanvasElement,
-  progress: number,
-  w: number,
-  h: number
+  noise: HTMLCanvasElement,
+  real: HTMLCanvasElement,
+  progress: number
 ) {
   const eased = 1 - Math.pow(1 - progress, 3);
   ctx.globalAlpha = 1;
   ctx.fillStyle = PAPER_BASE_COLOR_CSS;
-  ctx.fillRect(0, 0, w, h);
+  ctx.fillRect(0, 0, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
   ctx.globalAlpha = 1 - eased;
-  ctx.drawImage(noiseSource, 0, 0, w, h);
+  ctx.drawImage(noise, 0, 0, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
   ctx.globalAlpha = eased;
-  ctx.drawImage(realCanvas, 0, 0, w, h);
+  ctx.drawImage(real, 0, 0, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
   ctx.globalAlpha = 1;
 }
 
-// Sprint 12 Phase 3: the scene's own continuous ambient motion (float, sway,
-// mouse-parallax tilt) had no reduced-motion handling at all, unlike every
-// other animated surface in this app (TypingReveal, boot sequence,
-// ResumeOverview's stagger). Computed once, same "session-local flag, not
-// reactive state" pattern those already use.
-const REDUCE_MOTION = prefersReducedMotion();
-
 /**
- * "Contain"-style fit, the camera-distance equivalent of CSS
- * object-fit: contain — computes how far back a fixed-FOV perspective
- * camera must sit so the whole A4 page (world units) fits inside
- * FIT_FRACTION of both the container's visible height AND width, whichever
- * is more restrictive, so the page can never be cropped on either axis.
- * The FOV itself never changes — only distance — so true A4 proportions
- * and the perspective "feel" are preserved regardless of viewport size.
- */
-function computeFitDistance(containerWidth: number, containerHeight: number): number {
-  if (containerWidth <= 0 || containerHeight <= 0) return FALLBACK_DISTANCE;
-  const aspect = containerWidth / containerHeight;
-  const halfTan = Math.tan(THREE.MathUtils.degToRad(CAMERA_FOV_DEG) / 2);
-  const distanceForHeight = PAPER_HEIGHT / FIT_FRACTION / (2 * halfTan);
-  const distanceForWidth = PAPER_WIDTH / FIT_FRACTION / (2 * halfTan * aspect);
-  return Math.max(distanceForHeight, distanceForWidth);
-}
-
-/** A soft, blurred drop-shadow baked once into a canvas texture — cheaper than real-time shadow mapping. */
-function createShadowTexture(): THREE.CanvasTexture {
-  const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  const ctx = c.getContext('2d')!;
-  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, 'rgba(0,0,0,0.35)');
-  gradient.addColorStop(0.6, 'rgba(0,0,0,0.15)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-  const texture = new THREE.CanvasTexture(c);
-  texture.needsUpdate = true;
-  return texture;
-}
-
-/**
- * Sprint 10F: hand-rolled Three.js scene (no @react-three/fiber/drei — this
- * codebase's other subsystems, e.g. Terminal/Search/Notifications, are all
- * plain framework-free modules wired through a single hook/component, and a
- * two-mesh paper-plus-shadow scene doesn't need a scene-graph abstraction on
- * top of three itself). Renders a floating A4 "paper" whose front face is
- * textured from the rasterized resume PDF (preview/pdfTexture.ts), always
- * resting at a fixed slight tilt (never perfectly flat). Slow float/sway
- * ambient motion continues regardless of interaction; real rotate/zoom/pan
- * is driven by three's own OrbitControls (see below), constrained to a
- * Google Model Viewer-style range rather than free orbiting. Pauses its
- * render loop when off-screen or the tab is hidden.
+ * Sprint 18 — "Premium 3D Document Preview" spec.
  *
- * Sprint 10F.2: camera distance is never hardcoded — computeFitDistance()
- * (a "contain"-style fit, like CSS object-fit: contain) sizes it so the
- * whole page is always visible, recomputed only on mount, on container
- * resize, and on Reset View — never per-frame. The FOV itself is fixed, so
- * only distance changes; true A4 proportions are never distorted.
+ * A staged product still-life (spec §1.1), not a document viewer and not a
+ * 3D workspace. Three things follow from that framing and shape everything
+ * in this file:
  *
- * Resume Studio redesign: OrbitControls (three/examples/jsm/controls) is
- * used instead of hand-rolled drag/zoom math — it ships inside the `three`
- * package itself (not a separate scene-graph framework like r3f/drei), so
- * it doesn't conflict with this file's own hand-rolled philosophy; it's
- * just another vanilla three.js object, `.update()`-ed once per frame like
- * everything else here. `maxTargetRadius` (this three version's own built-in
- * pan bound) keeps the page from ever being panned off-screen — no manual
- * clamp code needed.
+ * 1. **The camera never moves; the object does** (spec §3.3). The vignette,
+ *    the backdrop gradient, the grid's fade, and both shadow terms were all
+ *    art-directed relative to one camera. Moving it drags every one of them
+ *    out of alignment and eventually finds the edge of the set. So pointer
+ *    parallax rotates the sheet, and the light rig follows at 25% so the
+ *    specular sweeps — which, per spec §7.2, is what actually sells the
+ *    motion.
+ *
+ * 2. **Nothing renders when nothing is happening** (spec §10.1). This is
+ *    the single highest-leverage decision in the file. A still-life has no
+ *    reason to run at 60fps; the loop is invalidation-driven, so idle GPU
+ *    cost is genuinely zero. Everything that animates therefore has to
+ *    declare when it is still moving — hence Spring.isSettled.
+ *
+ * 3. **Freedom is withheld on purpose** (spec §9.2). A scene lit and
+ *    composed for one angle looks wrong from every other angle, so free
+ *    orbit exists only inside the `inspect` state, clamped, and the canvas
+ *    never captures wheel events.
+ *
+ * Deliberate architectural note: the spec §8.2 recommends React Three Fiber
+ * plus drei. This file stays hand-rolled imperative Three.js, matching the
+ * convention every other subsystem in this codebase follows and avoiding a
+ * full rewrite plus two large dependencies. Nothing the spec asks for
+ * visually requires r3f — RectAreaLight, PMREMGenerator, ShaderMaterial and
+ * NeutralToneMapping are all core Three. See PREVIEW_SPEC_DEVIATIONS.md.
  */
 export const ResumeScene = React.forwardRef<ResumeSceneHandle, ResumeSceneProps>(function ResumeScene(
-  { canvas, version, isAssembling },
+  { canvas, version, isAssembling, onDirtyChange, onStateChange },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const paperMeshRef = useRef<THREE.Mesh | null>(null);
-  const paperMaterialsRef = useRef<THREE.MeshStandardMaterial[] | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
-  const runningRef = useRef(false);
-  const rafRef = useRef<number | null>(null);
-  // Sprint 10F.2: last-known container size, kept in sync by the
-  // ResizeObserver below — Reset View reads this instead of re-measuring
-  // the DOM, so recomputing the fit stays a cheap, on-demand calculation
-  // rather than something done every frame.
-  const lastSizeRef = useRef({ width: 0, height: 0 });
-  // Sprint 12 Phase 3: the camera's distance now eases toward this target
-  // every frame (see dampen() in the animate loop) instead of being set
-  // directly. Resize keeps this equal to the camera's actual position (so
-  // dragging the split-pane handle stays perfectly instant/responsive —
-  // there's never a gap to close); Reset View is the one thing that
-  // deliberately opens a gap, so it's the one place users see a smooth
-  // eased "settle" rather than a hard snap.
-  const targetDistanceRef = useRef(FALLBACK_DISTANCE);
-  // Resume Studio redesign: armed by resetView(); consumed by the animate
-  // loop, which dampens camera.position and controls.target back toward
-  // their dead-on home values (rather than OrbitControls' own reset(),
-  // which snaps instantly — this keeps Reset View's existing smooth-settle
-  // feel from Sprint 12 Phase 3). Cleared the moment the user starts a new
-  // drag/zoom (an interaction mid-reset should just cancel it, not fight
-  // it) and once the camera is close enough to home.
-  const resettingRef = useRef(false);
 
-  // Resume Studio redesign: one-time mount entrance (fade/translate/rotate
-  // into the resting pose) — independent of the Sprint 16 Assembling/Resolve
-  // *content* reveal below, which is about what's drawn on the page, not
-  // the page object's own arrival in frame. `null` once the entrance has
-  // finished (or immediately under reduced motion).
-  const entranceStartRef = useRef<number | null>(null);
-
-  // Sprint 16: reconstruction state — see the block comment above RESOLVE_MS.
-  const noiseSourceRef = useRef<HTMLCanvasElement | null>(null);
-  const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const displayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const displayTextureRef = useRef<THREE.CanvasTexture | null>(null);
-  const finalTextureRef = useRef<THREE.CanvasTexture | null>(null);
-  /** Mirrors the `isAssembling` prop for the animate loop (which lives inside a mount-once effect and can't read fresh props directly) — kept in sync by the props effect below. */
-  const assemblingActiveRef = useRef(true);
-  /** Armed by the props effect the moment a build resolves; consumed and cleared by the animate loop once the crossfade completes. */
-  const resolveRef = useRef<{ start: number; realCanvas: HTMLCanvasElement } | null>(null);
+  // Imperative handles into the mounted scene, populated by the setup effect.
+  const apiRef = useRef<{
+    resetView: () => void;
+    setState: (state: StageState) => void;
+    stepZoom: (direction: 1 | -1) => void;
+    setLightingPreset: (preset: LightingPreset) => void;
+    setGridVisible: (visible: boolean) => void;
+    setShadowVisible: (visible: boolean) => void;
+    getDiagnostics: () => SceneDiagnostics;
+    applyTexture: (canvas: HTMLCanvasElement | null, assembling: boolean) => void;
+  } | null>(null);
 
   useImperativeHandle(ref, () => ({
-    resetView() {
-      const { width, height } = lastSizeRef.current;
-      const target = computeFitDistance(width, height);
-      targetDistanceRef.current = target;
-      if (REDUCE_MOTION) {
-        cameraRef.current?.position.set(0, 0, target);
-        controlsRef.current?.target.set(0, 0, 0);
-        controlsRef.current?.update();
-      } else {
-        resettingRef.current = true;
-      }
-    },
+    resetView: () => apiRef.current?.resetView(),
+    setState: (state: StageState) => apiRef.current?.setState(state),
+    stepZoom: (direction: 1 | -1) => apiRef.current?.stepZoom(direction),
+    setLightingPreset: (preset: LightingPreset) => apiRef.current?.setLightingPreset(preset),
+    setGridVisible: (visible: boolean) => apiRef.current?.setGridVisible(visible),
+    setShadowVisible: (visible: boolean) => apiRef.current?.setShadowVisible(visible),
+    getDiagnostics: () =>
+      apiRef.current?.getDiagnostics() ?? { fps: 0, drawCalls: 0, dpr: 0, textureSize: '—' },
   }));
 
-  // Scene setup — runs once.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
+    // ------------------------------------------------------------ renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, DPR_REST));
+    // Spec §6.3 point 4: neutral, not ACES — ACES greys and desaturates
+    // near-white values, which is exactly wrong for paper.
+    renderer.toneMapping = TONE_MAPPING;
+    renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
+    // Spec §9.6: the canvas is decorative; all content lives in the left
+    // pane and the PDF.
+    renderer.domElement.setAttribute('aria-hidden', 'true');
+    renderer.domElement.style.display = 'block';
+    renderer.domElement.style.touchAction = 'pan-y';
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(CAMERA_FOV_DEG, 1, 0.1, 100);
-    cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    // ------------------------------------------------------------ backdrop
+    const backdrop = createBackdrop();
+    scene.add(backdrop.mesh);
 
-    // Synchronous initial sizing pass (before the first render, before the
-    // async ResizeObserver callback fires) so the very first frame already
-    // has correct renderer size, camera aspect, and fit distance — no
-    // flash of the wrong framing, no need to press Reset View to see the
-    // whole page. Mirrors the ResizeObserver callback below exactly.
-    const initialRect = container.getBoundingClientRect();
-    lastSizeRef.current = { width: initialRect.width, height: initialRect.height };
-    if (initialRect.width > 0 && initialRect.height > 0) {
-      renderer.setSize(initialRect.width, initialRect.height, true);
-      camera.aspect = initialRect.width / initialRect.height;
-    }
-    const initialDistance = computeFitDistance(initialRect.width, initialRect.height);
-    targetDistanceRef.current = initialDistance;
-    camera.position.set(0, 0, initialDistance);
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
+    // -------------------------------------------------------------- ground
+    const ground = createGround();
+    scene.add(ground.mesh);
 
-    // Resume Studio redesign: constrained OrbitControls — rotate/zoom/pan
-    // within a Model-Viewer-style range around the camera's dead-on home
-    // position, rather than free orbiting. Damping gives the "premium,
-    // eased" feel the brief asks for; skipped under reduced motion (the
-    // interaction itself stays available, only the momentum/easing drops),
-    // matching every other eased effect in this file.
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controlsRef.current = controls;
-    controls.enableDamping = !REDUCE_MOTION;
-    controls.dampingFactor = ORBIT_DAMPING_FACTOR;
-    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-ORBIT_AZIMUTH_RANGE_DEG);
-    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(ORBIT_AZIMUTH_RANGE_DEG);
-    controls.minPolarAngle = THREE.MathUtils.degToRad(90 - ORBIT_POLAR_RANGE_DEG);
-    controls.maxPolarAngle = THREE.MathUtils.degToRad(90 + ORBIT_POLAR_RANGE_DEG);
-    controls.minDistance = initialDistance * ORBIT_MIN_DISTANCE_RATIO;
-    controls.maxDistance = initialDistance * ORBIT_MAX_DISTANCE_RATIO;
-    controls.enablePan = true;
-    controls.panSpeed = 0.5;
-    controls.rotateSpeed = 0.6;
-    controls.zoomSpeed = 0.6;
-    // "slight pan... prevent losing the document off-screen" — OrbitControls
-    // itself clamps the target's distance from `cursor` (default origin)
-    // every update() call, so no manual pan-bounds code is needed.
-    controls.maxTargetRadius = ORBIT_PAN_LIMIT;
-    controls.update();
+    // ------------------------------------------------------------- shadows
+    const shadows = createShadows();
+    scene.add(shadows.group);
 
-    // Sprint 12 (post-launch polish): raised across the board — the
-    // Phase 3 balance (ambient 0.6 / key 0.68 / fill 0.22) under-lit the
-    // front face enough that the paper read as gray/dull rather than
-    // bright white, which also flattened the contrast of the dark resume
-    // text against it. Ambient carries most of the increase since it's the
-    // one uniform, normal-independent term — raising it brightens the
-    // whole page evenly rather than adding directional hotspots.
-    scene.add(new THREE.AmbientLight(0xffffff, 0.95));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 0.78);
-    keyLight.position.set(-1.2, 1.8, 2.2);
-    scene.add(keyLight);
-    // Resume Studio redesign: repositioned from a soft front-fill
-    // (1.5, -0.6, 1.4) to sit behind/to the side of the paper — catches the
-    // page's edge/bevel as a highlight line rather than softening the front
-    // face, satisfying "one key light, one rim light" without a fourth
-    // light or a new render pass.
-    const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
-    rimLight.position.set(1.6, 0.4, -1.8);
-    scene.add(rimLight);
+    // ------------------------------------------------------------ lighting
+    const lightRig = createLightRig(renderer);
+    scene.add(lightRig.group);
+    scene.environment = lightRig.environment;
+    scene.environmentIntensity = ENV_INTENSITY;
 
-    // Paper: a thin box so the edge reads as real paper thickness, not a decal.
-    // roughness lowered slightly (was 0.92) — still a matte paper finish,
-    // but less light-absorbing, so the lit front face reads brighter/crisper
-    // rather than flat.
-    const blankMaterial = () => new THREE.MeshStandardMaterial({ color: 0xf3f3f3, roughness: 0.8, metalness: 0 });
-    const materials = [blankMaterial(), blankMaterial(), blankMaterial(), blankMaterial(), blankMaterial(), blankMaterial()];
-    paperMaterialsRef.current = materials;
-    const geometry = new THREE.BoxGeometry(PAPER_WIDTH, PAPER_HEIGHT, PAPER_DEPTH);
-    const paper = new THREE.Mesh(geometry, materials);
-    paperMeshRef.current = paper;
+    // --------------------------------------------------------------- paper
+    const paper = createPaperGeometry(CORNER_RADIUS);
 
-    // Resume Studio redesign: the paper's resting pose is never perfectly
-    // flat (REST_ROTATION_Y/X) — the old hover-parallax system that used to
-    // rest at (0,0) is gone, replaced by OrbitControls above. Under reduced
-    // motion, or in the no-entrance case, it starts directly at rest;
-    // otherwise it starts lower/less-tilted/transparent and eases in below.
-    if (REDUCE_MOTION) {
-      paper.rotation.set(REST_ROTATION_X, REST_ROTATION_Y, 0);
-    } else {
-      paper.rotation.set(REST_ROTATION_X * ENTRANCE_START_ROTATION_SCALE, REST_ROTATION_Y * ENTRANCE_START_ROTATION_SCALE, 0);
-      paper.position.y = ENTRANCE_START_Y_OFFSET;
-      materials.forEach((m) => {
-        m.transparent = true;
-        m.opacity = 0;
-      });
-      entranceStartRef.current = performance.now();
-    }
-    scene.add(paper);
+    const faceMaterial = new THREE.MeshPhysicalMaterial({
+      color: PAPER_FACE_COLOR,
+      roughness: PAPER_ROUGHNESS,
+      metalness: PAPER_METALNESS,
+      // Spec §5.2: a small neutral sheen approximates paper fibre's
+      // retroreflection at grazing angles.
+      sheen: PAPER_SHEEN,
+      sheenColor: new THREE.Color(0xffffff),
+      sheenRoughness: 0.8,
+      envMapIntensity: ENV_INTENSITY,
+    });
+    // Spec §5.1: the cut edge scatters differently from the printed face —
+    // warmer and a few percent darker. A small detail, disproportionately
+    // convincing.
+    const edgeMaterial = new THREE.MeshPhysicalMaterial({
+      color: PAPER_EDGE_COLOR,
+      roughness: 0.95,
+      metalness: 0,
+      envMapIntensity: ENV_INTENSITY * 0.8,
+    });
 
-    // Soft shadow, static, sits slightly behind/below the paper.
-    const shadowTexture = createShadowTexture();
-    const shadowMaterial = new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false });
-    const shadowGeometry = new THREE.PlaneGeometry(PAPER_WIDTH * 1.7, PAPER_HEIGHT * 1.5);
-    const shadowMesh = new THREE.Mesh(shadowGeometry, shadowMaterial);
-    shadowMesh.position.set(0.05, -0.08, -PAPER_DEPTH - 0.05);
-    scene.add(shadowMesh);
+    const sheet = new THREE.Mesh(paper.geometry, [faceMaterial, edgeMaterial]);
+    // Spec §4.2: the sheet rests. Its lowest edge sits a hair above the
+    // ground, and the pitch makes that edge the contact edge.
+    const documentGroup = new THREE.Group();
+    documentGroup.add(sheet);
+    documentGroup.position.y = PAGE_HEIGHT / 2 + GROUND_CLEARANCE;
+    scene.add(documentGroup);
 
-    // Resume Studio redesign: a subtle floor grid — the "stage" the paper
-    // sits on. A dim, low-opacity custom material (not GridHelper's default
-    // two-tone colors) so it reads as ambient scene detail, never competing
-    // with the paper for attention; no reflections/texture, satisfying
-    // "avoid reflective floors" by construction.
-    const grid = new THREE.GridHelper(PAPER_WIDTH * 5, 20, 0x333333, 0x2a2a2a);
-    const gridMaterial = grid.material as THREE.Material & { opacity: number; transparent: boolean };
-    gridMaterial.opacity = 0.18;
-    gridMaterial.transparent = true;
-    grid.position.y = -PAPER_HEIGHT * 0.62;
-    scene.add(grid);
-
-    const frontMaterial = materials[4];
-
-    // Sprint 16: the paper starts in the Assembling state from the very
-    // first frame — never the old flat, mapless blank material.
+    // --------------------------------------------------- assembling states
     const noiseSource = createGlyphNoiseSource();
-    noiseSourceRef.current = noiseSource;
     const displayCanvas = document.createElement('canvas');
     displayCanvas.width = DISPLAY_CANVAS_WIDTH;
     displayCanvas.height = DISPLAY_CANVAS_HEIGHT;
-    displayCanvasRef.current = displayCanvas;
     const displayCtx = displayCanvas.getContext('2d');
-    displayCtxRef.current = displayCtx;
     const displayTexture = new THREE.CanvasTexture(displayCanvas);
     displayTexture.colorSpace = THREE.SRGBColorSpace;
     displayTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    displayTextureRef.current = displayTexture;
-    if (displayCtx) {
-      paintAssembling(displayCtx, noiseSource, REDUCE_MOTION ? BREATH_MAX_ALPHA : BREATH_MIN_ALPHA, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
-      displayTexture.needsUpdate = true;
-    }
-    frontMaterial.map = displayTexture;
-    frontMaterial.color.set(0xffffff);
-    frontMaterial.needsUpdate = true;
+    displayTexture.flipY = true;
+    if (displayCtx) paintAssembling(displayCtx, noiseSource, BREATH_MIN_ALPHA);
+    faceMaterial.map = displayTexture;
+    faceMaterial.needsUpdate = true;
 
-    let elapsed = 0;
+    let finalTexture: THREE.CanvasTexture | null = null;
+    let resolveStart: number | null = null;
+    let resolveCanvas: HTMLCanvasElement | null = null;
+    let assemblingActive = true;
+
+    // ---------------------------------------------------- camera placement
+    /**
+     * Spec §3.2: placement is expressed in object-relative spherical terms,
+     * so the framing survives any change to page size. Azimuth stays 0 —
+     * the camera is on-axis and the *object* provides the yaw.
+     */
+    /**
+     * The sheet rests on the ground, so its own centre sits half a page
+     * height up — the camera target is that centre, raised a further 5% of
+     * page height (spec §3.2) so the lower edge and its shadow get room and
+     * the composition sits slightly high in frame (spec §11).
+     */
+    const targetY = () => PAGE_HEIGHT / 2 + GROUND_CLEARANCE + CAMERA_TARGET_Y;
+
+    const placeCamera = (elevationDeg: number, distanceScale: number) => {
+      const elevation = deg(elevationDeg);
+      const distance = CAMERA_DISTANCE * distanceScale;
+      const y = targetY();
+      const x = CAMERA_TARGET_X;
+      camera.position.set(x, y + Math.sin(elevation) * distance, Math.cos(elevation) * distance);
+      camera.lookAt(x, y, 0);
+    };
+
+    // ------------------------------------------------------------- springs
+    // Every half-life derives from a duration the spec states (Appendix A),
+    // so the timings in stageConfig are the real source of truth.
+    //
+    // Spec §7.4 shortens state transitions under reduced motion rather than
+    // removing them — 150ms reads as an instant change while still keeping
+    // the scene's states continuous, which is what stops a collapsed
+    // section or a tab switch from looking like a rendering glitch.
+    const parallaxHalfLife = halfLifeFor(PARALLAX_RETURN_MS);
+    const transitionHalfLife = halfLifeFor(REDUCE_MOTION ? REDUCED_MOTION_MS : STATE_TRANSITION_MS);
+
+    const yaw = new Spring(deg(REST_YAW_DEG), REDUCE_MOTION ? transitionHalfLife : parallaxHalfLife);
+    const pitch = new Spring(deg(REST_PITCH_DEG), REDUCE_MOTION ? transitionHalfLife : parallaxHalfLife);
+    const lift = new Spring(0, halfLifeFor(HOVER_MS));
+    // Spec §7.4: reduced motion keeps the entrance as an opacity fade and
+    // drops its transforms — so the spring still runs (it drives opacity),
+    // and the scale term below is what gets skipped.
+    const entrance = new Spring(0, halfLifeFor(REDUCE_MOTION ? REDUCED_MOTION_MS : ENTRANCE_MS));
+    const gridFade = new Spring(1, transitionHalfLife);
+    const cameraElevation = new Spring(CAMERA_ELEVATION_DEG, transitionHalfLife);
+    const cameraDolly = new Spring(1, transitionHalfLife);
+    // Inspect-mode orbit, driven by drag and clamped hard (spec §3.4).
+    const orbitAzimuth = new Spring(0, transitionHalfLife);
+    const orbitElevation = new Spring(0, transitionHalfLife);
+
+    let stageState: StageState = 'staged';
+    let dirty = false;
+    let zoomIndex = INSPECT_ZOOM_STEPS.indexOf(1);
+    let shadowsEnabled = true;
+    let pointerInside = false;
+    let pointerX = 0;
+    let pointerY = 0;
+    let parallaxReturnTimer: number | null = null;
+
+    const markDirty = (next: boolean) => {
+      if (dirty === next) return;
+      dirty = next;
+      onDirtyChange?.(next);
+    };
+
+    // ------------------------------------------------- render on demand
+    let running = false;
+    let rafId: number | null = null;
     let lastTime = performance.now();
+    let elapsed = 0;
+    let visible = true;
 
-    const animate = () => {
-      if (!runningRef.current) return;
-      rafRef.current = requestAnimationFrame(animate);
+    /** Anything still in motion? Drives whether another frame is scheduled. */
+    const isAnimating = () =>
+      !yaw.isSettled ||
+      !pitch.isSettled ||
+      !lift.isSettled ||
+      !entrance.isSettled ||
+      !gridFade.isSettled ||
+      !cameraElevation.isSettled ||
+      !cameraDolly.isSettled ||
+      !orbitAzimuth.isSettled ||
+      !orbitElevation.isSettled ||
+      resolveStart !== null ||
+      (assemblingActive && !REDUCE_MOTION);
 
+    const invalidate = () => {
+      if (!visible || running) return;
+      running = true;
+      lastTime = performance.now();
+      rafId = requestAnimationFrame(frame);
+    };
+
+    const frame = () => {
       const now = performance.now();
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
       elapsed += dt;
 
-      // Resume Studio redesign: one-time entrance, else the fixed resting
-      // tilt plus the existing float/sway ambient motion layered on top.
-      if (entranceStartRef.current !== null) {
-        const progress = Math.min(1, (now - entranceStartRef.current) / (ENTRANCE_DURATION_S * 1000));
-        const eased = 1 - Math.pow(1 - progress, 3);
-        paper.rotation.x = REST_ROTATION_X * (ENTRANCE_START_ROTATION_SCALE + (1 - ENTRANCE_START_ROTATION_SCALE) * eased);
-        paper.rotation.y = REST_ROTATION_Y * (ENTRANCE_START_ROTATION_SCALE + (1 - ENTRANCE_START_ROTATION_SCALE) * eased);
-        paper.position.y = ENTRANCE_START_Y_OFFSET * (1 - eased);
-        paper.rotation.z = 0;
-        materials.forEach((m) => {
-          m.opacity = eased;
-        });
-        if (progress >= 1) {
-          materials.forEach((m) => {
-            m.opacity = 1;
-            m.transparent = false;
-            m.needsUpdate = true;
-          });
-          entranceStartRef.current = null;
-        }
-      } else {
-        paper.rotation.x = REST_ROTATION_X;
-        paper.rotation.y = REST_ROTATION_Y;
-        if (REDUCE_MOTION) {
-          paper.position.y = 0;
-        } else {
-          paper.rotation.z = Math.sin(elapsed * FLOAT_SPEED * SWAY_SPEED_RATIO + 0.7) * SWAY_AMPLITUDE;
-          paper.position.y =
-            Math.sin(elapsed * FLOAT_SPEED) * FLOAT_AMPLITUDE +
-            Math.sin(elapsed * FLOAT_SPEED * FLOAT_SECONDARY_RATIO + 1.3) * FLOAT_SECONDARY_AMPLITUDE;
-        }
+      const animating = isAnimating();
+
+      // Spec §10.1 point 2: drop DPR during motion, restore for the resting
+      // frame. Users scrutinise the still frame, not the moving one.
+      const targetDpr = Math.min(window.devicePixelRatio, animating ? DPR_MOTION : DPR_REST);
+      if (Math.abs(renderer.getPixelRatio() - targetDpr) > 0.01) {
+        renderer.setPixelRatio(targetDpr);
+        const rect = container.getBoundingClientRect();
+        if (rect.width > 0) renderer.setSize(rect.width, rect.height, true);
       }
 
-      // Reset View: dampen camera+target back toward their dead-on home
-      // values (rather than OrbitControls' own reset(), which snaps
-      // instantly) — preserves the smooth-settle feel Sprint 12 Phase 3
-      // established for this button. A fresh drag/zoom cancels it (the
-      // 'start' listener below), same as it always could interrupt the old
-      // tilt-based Reset View.
-      if (resettingRef.current) {
-        const homeDistance = targetDistanceRef.current;
-        camera.position.x = dampen(camera.position.x, 0, RESET_HALF_LIFE_S, dt);
-        camera.position.y = dampen(camera.position.y, 0, RESET_HALF_LIFE_S, dt);
-        camera.position.z = dampen(camera.position.z, homeDistance, RESET_HALF_LIFE_S, dt);
-        controls.target.x = dampen(controls.target.x, 0, RESET_HALF_LIFE_S, dt);
-        controls.target.y = dampen(controls.target.y, 0, RESET_HALF_LIFE_S, dt);
-        controls.target.z = dampen(controls.target.z, 0, RESET_HALF_LIFE_S, dt);
-        const closeEnough =
-          Math.abs(camera.position.x) < RESET_EPSILON &&
-          Math.abs(camera.position.y) < RESET_EPSILON &&
-          Math.abs(camera.position.z - homeDistance) < RESET_EPSILON &&
-          controls.target.length() < RESET_EPSILON;
-        if (closeEnough) {
-          camera.position.set(0, 0, homeDistance);
-          controls.target.set(0, 0, 0);
-          resettingRef.current = false;
-        }
+      yaw.step(dt);
+      pitch.step(dt);
+      lift.step(dt);
+      entrance.step(dt);
+      gridFade.step(dt);
+      cameraElevation.step(dt);
+      cameraDolly.step(dt);
+      orbitAzimuth.step(dt);
+      orbitElevation.step(dt);
+
+      // --- object pose ---
+      const e = entrance.value;
+      const eased = 1 - Math.pow(1 - e, 3);
+      documentGroup.rotation.y = yaw.value;
+      documentGroup.rotation.x = pitch.value;
+      documentGroup.rotation.z = deg(REST_ROLL_DEG);
+      documentGroup.position.y = PAGE_HEIGHT / 2 + GROUND_CLEARANCE + lift.value;
+      // Spec §7.2: entrance arrives from 97% scale — but §7.4 drops the
+      // entrance *transforms* under reduced motion and keeps only the
+      // opacity fade, so the scale term is skipped rather than the whole
+      // entrance.
+      documentGroup.scale.setScalar(REDUCE_MOTION ? 1 : 0.97 + 0.03 * eased);
+
+      // Spec §7.2: shadow fades up 100ms behind the sheet; grid comes first.
+      const shadowReveal = THREE.MathUtils.clamp((e - ENTRANCE_STAGGER_MS / ENTRANCE_MS) / 0.8, 0, 1);
+      shadows.group.visible = shadowsEnabled && shadowReveal > 0.01;
+      shadows.setHover(lift.value / HOVER_LIFT);
+      // Contact tracks the sheet's lower edge as it parallaxes.
+      shadows.setOffset(Math.sin(yaw.value) * PAGE_WIDTH * 0.1, 0);
+      shadows.group.scale.setScalar(0.9 + 0.1 * shadowReveal);
+
+      faceMaterial.opacity = eased;
+      edgeMaterial.opacity = eased;
+      faceMaterial.transparent = eased < 1;
+      edgeMaterial.transparent = eased < 1;
+
+      // --- light rig follows the object (spec §7.2) ---
+      lightRig.setParallax(
+        (yaw.value - deg(REST_YAW_DEG)) * LIGHT_PARALLAX_FOLLOW,
+        (pitch.value - deg(REST_PITCH_DEG)) * LIGHT_PARALLAX_FOLLOW
+      );
+
+      // --- ground ---
+      ground.setOpacity(gridFade.value * Math.min(1, e * 1.6));
+
+      // --- camera (fixed, except along authored rails) ---
+      placeCamera(cameraElevation.value, cameraDolly.value);
+      if (stageState === 'inspect') {
+        // Clamped orbit, and only here (spec §3.4 / §9.2).
+        const az = orbitAzimuth.value;
+        const el = cameraElevation.value + orbitElevation.value;
+        const distance = CAMERA_DISTANCE * cameraDolly.value;
+        const elevation = deg(el);
+        const y = targetY();
+        camera.position.set(
+          CAMERA_TARGET_X + Math.sin(az) * Math.cos(elevation) * distance,
+          y + Math.sin(elevation) * distance,
+          Math.cos(az) * Math.cos(elevation) * distance
+        );
+        camera.lookAt(CAMERA_TARGET_X, y, 0);
       }
 
-      controls.update();
-
-      // Sprint 16: Assembling breathing / Resolve crossfade. Mutually
-      // exclusive — a resolve in progress always takes priority over the
-      // (by then stale) assembling flag.
-      const ctx2d = displayCtxRef.current;
-      const resolve = resolveRef.current;
-      if (ctx2d && resolve) {
-        const progress = Math.min(1, (now - resolve.start) / RESOLVE_MS);
-        const source = noiseSourceRef.current;
-        if (source) {
-          paintResolve(ctx2d, source, resolve.realCanvas, progress, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
-          displayTextureRef.current!.needsUpdate = true;
-        }
+      // --- texture states ---
+      if (displayCtx && resolveStart !== null && resolveCanvas) {
+        const progress = Math.min(1, (now - resolveStart) / RESOLVE_MS);
+        paintResolve(displayCtx, noiseSource, resolveCanvas, progress);
+        displayTexture.needsUpdate = true;
         if (progress >= 1) {
-          // Crossfade done — swap to a fresh native-resolution texture built
-          // directly from the real canvas, matching Phase 3's final quality
-          // exactly (the display canvas was only ever a transient blend
-          // surface, never the source of truth for the settled view).
-          const finalTexture = new THREE.CanvasTexture(resolve.realCanvas);
-          finalTexture.needsUpdate = true;
-          finalTexture.colorSpace = THREE.SRGBColorSpace;
-          finalTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-          const old = frontMaterial.map;
-          frontMaterial.map = finalTexture;
-          frontMaterial.needsUpdate = true;
-          if (old && old !== finalTextureRef.current) old.dispose();
-          finalTextureRef.current?.dispose();
-          finalTextureRef.current = finalTexture;
-          resolveRef.current = null;
+          const next = new THREE.CanvasTexture(resolveCanvas);
+          next.colorSpace = THREE.SRGBColorSpace;
+          next.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          next.needsUpdate = true;
+          finalTexture?.dispose();
+          finalTexture = next;
+          faceMaterial.map = next;
+          faceMaterial.needsUpdate = true;
+          resolveStart = null;
+          resolveCanvas = null;
         }
-      } else if (ctx2d && assemblingActiveRef.current && !REDUCE_MOTION) {
-        const source = noiseSourceRef.current;
-        if (source) {
-          const breathT = 0.5 + 0.5 * Math.sin(elapsed * ((2 * Math.PI) / BREATH_PERIOD_S));
-          const alpha = BREATH_MIN_ALPHA + (BREATH_MAX_ALPHA - BREATH_MIN_ALPHA) * breathT;
-          paintAssembling(ctx2d, source, alpha, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
-          displayTextureRef.current!.needsUpdate = true;
-        }
+      } else if (displayCtx && assemblingActive && !REDUCE_MOTION) {
+        const breath = 0.5 + 0.5 * Math.sin(elapsed * ((2 * Math.PI) / BREATH_PERIOD_S));
+        paintAssembling(displayCtx, noiseSource, BREATH_MIN_ALPHA + (BREATH_MAX_ALPHA - BREATH_MIN_ALPHA) * breath);
+        displayTexture.needsUpdate = true;
       }
 
       renderer.render(scene, camera);
+
+      // Spec §12.3 "Diagnostics": measured over a rolling window rather
+      // than from the last frame delta, which on an on-demand renderer is
+      // meaningless (idle gaps would read as 0.1fps).
+      frameCount += 1;
+      if (now - fpsWindowStart >= 500) {
+        measuredFps = Math.round((frameCount * 1000) / (now - fpsWindowStart));
+        frameCount = 0;
+        fpsWindowStart = now;
+      }
+
+      if (isAnimating()) {
+        rafId = requestAnimationFrame(frame);
+      } else {
+        // Spec §10.1: settle at full DPR, draw one last crisp frame, then
+        // stop entirely. Idle GPU work is zero from here.
+        running = false;
+        rafId = null;
+        const restDpr = Math.min(window.devicePixelRatio, DPR_REST);
+        if (Math.abs(renderer.getPixelRatio() - restDpr) > 0.01) {
+          renderer.setPixelRatio(restDpr);
+          const rect = container.getBoundingClientRect();
+          if (rect.width > 0) renderer.setSize(rect.width, rect.height, true);
+          renderer.render(scene, camera);
+        }
+      }
     };
 
-    const start = () => {
-      if (runningRef.current) return;
-      runningRef.current = true;
-      lastTime = performance.now();
-      rafRef.current = requestAnimationFrame(animate);
-    };
-    const stop = () => {
-      runningRef.current = false;
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+    // --------------------------------------------------------- interaction
+    const setParallaxFromPointer = () => {
+      if (stageState !== 'staged' || REDUCE_MOTION) return;
+      yaw.set(deg(REST_YAW_DEG + pointerX * PARALLAX_YAW_DEG));
+      pitch.set(deg(REST_PITCH_DEG - pointerY * PARALLAX_PITCH_DEG));
+      invalidate();
     };
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      const { width, height } = entries[0]?.contentRect ?? { width: 0, height: 0 };
+    const handlePointerMove = (event: PointerEvent) => {
+      const rect = container.getBoundingClientRect();
+      pointerX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerY = ((event.clientY - rect.top) / rect.height) * 2 - 1;
+
+      if (stageState === 'inspect' && dragging) {
+        const dx = (event.clientX - dragStartX) / rect.width;
+        const dy = (event.clientY - dragStartY) / rect.height;
+        orbitAzimuth.set(
+          THREE.MathUtils.clamp(dragBaseAzimuth + dx * 1.2, -deg(INSPECT_AZIMUTH_DEG), deg(INSPECT_AZIMUTH_DEG))
+        );
+        orbitElevation.set(
+          THREE.MathUtils.clamp(
+            dragBaseElevation + dy * 40,
+            INSPECT_ELEVATION_MIN_DEG - CAMERA_ELEVATION_DEG,
+            INSPECT_ELEVATION_MAX_DEG - CAMERA_ELEVATION_DEG
+          )
+        );
+        markDirty(true);
+        invalidate();
+        return;
+      }
+
+      setParallaxFromPointer();
+    };
+
+    const handlePointerEnter = () => {
+      pointerInside = true;
+      if (parallaxReturnTimer !== null) {
+        window.clearTimeout(parallaxReturnTimer);
+        parallaxReturnTimer = null;
+      }
+      if (!REDUCE_MOTION && stageState === 'staged') {
+        lift.set(HOVER_LIFT);
+        invalidate();
+      }
+    };
+
+    const handlePointerLeave = () => {
+      pointerInside = false;
+      lift.set(0);
+      // Spec §7.2: full return to rest 600ms after the pointer leaves. The
+      // spring itself settles faster than that; the timer is what
+      // guarantees the pose is exactly rest rather than wherever the last
+      // pointer sample left it.
+      if (parallaxReturnTimer !== null) window.clearTimeout(parallaxReturnTimer);
+      parallaxReturnTimer = window.setTimeout(() => {
+        if (stageState === 'staged') {
+          yaw.set(deg(REST_YAW_DEG));
+          pitch.set(deg(REST_PITCH_DEG));
+          invalidate();
+        }
+      }, PARALLAX_RETURN_MS);
+      if (stageState === 'staged') {
+        yaw.set(deg(REST_YAW_DEG));
+        pitch.set(deg(REST_PITCH_DEG));
+      }
+      invalidate();
+    };
+
+    let dragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragBaseAzimuth = 0;
+    let dragBaseElevation = 0;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (stageState !== 'inspect') return;
+      dragging = true;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+      dragBaseAzimuth = orbitAzimuth.target;
+      dragBaseElevation = orbitElevation.target;
+      renderer.domElement.setPointerCapture(event.pointerId);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      if (renderer.domElement.hasPointerCapture(event.pointerId)) {
+        renderer.domElement.releasePointerCapture(event.pointerId);
+      }
+    };
+
+    const applyState = (next: StageState) => {
+      stageState = next;
+      onStateChange?.(next);
+
+      if (next === 'focused') {
+        yaw.set(deg(FOCUS_YAW_DEG));
+        pitch.set(deg(FOCUS_PITCH_DEG));
+        cameraDolly.set(FOCUS_DOLLY);
+        cameraElevation.set(FOCUS_ELEVATION_DEG);
+        gridFade.set(FOCUS_GRID_FADE);
+        lift.set(0);
+        markDirty(true);
+      } else if (next === 'inspect') {
+        yaw.set(deg(REST_YAW_DEG));
+        pitch.set(deg(REST_PITCH_DEG));
+        cameraDolly.set(1);
+        cameraElevation.set(CAMERA_ELEVATION_DEG);
+        gridFade.set(1);
+        // Entering inspect clears any orbit the last visit left behind, and
+        // is not itself "dirty": simply opening the tab has not moved
+        // anything, so Reset View stays disabled until the user actually
+        // orbits, zooms, or changes a scene toggle (spec §9.5).
+        orbitAzimuth.set(0);
+        orbitElevation.set(0);
+        markDirty(false);
+      } else {
+        yaw.set(deg(REST_YAW_DEG));
+        pitch.set(deg(REST_PITCH_DEG));
+        cameraDolly.set(1);
+        cameraElevation.set(CAMERA_ELEVATION_DEG);
+        gridFade.set(1);
+        orbitAzimuth.set(0);
+        orbitElevation.set(0);
+        markDirty(false);
+      }
+
+      // No jump-to-target branch here: under reduced motion every spring
+      // above was already constructed with the §7.4 short half-life, so the
+      // transition resolves in ~150ms without special-casing it — and
+      // without the hard snap that reads as a glitch.
+      invalidate();
+    };
+
+    const handleClick = () => {
+      if (stageState === 'inspect') return;
+      applyState(stageState === 'focused' ? 'staged' : 'focused');
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && stageState === 'focused') applyState('staged');
+    };
+
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerenter', handlePointerEnter);
+    container.addEventListener('pointerleave', handlePointerLeave);
+    container.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+    // Spec §9.2 / §13.22: the canvas must not capture wheel events. There is
+    // deliberately no wheel listener here at all — scroll belongs to the
+    // page, and stealing it inside an app panel is a usability defect.
+
+    // ------------------------------------------------------------- sizing
+    let resizeTimer: number | null = null;
+    const applySize = (width: number, height: number) => {
       if (width <= 0 || height <= 0) return;
-      lastSizeRef.current = { width, height };
-      // updateStyle=true (the default) is required: it keeps the canvas's
-      // on-page CSS box synced to the container's logical size. Passing
-      // false leaves the canvas's CSS size at its width/height attributes,
-      // which setPixelRatio scales up by devicePixelRatio — on HiDPI
-      // displays the canvas would render up to 2x larger than its
-      // container regardless of any camera fit.
       renderer.setSize(width, height, true);
       camera.aspect = width / height;
-      // Kept instant (not eased through targetDistanceRef) — while a user
-      // drags the split-pane resize handle, the container width changes
-      // continuously, and the camera must track it exactly with zero lag.
-      // Setting the target to match keeps the per-frame dampen() a no-op
-      // afterward, rather than fighting a moving target.
-      const distance = computeFitDistance(width, height);
-      camera.position.z = distance;
-      targetDistanceRef.current = distance;
       camera.updateProjectionMatrix();
-      // Zoom limits stay proportional to the current fit distance rather
-      // than the distance the panel happened to be when the scene mounted.
-      controls.minDistance = distance * ORBIT_MIN_DISTANCE_RATIO;
-      controls.maxDistance = distance * ORBIT_MAX_DISTANCE_RATIO;
+      backdrop.setAspect(width / height);
+      invalidate();
+    };
+
+    const initialRect = container.getBoundingClientRect();
+    applySize(initialRect.width, initialRect.height);
+    placeCamera(CAMERA_ELEVATION_DEG, 1);
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      // Spec §10.1 point 8: an IDE split drag must not thrash the canvas.
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => applySize(rect.width, rect.height), RESIZE_DEBOUNCE_MS);
     });
     resizeObserver.observe(container);
 
+    // Spec §10.1 point 5: suspend when off-screen or the tab is hidden.
     const intersectionObserver = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !document.hidden) start();
-        else stop();
+        visible = Boolean(entries[0]?.isIntersecting) && !document.hidden;
+        if (visible) invalidate();
       },
       { threshold: 0.01 }
     );
     intersectionObserver.observe(container);
 
     const handleVisibility = () => {
-      if (document.hidden) stop();
-      else start();
+      visible = !document.hidden;
+      if (visible) invalidate();
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // A fresh drag/zoom/pan should cancel an in-flight Reset View rather
-    // than fight it — OrbitControls fires 'start' the instant an
-    // interaction begins.
-    const handleControlsStart = () => {
-      resettingRef.current = false;
-    };
-    controls.addEventListener('start', handleControlsStart);
+    // ------------------------------------------------------------ entrance
+    // Runs in both cases — under reduced motion it is a short opacity fade
+    // with no transform (spec §7.4), not a skipped entrance.
+    entrance.set(1);
+    invalidate();
 
-    start();
+    // --------------------------------------------------- diagnostics
+    let frameCount = 0;
+    let fpsWindowStart = performance.now();
+    let measuredFps = 0;
+
+    apiRef.current = {
+      resetView: () => {
+        zoomIndex = INSPECT_ZOOM_STEPS.indexOf(1) >= 0 ? INSPECT_ZOOM_STEPS.indexOf(1) : 1;
+        // Restores the hero framing without yanking the user out of the tab
+        // they are in. Resetting straight to `staged` while the 3D CONTROLS
+        // tab was open silently disabled the orbit the panel was still
+        // inviting them to use.
+        applyState(stageState === 'focused' ? 'staged' : stageState);
+      },
+      setState: applyState,
+      stepZoom: (direction) => {
+        // Spec §12.3: stepped zoom, discrete and bounded — never continuous
+        // and never bound to the wheel.
+        zoomIndex = THREE.MathUtils.clamp(zoomIndex + direction, 0, INSPECT_ZOOM_STEPS.length - 1);
+        cameraDolly.set(1 / INSPECT_ZOOM_STEPS[zoomIndex]);
+        markDirty(INSPECT_ZOOM_STEPS[zoomIndex] !== 1);
+        invalidate();
+      },
+      setLightingPreset: (preset) => {
+        lightRig.setIntensity(LIGHTING_PRESETS[preset]);
+        // 'soft' is the default the scene already renders unasked, so
+        // choosing it back is not a dirty state — same reasoning as any
+        // other control returning to its starting value.
+        markDirty(preset !== 'soft');
+        invalidate();
+      },
+      setGridVisible: (value) => {
+        ground.mesh.visible = value;
+        markDirty(!value);
+        invalidate();
+      },
+      setShadowVisible: (value) => {
+        shadowsEnabled = value;
+        shadows.group.visible = value;
+        markDirty(!value);
+        invalidate();
+      },
+      getDiagnostics: () => ({
+        fps: measuredFps,
+        drawCalls: renderer.info.render.calls,
+        dpr: Number(renderer.getPixelRatio().toFixed(2)),
+        textureSize: finalTexture?.image
+          ? `${(finalTexture.image as HTMLCanvasElement).width}×${(finalTexture.image as HTMLCanvasElement).height}`
+          : `${DISPLAY_CANVAS_WIDTH}×${DISPLAY_CANVAS_HEIGHT}`,
+      }),
+      applyTexture: (source, assembling) => {
+        if (assembling) {
+          assemblingActive = true;
+          resolveStart = null;
+          resolveCanvas = null;
+          if (faceMaterial.map !== displayTexture) {
+            faceMaterial.map = displayTexture;
+            faceMaterial.needsUpdate = true;
+          }
+          if (displayCtx) {
+            paintAssembling(displayCtx, noiseSource, REDUCE_MOTION ? BREATH_MAX_ALPHA : BREATH_MIN_ALPHA);
+            displayTexture.needsUpdate = true;
+          }
+          invalidate();
+          return;
+        }
+        if (!source) return;
+        assemblingActive = false;
+        if (REDUCE_MOTION) {
+          const next = new THREE.CanvasTexture(source);
+          next.colorSpace = THREE.SRGBColorSpace;
+          next.anisotropy = renderer.capabilities.getMaxAnisotropy();
+          next.needsUpdate = true;
+          finalTexture?.dispose();
+          finalTexture = next;
+          faceMaterial.map = next;
+          faceMaterial.needsUpdate = true;
+        } else {
+          resolveStart = performance.now();
+          resolveCanvas = source;
+          if (faceMaterial.map !== displayTexture) {
+            faceMaterial.map = displayTexture;
+            faceMaterial.needsUpdate = true;
+          }
+        }
+        invalidate();
+      },
+    };
 
     return () => {
-      stop();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (resizeTimer !== null) window.clearTimeout(resizeTimer);
+      if (parallaxReturnTimer !== null) window.clearTimeout(parallaxReturnTimer);
       resizeObserver.disconnect();
       intersectionObserver.disconnect();
       document.removeEventListener('visibilitychange', handleVisibility);
-      controls.removeEventListener('start', handleControlsStart);
-      controls.dispose();
-      geometry.dispose();
-      materials.forEach((m) => {
-        m.map?.dispose();
-        m.dispose();
-      });
-      shadowGeometry.dispose();
-      shadowMaterial.dispose();
-      shadowTexture.dispose();
-      grid.geometry.dispose();
-      gridMaterial.dispose();
-      displayTextureRef.current?.dispose();
-      finalTextureRef.current?.dispose();
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerenter', handlePointerEnter);
+      container.removeEventListener('pointerleave', handlePointerLeave);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('click', handleClick);
+      window.removeEventListener('keydown', handleKeyDown);
+
+      // Spec §10.1 point 4 / §13.31: explicit disposal. Refresh Preview
+      // without it grows VRAM until the context is lost.
+      apiRef.current = null;
+      paper.dispose();
+      faceMaterial.dispose();
+      edgeMaterial.dispose();
+      displayTexture.dispose();
+      finalTexture?.dispose();
+      ground.dispose();
+      backdrop.dispose();
+      shadows.dispose();
+      lightRig.dispose();
       renderer.dispose();
-      container.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === container) container.removeChild(renderer.domElement);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sprint 16: reacts to the real preview lifecycle (isAssembling/canvas/
-  // version) rather than rebuilding a texture on every canvas change alone —
-  // this is what lets the animate loop's Resolve crossfade know exactly when
-  // a build has genuinely just finished, versus still being in flight.
+  // Feeds the preview lifecycle into the mounted scene.
   useEffect(() => {
-    const materials = paperMaterialsRef.current;
-    const displayTexture = displayTextureRef.current;
-    if (!materials || !displayTexture) return;
-    const frontMaterial = materials[4];
-
-    if (isAssembling) {
-      // (Re)entering Assembling — e.g. a manual "Refresh Preview" click on
-      // top of an already-resolved page. Swap back to the noise-backed
-      // display texture and drop whatever final texture was showing.
-      assemblingActiveRef.current = true;
-      resolveRef.current = null;
-      if (frontMaterial.map !== displayTexture) {
-        const old = frontMaterial.map;
-        frontMaterial.map = displayTexture;
-        frontMaterial.needsUpdate = true;
-        if (old && old !== finalTextureRef.current) old.dispose();
-      }
-      const ctx2d = displayCtxRef.current;
-      const source = noiseSourceRef.current;
-      if (ctx2d && source) {
-        paintAssembling(ctx2d, source, REDUCE_MOTION ? BREATH_MAX_ALPHA : BREATH_MIN_ALPHA, DISPLAY_CANVAS_WIDTH, DISPLAY_CANVAS_HEIGHT);
-        displayTexture.needsUpdate = true;
-      }
-      return;
-    }
-
-    if (!canvas) return;
-    assemblingActiveRef.current = false;
-
-    if (REDUCE_MOTION) {
-      // Instant — skip the crossfade entirely, matching how reduced motion
-      // already short-circuits the rest of this scene's animated states.
-      const finalTexture = new THREE.CanvasTexture(canvas);
-      finalTexture.needsUpdate = true;
-      finalTexture.colorSpace = THREE.SRGBColorSpace;
-      finalTexture.anisotropy = rendererRef.current?.capabilities.getMaxAnisotropy() ?? 1;
-      const old = frontMaterial.map;
-      frontMaterial.map = finalTexture;
-      frontMaterial.needsUpdate = true;
-      if (old && old !== finalTextureRef.current) old.dispose();
-      finalTextureRef.current?.dispose();
-      finalTextureRef.current = finalTexture;
-      resolveRef.current = null;
-    } else {
-      resolveRef.current = { start: performance.now(), realCanvas: canvas };
-    }
+    apiRef.current?.applyTexture(canvas, isAssembling);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvas, version, isAssembling]);
 

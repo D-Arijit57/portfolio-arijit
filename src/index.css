@@ -23,6 +23,39 @@
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Sprint 17 (RESUME.md spec §2): the Resume workspace's design tokens,
+   anchored to VS Code Dark+. Scoped by name (--resume-*, --tok-*) rather
+   than claiming generic names like `--fg`, since this app already styles
+   the rest of its IDE chrome with literal hex values — these are additive,
+   not a migration of the existing palette.
+
+   The --tok-* trio is the emphasis system (see
+   components/resume/tokens/tokenRegistry.ts): a term's color states what
+   kind of thing it is, the way syntax highlighting does. */
+:root {
+  /* surfaces */
+  --resume-editor-bg: #1e1e1e;
+  --resume-panel-bg: #1a1a1c;
+  --resume-stage-bg: #0d0d0f;
+  --resume-rule: #2d2d30;
+  --resume-rule-dashed: #333338;
+
+  /* text */
+  --resume-fg: #d4d4d4;
+  --resume-fg-strong: #ffffff;
+  --resume-fg-muted: #8b949e;
+  --resume-fg-faint: #6e7681;
+
+  /* syntax roles — the emphasis system */
+  --tok-lang: #569cd6; /* languages, tools, APIs       */
+  --tok-concept: #c586c0; /* architectures, methodologies */
+  --tok-metric: #4fc1ff; /* numbers, deltas, throughput  */
+
+  /* chrome */
+  --resume-accent: #4f46e5;
+  --resume-section-head: #7aa2f7;
+}
+
 /* Sprint 10D.1: authentic hard on/off blink (no fade) for the typing-reveal
    cursor — matches a real editor caret rather than a "cinematic" effect. */
 @keyframes typing-reveal-blink {

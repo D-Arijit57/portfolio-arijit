@@ -23,6 +23,12 @@ export const LOADING_MESSAGES = [
   'Generating recommendation...',
 ];
 
+// How long the terminal window itself takes to fade/slide up before any
+// text starts — HireMeDocumentView's entrance transition uses this exact
+// duration too, so the two stay in lockstep with a single source of truth
+// rather than two independently-tuned numbers that could drift apart.
+export const ENTRANCE_MS = 450;
+
 const CHAR_MIN_MS = 25;
 const CHAR_MAX_MS = 35;
 const START_PAUSE_MS = 200;
@@ -30,7 +36,7 @@ const POST_COMMAND_PAUSE_MS = 120;
 const LOADING_DWELL_MS = 120;
 const LINE_REVEAL_MS = 50;
 
-export type PlaybackPhase = 'prompt' | 'typing' | 'loading' | 'content' | 'done';
+export type PlaybackPhase = 'entering' | 'prompt' | 'typing' | 'loading' | 'content' | 'done';
 
 export interface TerminalPlaybackState {
   phase: PlaybackPhase;
@@ -80,7 +86,7 @@ export function useTerminalPlayback(fileId: string, content: string): TerminalPl
           loadingText: LOADING_MESSAGES[0],
           revealedContentLines: contentLineCount,
         }
-      : { phase: 'prompt', typedCommand: '', loadingText: '', revealedContentLines: 0 },
+      : { phase: 'entering', typedCommand: '', loadingText: '', revealedContentLines: 0 },
   );
 
   useEffect(() => {
@@ -88,6 +94,14 @@ export function useTerminalPlayback(fileId: string, content: string): TerminalPl
     let cancelled = false;
 
     void (async () => {
+      // The terminal window fades/slides up first — text only starts once
+      // it's actually settled in place, not layered on top of a still-moving
+      // box. HireMeDocumentView's motion.div runs the visual side of this
+      // over the same ENTRANCE_MS.
+      await wait(ENTRANCE_MS);
+      if (cancelled) return;
+      setState((s) => ({ ...s, phase: 'prompt' }));
+
       await wait(START_PAUSE_MS);
       if (cancelled) return;
       setState((s) => ({ ...s, phase: 'typing' }));

@@ -28,7 +28,6 @@ Strengths
 ✓ AI-powered applications
 ✓ Product-first mindset
 ✓ Strong ownership
-✓ Rapid learner
 
 Recent Highlights
 ─────────────────
@@ -36,11 +35,11 @@ Recent Highlights
 • Integrated production RAG pipeline
 • Reduced search time from 5 min → <2 min
 • Reduced recurring production issues by 35%
-• Built full-stack AI interview platform
+• Built full-stack remote interview platform
 
 Recommendation
 ──────────────
-✓ Strong candidate for Backend & AI Engineering roles.
+✓ Strong candidate for Software & AI Engineering Roles
 
 Learn More
 ──────────

@@ -1,24 +1,67 @@
 import { VirtualFolder, VirtualFile, ExplorerNode } from '../types';
-import { generateResumeMarkdown } from './resume';
-import { getDefaultResumeVariant } from '../components/resume/variants/resumeRegistry';
 import { modelToMermaid } from '../architecture/renderers/mermaidRenderer';
 import { cortexaArchitecture } from './architecture/cortexa';
 import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
 import { workHistory } from './workHistory';
 
-// Sprint 10F.1: RESUME.md's content is generated from the canonical resume
-// variant (Sprint 10F.5: components/resume/variants/resumeRegistry.ts)
-// rather than hand-typed here — verified byte-identical to the Sprint 10F
-// hand-written version. Still duplicated as a literal string in
+// RFC-2026: RESUME.md's content is no longer a generated view of the resume
+// data (that was `generateResumeMarkdown(getDefaultResumeVariant().data)`,
+// now removed along with the left-panel resume-overview it fed) — the left
+// panel is an RFC document instead, a hand-authored artifact answering "why
+// hire this engineer" rather than restating the resume the PDF on the right
+// already covers. Still duplicated as a literal string in
 // server/repositories/seed/workspaceSeed.ts (that seed can't import from
 // src/, same "no frontend imports" convention every backend seed file
-// already follows) — update that copy by hand if the default variant's
-// content ever changes.
-const RESUME_MARKDOWN = generateResumeMarkdown(getDefaultResumeVariant().data);
+// already follows) — keep both copies byte-identical by hand.
+const RFC_MARKDOWN = `# RFC-2026
+
+## Title
+
+Hiring Arijit Das
+
+## Status
+
+PROPOSED
+
+## Author
+
+Engineering Hiring Committee
+
+## Motivation
+
+Need an engineer capable of building
+AI-powered developer tools and production
+backend systems.
+
+## Proposal
+
+Hire Arijit Das.
+
+## Benefits
+
++ Strong ownership
++ Backend engineering
++ AI Engineering
++ Product mindset
++ Rapid learner
+
+## Tradeoffs
+
+- Distributed systems depth
+- Enterprise scale experience
+
+## Risk
+
+LOW
+
+## Recommendation
+
+✅ ACCEPT
+`;
 
 // ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): architecture.mmd is now
 // generated from the canonical ArchitectureModel (src/content/architecture/
-// cortexa.ts), not hand-written. Same duplication caveat as RESUME_MARKDOWN
+// cortexa.ts), not hand-written. Same duplication caveat as RFC_MARKDOWN
 // above — server/repositories/seed/workspaceSeed.ts can't import from src/,
 // so its copy is a literal string kept in sync by hand.
 const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
@@ -34,7 +77,7 @@ const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
 const WORK_HISTORY_YAML = workHistoryToYaml(workHistory);
 
 // Hand-authored project documentation, same duplication convention as
-// RESUME_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above — kept textually
+// RFC_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above — kept textually
 // identical to server/repositories/seed/workspaceSeed.ts's own copy, update
 // both by hand together.
 const CORTEXA_DOC_MARKDOWN = `---
@@ -659,7 +702,7 @@ print(f"Welcome to {me.name}'s workspace.")
       name: 'RESUME.md',
       type: 'markdown',
       path: '/RESUME.md',
-      content: RESUME_MARKDOWN,
+      content: RFC_MARKDOWN,
     } as VirtualFile,
     {
       id: 'about',

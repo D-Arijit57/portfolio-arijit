@@ -27,11 +27,14 @@
    anchored to VS Code Dark+. Scoped by name (--resume-*, --tok-*) rather
    than claiming generic names like `--fg`, since this app already styles
    the rest of its IDE chrome with literal hex values — these are additive,
-   not a migration of the existing palette.
+   not a migration of the existing palette. --resume-* still styles the
+   workspace's toolbar/tabs (ResumeWorkspace.tsx).
 
-   The --tok-* trio is the emphasis system (see
-   components/resume/tokens/tokenRegistry.ts): a term's color states what
-   kind of thing it is, the way syntax highlighting does. */
+   RFC-2026: the --tok-* trio was the left panel's old syntax-highlighting-
+   style emphasis system (components/resume/tokens/tokenRegistry.ts, now
+   removed along with the resume-overview renderer it served). Left defined
+   here, unused, rather than pulled — a few unreferenced custom properties
+   cost nothing, and removing them isn't part of this change. */
 :root {
   /* surfaces */
   --resume-editor-bg: #1e1e1e;

@@ -2,12 +2,18 @@ import type { ResumeData } from '../../../content/resume';
 
 /**
  * Sprint 10F.5: the FullStack+AI resume variant — the portfolio's default,
- * canonical public resume (see ../variants/resumeRegistry.ts). This is a
- * data file only, consumed by ResumeOverview.tsx and RESUME.md's generated
- * markdown (content/resume.ts's generateResumeMarkdown). Adding another
- * variant (AI Engineer, Backend, Software Engineer, ...) means adding a
- * sibling file here in the same shape, then one entry in the registry —
- * nothing in this file's shape is FullStack+AI-specific.
+ * canonical public resume (see ../variants/resumeRegistry.ts). Adding
+ * another variant (AI Engineer, Backend, Software Engineer, ...) means
+ * adding a sibling file here in the same shape, then one entry in the
+ * registry — nothing in this file's shape is FullStack+AI-specific.
+ *
+ * RFC-2026: this data's only live consumer is `ResumeVariant.downloadFilename`
+ * (the static PDF the right panel previews/downloads). The rich fields below
+ * — summary, skills, experience, projects, achievements — used to also
+ * drive RESUME.md's generated markdown and the left-panel resume overview;
+ * both were removed when the left panel became an RFC document instead (see
+ * ../RfcDocumentView.tsx). Left in place as the resume's structured source
+ * of record rather than deleted with those renderers.
  *
  * Content verified verbatim against the actual resume
  * (public/resume/Arijit_Das_Resume.pdf) — wording, dates, and numbers are

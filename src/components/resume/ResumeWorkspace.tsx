@@ -3,8 +3,7 @@ import { RefreshCw, RotateCcw, Download } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ResizeHandle } from '../shared/ResizeHandle';
-import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
-import { ResumeOverview } from './ResumeOverview';
+import { RfcDocumentView } from './RfcDocumentView';
 import { ResumeStage } from './preview/ResumeStage';
 import { SceneControlsPanel } from './preview/SceneControlsPanel';
 import { ResumeScene, type ResumeSceneHandle } from './ResumeScene';
@@ -51,9 +50,18 @@ const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
 
 /**
  * Sprint 10F.1: RESUME.md's dedicated two-panel view — a custom editor
- * experience (like profile.md's), not the generic markdown renderer. LEFT is
- * ResumeOverview, a condensed executive summary. RIGHT is the Three.js
- * preview.
+ * experience (like profile.md's), not the generic markdown renderer for the
+ * page as a whole. RIGHT is the Three.js preview of the actual downloadable
+ * resume; this has never changed.
+ *
+ * RFC-2026: LEFT used to be ResumeOverview, a condensed second copy of the
+ * resume's own content. It is now an RFC document — a hiring committee's
+ * proposal to hire the candidate — answering "why hire this engineer" while
+ * the PDF on the right continues answering "what has this engineer done."
+ * The two panels are deliberately different artifacts rather than the same
+ * content twice. `RfcDocumentView` renders it through the app's *generic*
+ * markdown pipeline (the same one README.md and other plain docs use), not
+ * through resume-styled components — see that file's doc comment.
  *
  * Sprint 12: the resume PDF is a static asset (public/resume/), not a
  * backend-generated document — the dynamic LaTeX/Tectonic pipeline was
@@ -61,7 +69,10 @@ const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
  * (preview/pdfTexture.ts rendering the static PDF's first page) and the
  * Download button (saving the same static file directly, no fetch) both
  * point at the one file in variants/resumeRegistry.ts's downloadFilename,
- * never a generated or reconstructed document.
+ * never a generated or reconstructed document. This side is untouched by
+ * RFC-2026 — the left panel's content has no bearing on it, and never did:
+ * the only thing that ever crossed from left to right is a reveal-complete
+ * *timing* signal, not data (see handleRevealComplete below).
  */
 export function ResumeWorkspace({ file }: { file: VirtualFile }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -163,9 +174,7 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         style={isNarrow ? undefined : { width: `${ratio * 100}%` }}
         className={cn('min-w-0 min-h-0 border-[#333333]', isNarrow ? 'w-full h-1/2 border-b' : 'shrink-0 border-r')}
       >
-        <ResumePanelReveal file={file} onRevealComplete={handleRevealComplete}>
-          <ResumeOverview />
-        </ResumePanelReveal>
+        <RfcDocumentView file={file} onRevealComplete={handleRevealComplete} />
       </div>
 
       {!isNarrow && <ResizeHandle direction="horizontal" onResize={handleResize} />}
@@ -251,63 +260,6 @@ export function ResumeWorkspace({ file }: { file: VirtualFile }) {
         </ResumeStage>
       </div>
     </div>
-  );
-}
-
-/**
- * Markdown typography & animation redesign: replaces the old clip-path
- * vertical-wipe TypingReveal (with its own blinking cursor) that used to
- * wrap this panel — RESUME.md is documentation, not something being typed,
- * so it gets the same fade-and-slide-up-into-view treatment every other
- * markdown file uses, with no cursor at all. Reuses useFileRevealSequence
- * directly (unitCount=1 — the whole panel is one reveal unit, since
- * ResumeOverview's own internal layout isn't being redesigned here) rather
- * than the shared markdown component map, since this panel isn't rendering
- * react-markdown output. Preserves the exact same onRevealComplete contract
- * the old TypingReveal had — fired once, whether the reveal actually played
- * or was skipped (reduced motion / already played this session) — so the
- * 3D preview build pipeline still kicks off at the same moment it always
- * did.
- */
-function ResumePanelReveal({
-  file,
-  onRevealComplete,
-  children,
-}: {
-  file: VirtualFile;
-  onRevealComplete?: () => void;
-  children: React.ReactNode;
-}) {
-  const sequence = useFileRevealSequence({ fileId: file.id, unitCount: 1 });
-  const firedRef = useRef(false);
-
-  useEffect(() => {
-    if (sequence.isComplete && !firedRef.current) {
-      firedRef.current = true;
-      onRevealComplete?.();
-    }
-  }, [sequence.isComplete, onRevealComplete]);
-
-  if (sequence.isComplete) {
-    return (
-      <div ref={sequence.containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full">
-        {children}
-      </div>
-    );
-  }
-
-  return (
-    <motion.div
-      ref={sequence.containerRef as React.RefObject<HTMLDivElement>}
-      className="h-full w-full"
-      initial="hidden"
-      animate="visible"
-      custom={0}
-      variants={sequence.unitVariants}
-      onAnimationComplete={sequence.onLastUnitComplete}
-    >
-      {children}
-    </motion.div>
   );
 }
 

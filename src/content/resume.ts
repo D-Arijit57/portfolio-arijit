@@ -1,15 +1,20 @@
 /**
- * Sprint 10F.5: the resume's shared type/utility layer — the `ResumeData`
- * shape every variant conforms to, plus every transform that turns a
- * `ResumeData` into something else (RESUME.md's raw markdown, the
- * left-panel overview model, inline-emphasis parsing). This file owns no
- * resume content of its own anymore: each variant's actual data lives
- * under components/resume/data/ (e.g. fullstack-ai.ts), and
- * components/resume/variants/resumeRegistry.ts decides which variant is
- * canonical at any given time. Every consumer resolves data through that
- * registry (typically `getDefaultResumeVariant().data`) rather than
- * importing one hardcoded object — that's what lets a new variant plug in
- * without touching this file, the renderer, or the spec.
+ * Sprint 10F.5: the resume's shared type layer — the `ResumeData` shape
+ * every variant conforms to. This file owns no resume content of its own:
+ * each variant's actual data lives under components/resume/data/ (e.g.
+ * fullstack-ai.ts), and components/resume/variants/resumeRegistry.ts
+ * decides which variant is canonical at any given time.
+ *
+ * RFC-2026: this used to also hold `generateResumeMarkdown()` (produced
+ * RESUME.md's raw markdown from this data) and `getResumeOverview()` (fed
+ * the old left-panel resume overview component). Both are gone — the left
+ * panel no longer renders a second copy of the resume, it renders an RFC
+ * document (see components/resume/RfcDocumentView.tsx), so there is
+ * nothing left to generate from this data for that purpose. `ResumeData`
+ * itself survives because the right panel's variant registry
+ * (variants/resumeRegistry.ts) still types its `data` field with it; the
+ * 3D preview and PDF download remain driven by the static PDF asset, not
+ * by this data, as they have been since Sprint 12.
  */
 
 export interface ResumeLink {
@@ -38,7 +43,7 @@ export interface ResumeExperience {
   startDate: string;
   endDate: string;
   highlights: string[];
-  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` (e.g. "35% fewer defects") — surfaced as stat badges in the overview, not new claims. */
+  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` (e.g. "35% fewer defects") — not a new claim, currently unconsumed by any renderer. */
   impact?: string[];
 }
 
@@ -49,9 +54,9 @@ export interface ResumeProject {
   dateRange: string;
   /** Full bullet list — used verbatim by the full preview/PDF. */
   highlights: string[];
-  /** Single-line condensation of `highlights` for the overview only — derived, not new facts. */
+  /** Single-line condensation of `highlights` — derived, not new facts; currently unconsumed by any renderer. */
   oneLiner: string;
-  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` — surfaced as stat badges in the overview, not new claims. */
+  /** Sprint 12 Phase 2: 1-3 short, scannable metrics already stated in `highlights` — not a new claim, currently unconsumed by any renderer. */
   impact?: string[];
 }
 
@@ -75,7 +80,7 @@ export interface ResumeData {
     contact: ResumeContact;
   };
   summary: string;
-  /** Career-highlight labels for the overview only — themes already present in `experience`/`projects`, not new claims. */
+  /** Career-highlight labels — themes already present in `experience`/`projects`, not new claims; currently unconsumed by any renderer. */
   highlights: string[];
   skills: ResumeSkillGroup[];
   experience: ResumeExperience[];
@@ -88,132 +93,3 @@ export interface ResumeData {
 // components/resume/data/ (e.g. fullstack-ai.ts) — see
 // components/resume/variants/resumeRegistry.ts for which variant is
 // canonical. This file no longer holds a resume data object of its own.
-
-function bold(text: string): string {
-  return `**${text}**`;
-}
-
-// Sprint 17: renderInlineMarkdown() is gone. It existed to turn the
-// `**bold**` markers that used to be embedded in variant prose into JSX
-// <strong> spans; that emphasis model has been replaced wholesale by the
-// token registry (components/resume/tokens/tokenRegistry.ts), which colors
-// known terms by role instead of bolding author-marked ones. The variant
-// data's prose is now plain text, so there is nothing left to parse.
-//
-// The bold() helper below survives because it serves a different purpose:
-// generateResumeMarkdown() still emits **structural** emphasis (institution
-// names, skill category labels, achievement titles) in the raw RESUME.md
-// text, which is document structure rather than body emphasis.
-
-/**
- * Regenerates RESUME.md's exact markdown text from a resume variant's
- * `ResumeData` — the VFS file's content is a generated artifact of this
- * data, not hand-typed
- * separately (see workspaceSeed.ts). Output matches the previously
- * hand-written RESUME_MARKDOWN string byte-for-byte; the server's own copy
- * (server/repositories/seed/workspaceSeed.ts) stays a literal duplicate of
- * this function's output, per this repo's existing "no frontend imports in
- * the backend seed" convention — same reasoning as every other seed file.
- */
-export function generateResumeMarkdown(data: ResumeData): string {
-  const { basics, summary, skills, experience, projects, education, achievements } = data;
-  const lines: string[] = [];
-
-  lines.push(`# ${basics.name}`, '');
-  lines.push(
-    `${basics.contact.phone} | ${basics.contact.email} | [${basics.contact.linkedin.label}](${basics.contact.linkedin.url}) | [${basics.contact.github.label}](${basics.contact.github.url})`,
-    ''
-  );
-
-  lines.push('## Summary', '', summary, '');
-
-  lines.push('## Education', '');
-  for (const edu of education) {
-    lines.push(`${bold(edu.institution)} — ${edu.dateRange}`);
-    lines.push(`*${edu.degree}* — ${edu.detail}`, '');
-  }
-
-  // Sprint 17 (RESUME.md spec §3): Experience now precedes Technical
-  // Skills, so the raw markdown's section order matches the rendered
-  // document's exactly. That equivalence is what lets the Explorer's
-  // OUTLINE panel derive its entries from this file's `## ` headings and
-  // still describe what the reader actually sees.
-  lines.push('## Experience', '');
-  for (const job of experience) {
-    lines.push(`${bold(job.company)} — ${job.startDate} – ${job.endDate}`);
-    lines.push(`*${job.role}* — ${job.location}`, '');
-    lines.push(...job.highlights.map((h) => `- ${h}`), '');
-  }
-
-  lines.push('## Technical Skills', '');
-  lines.push(...skills.map((g) => `- ${bold(g.category + ':')} ${g.items.join(', ')}`), '');
-
-  lines.push('## Projects', '');
-  for (const project of projects) {
-    const linkPart = project.link ? ` | [${project.link.label}]` : '';
-    lines.push(`${bold(project.name)} | ${project.techStack.join(', ')}${linkPart} — ${project.dateRange}`, '');
-    lines.push(...project.highlights.map((h) => `- ${h}`), '');
-  }
-
-  lines.push('## Achievements & Certifications', '');
-  lines.push(...achievements.map((a) => `- ${bold(a.title + ':')} ${a.description}`));
-
-  return lines.join('\n') + '\n';
-}
-
-export interface ResumeOverviewModel {
-  name: string;
-  title: string;
-  contact: ResumeContact;
-  summary: string;
-  highlights: string[];
-  skills: ResumeSkillGroup[];
-  /** Sprint 17: now carries `highlights` too — the document renders projects through the same Entry component as Experience, so it needs the full bullet list, not just the one-liner. */
-  featuredProjects: { name: string; oneLiner: string; techStack: string[]; dateRange: string; link?: ResumeLink; highlights: string[]; impact?: string[] }[];
-  /** Sprint 12 Phase 2: added so the overview can render a real Experience section (company/role/duration/highlights) — previously only `highlights` (thematic labels) surfaced here, with the full experience array reaching only the PDF/markdown outputs. */
-  experience: { company: string; role: string; location: string; startDate: string; endDate: string; highlights: string[]; impact?: string[] }[];
-  education: { institution: string; degree: string; dateRange: string; detail: string }[];
-  /** Sprint 17: the document's final section (RESUME.md spec §3's section order) — previously reached only the raw markdown output. */
-  achievements: ResumeAchievement[];
-}
-
-const MAX_FEATURED_PROJECTS = 3;
-
-/**
- * Condensed view for the left-panel overview (ResumeOverview.tsx) — the
- * "Parser/Transformer -> Overview Model" step. Never hand-authored
- * separately from the selected variant's data: featured projects/
- * education/skills/experience are all sliced or reshaped from the same
- * arrays the full preview reads, so they can't drift out of sync with a
- * resume update.
- */
-export function getResumeOverview(data: ResumeData): ResumeOverviewModel {
-  return {
-    name: data.basics.name,
-    title: data.basics.title,
-    contact: data.basics.contact,
-    summary: data.summary,
-    highlights: data.highlights,
-    skills: data.skills,
-    featuredProjects: data.projects.slice(0, MAX_FEATURED_PROJECTS).map((p) => ({
-      name: p.name,
-      oneLiner: p.oneLiner,
-      techStack: p.techStack,
-      dateRange: p.dateRange,
-      link: p.link,
-      highlights: p.highlights,
-      impact: p.impact,
-    })),
-    experience: data.experience.map((e) => ({
-      company: e.company,
-      role: e.role,
-      location: e.location,
-      startDate: e.startDate,
-      endDate: e.endDate,
-      highlights: e.highlights,
-      impact: e.impact,
-    })),
-    education: data.education.map((e) => ({ institution: e.institution, degree: e.degree, dateRange: e.dateRange, detail: e.detail })),
-    achievements: data.achievements,
-  };
-}

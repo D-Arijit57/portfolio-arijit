@@ -90,6 +90,15 @@
    literal characters instead of being swallowed by the rendered tag.
    Scoped to `.whoami-doc` only (see MarkdownFileView.tsx) so README.md,
    RESUME.md and every project doc keep their existing, unmodified look. */
+/* The "# " prefix (::before) was already Roboto Mono; the "whoami" text
+   itself was still inheriting Inter from MarkdownFileView's prose font
+   override — this brings the actual heading text onto the same terminal
+   font as everything else on the page (the two terminal cards, the
+   section prompt lines, the contributions terminal). */
+.whoami-doc h1 {
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
 .whoami-doc h1::before {
   content: '# ';
   color: #6e7681;

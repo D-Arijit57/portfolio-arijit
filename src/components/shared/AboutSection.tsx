@@ -61,10 +61,15 @@ export function AboutSection() {
   }, [revealed, skipAnimation]);
 
   return (
-    <div className="my-4">
-      <TerminalPromptLine command="cat about.txt" />
+    <div className="mb-4">
+      <TerminalPromptLine
+        tokens={[
+          { text: 'cat ', color: '#4ec9b0' },
+          { text: 'about.txt', color: '#ffffff', opacity: 0.85 },
+        ]}
+      />
       <div
-        className="mt-2 text-[15px]"
+        className="text-[15px]"
         style={{
           fontFamily: ROBOTO_MONO,
           lineHeight: 1.8,

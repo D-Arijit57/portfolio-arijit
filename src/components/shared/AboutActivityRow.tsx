@@ -19,15 +19,18 @@ import { TerminalPromptLine } from './TerminalPromptLine';
  */
 export function AboutActivityRow() {
   return (
-    <div className="my-4 flex items-start gap-6">
+    <div className="mb-4 flex items-start gap-6">
       <div className="w-[680px] shrink-0">
         <AboutSection />
       </div>
       <div className="min-w-0 flex-1">
-        <TerminalPromptLine command="./recent-activity.sh" />
-        <div className="mt-2">
-          <RecentActivityLog />
-        </div>
+        <TerminalPromptLine
+          tokens={[
+            { text: './', color: '#6e7681' },
+            { text: 'recent-activity.sh', color: '#ffffff' },
+          ]}
+        />
+        <RecentActivityLog />
       </div>
     </div>
   );

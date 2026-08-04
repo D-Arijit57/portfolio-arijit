@@ -720,12 +720,10 @@ print(f"Welcome to {me.name}'s workspace.")
           name: 'whoami.md',
           type: 'markdown',
           path: '/about/whoami.md',
-          content: `# whoami
+          content: `# signature
 
 \`\`\`identity-terminals
 \`\`\`
-
----
 
 \`\`\`about-activity-row
 \`\`\`

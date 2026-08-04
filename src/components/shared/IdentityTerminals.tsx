@@ -12,7 +12,7 @@ import { TerminalInfoCard } from './TerminalInfoCard';
  */
 export function IdentityTerminals() {
   return (
-    <div className="my-4 flex gap-4">
+    <div className="mt-4 mb-2 flex gap-4">
       <TerminalInfoCard
         command="whoami"
         separator=":"

@@ -6,7 +6,7 @@ function classNameToString(value: unknown): string | undefined {
 
 /**
  * Reads the `className` remark attaches to the `<code>` inside a fenced
- * `<pre>` (e.g. `language-ts`, or `language-profile-sidebar` for a widget
+ * `<pre>` (e.g. `language-ts`, or `language-contributions-terminal` for a widget
  * marker) directly off the raw hast `pre` node react-markdown hands every
  * component — decoupled from whatever the `code` component override renders
  * its children as. Shared by every markdown surface's `pre` override

@@ -29,7 +29,7 @@ const GENERATED_NAMESPACE_SYNCED_TITLE: Record<string, string> = {
 };
 
 // Sprint 10G: namespaces kept fully fetchable (workspaceFiles stays
-// unfiltered — ProfileSidebar's GitHub widgets read github:activity/
+// unfiltered — ContributionsTerminal's GitHub widgets read github:activity/
 // github:contributions directly by id, see RecentActivityLog.tsx /
 // GitHubContributionGraph.tsx) but deliberately excluded from every surface
 // a user can *browse* to them from: Explorer/Terminal (both read

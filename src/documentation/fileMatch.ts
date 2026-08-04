@@ -8,7 +8,7 @@ const PROJECT_DOC_PATH = /^\/projects\/[^/]+\/[^/]+\.md$/;
  * shape (any .md directly inside a /projects/<Name>/ folder), not by
  * filename, so it works automatically for every future project doc
  * (Nova.md, BuildEdge.md, ...) with zero code changes. README.md,
- * profile.md, RESUME.md and any other markdown outside /projects/ never
+ * whoami.md, RESUME.md and any other markdown outside /projects/ never
  * match, and keep rendering through the existing MarkdownFileView.
  */
 export function isProjectDocFile(file: VirtualFile): boolean {

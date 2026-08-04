@@ -83,6 +83,70 @@
   }
 }
 
+/* whoami.md: unlike every other markdown surface (which renders headings/
+   quotes as plain styled HTML with the source syntax discarded), this page
+   is meant to read as a markdown *file* someone actually keeps in their
+   repo — so its heading/blockquote/rule punctuation stays visible as muted
+   literal characters instead of being swallowed by the rendered tag.
+   Scoped to `.whoami-doc` only (see MarkdownFileView.tsx) so README.md,
+   RESUME.md and every project doc keep their existing, unmodified look. */
+.whoami-doc h1::before {
+  content: '# ';
+  color: #6e7681;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-weight: 400;
+}
+
+.whoami-doc h2::before {
+  content: '## ';
+  color: #6e7681;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-weight: 400;
+}
+
+/* Layout Refactor iteration 2: the page is now three stacked sections, not
+   flowing prose, so the shared PROSE_CLASSNAMES `mt-12` between headings
+   (tuned for long-form reading) reads as a gap, not a break. Higher
+   specificity than the `.mt-12`/`.mb-4` utility classes themselves
+   (`.whoami-doc h2` is a class+tag selector) wins without `!important`.
+   Widget-owned headings (About, Recent Activity — see AboutActivityRow.tsx)
+   already set their own `!mt-0 !mb-0` and are unaffected. */
+.whoami-doc h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.whoami-doc h3::before {
+  content: '### ';
+  color: #6e7681;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-weight: 400;
+}
+
+.whoami-doc blockquote > p::before {
+  content: '> ';
+  color: #6e7681;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+.whoami-doc hr {
+  position: relative;
+  height: 1.4em;
+  margin: 1.25rem 0;
+  border: none;
+}
+
+.whoami-doc hr::before {
+  content: '---';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #6e7681;
+  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+
 /* Scroll stays functional, the track/thumb just doesn't render — used
    wherever a native scrollbar would look out of place next to the rest of
    the workspace's own chrome (e.g. WorkHistoryViewer's two side-by-side

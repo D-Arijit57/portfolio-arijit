@@ -2,7 +2,7 @@
 // (lib/bootSequence.ts) already plays once per session on any first load,
 // file-agnostic. This sprint scopes the *whole* onboarding bundle — boot
 // log, Explorer's stagger-open, and the terminal's auto-typed "help" — to
-// README landings only, so a direct deep link to another file (profile.md,
+// README landings only, so a direct deep link to another file (whoami.md,
 // cortexa.md, etc.) never sees it, even on a first-ever visit. Deliberately
 // a thin layer on top of bootSequence.ts rather than a change to it — the
 // boot log's own content/timing stays exactly as previously signed off.

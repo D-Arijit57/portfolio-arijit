@@ -1,7 +1,8 @@
 import React from 'react';
-import { ProfileStatusCard } from '../shared/ProfileStatusCard';
-import { ProfileSidebar } from '../shared/ProfileSidebar';
-import { TechStackPills } from '../shared/TechStackPills';
+import { IdentityTerminals } from '../shared/IdentityTerminals';
+import { ContributionsTerminal } from '../shared/ContributionsTerminal';
+import { AboutSection } from '../shared/AboutSection';
+import { AboutActivityRow } from '../shared/AboutActivityRow';
 import { GitHubContributionGraph } from '../shared/GitHubContributionGraph';
 import { RecentActivityLog } from '../shared/RecentActivityLog';
 
@@ -12,15 +13,20 @@ import { RecentActivityLog } from '../shared/RecentActivityLog';
  * is the *one* mechanism every markdown file shares — relocated out of
  * EditorRenderer.tsx so both the plain MarkdownFileView and the Project
  * Documentation Viewer's own component map import the same definition
- * rather than drifting into two copies. `profile-status` and
- * `github-contribution-calendar` stay registered individually (reusable on
- * their own) even though profile.md itself now composes them together via
- * the single `profile-sidebar` marker.
+ * rather than drifting into two copies. `github-contribution-calendar`,
+ * `about-section` and `github-recent-activity` all stay registered
+ * individually (reusable on their own) even though whoami.md itself
+ * reaches About and Recent Activity together through the single
+ * `about-activity-row` marker, and GitHub Contributions entirely through
+ * `contributions-terminal` (which owns its own "arijit@github:~$
+ * ./contributions.sh" heading — no separate markdown heading needed, see
+ * workspaceSeed.ts).
  */
 const MARKDOWN_WIDGETS: Record<string, React.ComponentType> = {
-  'profile-status': ProfileStatusCard,
-  'profile-sidebar': ProfileSidebar,
-  'tech-stack': TechStackPills,
+  'identity-terminals': IdentityTerminals,
+  'contributions-terminal': ContributionsTerminal,
+  'about-section': AboutSection,
+  'about-activity-row': AboutActivityRow,
   'github-contribution-calendar': GitHubContributionGraph,
   'github-recent-activity': RecentActivityLog,
 };

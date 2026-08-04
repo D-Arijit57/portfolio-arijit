@@ -1,8 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useStore } from '../../store/useStore';
-import { extractFencedBlock } from '../../lib/extractFencedBlock';
+import React, { useEffect, useRef, useState } from 'react';
+import { useContributionCalendar } from '../../hooks/useContributionCalendar';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
-import type { GitHubContributionCalendar } from '../../types/github';
 
 // GitHub's own dark-mode intensity scale, reused as-is — this is already a
 // muted, low-saturation palette that sits naturally against the workspace's
@@ -37,6 +35,18 @@ function randomBetween(min: number, max: number): number {
 interface GitHubContributionGraphProps {
   /** Defaults to the generated GitHub provider's contributions file — override only for reuse against a different source. */
   sourceFileId?: string;
+  /**
+   * 'card' (default): the original, self-contained bordered card with its
+   * own "N contributions in the last year" heading — unchanged.
+   * 'bare': just the labeled grid + legend, no wrapper chrome or heading,
+   * for embedding inside a parent surface that owns its own chrome (see
+   * ContributionsTerminal.tsx, which supplies the terminal window and the
+   * stats footer instead).
+   */
+  variant?: 'card' | 'bare';
+  /** Cell + gap size in px. Defaults match the original 'card' proportions; ContributionsTerminal passes larger values so the grid actually fills its wider surface instead of floating in unused space. */
+  cellSize?: number;
+  gap?: number;
 }
 
 /**
@@ -47,19 +57,13 @@ interface GitHubContributionGraphProps {
  * refresh updates that file's content, since it subscribes to the store
  * directly rather than reading a point-in-time snapshot.
  */
-export function GitHubContributionGraph({ sourceFileId = 'github:contributions' }: GitHubContributionGraphProps) {
-  const file = useStore((state) => state.workspaceFiles.find((f) => f.id === sourceFileId));
-
-  const calendar = useMemo<GitHubContributionCalendar | null>(() => {
-    if (!file) return null;
-    const raw = extractFencedBlock(file.content, 'github-contribution-calendar');
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as GitHubContributionCalendar;
-    } catch {
-      return null;
-    }
-  }, [file]);
+export function GitHubContributionGraph({
+  sourceFileId = 'github:contributions',
+  variant = 'card',
+  cellSize = 10,
+  gap = 3,
+}: GitHubContributionGraphProps) {
+  const { file, calendar } = useContributionCalendar(sourceFileId);
 
   const totalWeeks = calendar?.weeks.length ?? 0;
   const [revealedWeeks, setRevealedWeeks] = useState(() =>
@@ -137,6 +141,81 @@ export function GitHubContributionGraph({ sourceFileId = 'github:contributions' 
     }
   });
 
+  const columnWidth = cellSize + gap;
+
+  const grid = (
+    <div className="overflow-x-auto">
+      <div className="inline-flex gap-1">
+        <div className="flex flex-col pt-[18px]" style={{ gap }}>
+          {WEEKDAY_LABELS.map((label, i) => (
+            <span key={i} className="text-[9px] leading-[10px] text-[#858585]" style={{ height: cellSize }}>
+              {label}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative inline-block">
+          <div className="relative mb-1 h-[14px]" style={{ width: totalWeeks * columnWidth }}>
+            {monthMarkers.map(({ weekIndex, label }) => (
+              <span
+                key={weekIndex}
+                className="absolute top-0 text-[10px] text-[#858585]"
+                style={{ left: weekIndex * columnWidth }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+
+          <div className="flex" style={{ gap }}>
+            {calendar.weeks.map((week, weekIndex) => (
+              <div key={weekIndex} className="flex flex-col" style={{ gap }}>
+                {week.days.map((day) => {
+                  const revealed = weekIndex < revealedWeeks;
+                  const color = revealed ? LEVEL_COLORS[day.level] : LEVEL_COLORS[0];
+                  return (
+                    <div
+                      key={day.date}
+                      role="gridcell"
+                      tabIndex={0}
+                      aria-label={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
+                      title={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
+                      className="rounded-[2px] outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[#007acc]"
+                      style={{ backgroundColor: color, height: cellSize, width: cellSize }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const legend = (
+    <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-[#858585]">
+      <span>Less</span>
+      {([0, 1, 2, 3, 4] as const).map((level) => (
+        <div key={level} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: LEVEL_COLORS[level] }} />
+      ))}
+      <span>More</span>
+    </div>
+  );
+
+  if (variant === 'bare') {
+    return (
+      <div
+        className="font-mono text-[12px]"
+        role="img"
+        aria-label={`GitHub contribution calendar, ${calendar.totalContributions} contributions in the last year`}
+      >
+        {grid}
+        {legend}
+      </div>
+    );
+  }
+
   return (
     <div
       className="my-4 rounded-md border border-[#333333] bg-[#1e1e1e] p-4 font-mono text-[12px]"
@@ -144,62 +223,8 @@ export function GitHubContributionGraph({ sourceFileId = 'github:contributions' 
       aria-label={`GitHub contribution calendar, ${calendar.totalContributions} contributions in the last year`}
     >
       <div className="mb-2 text-[#cccccc]">{calendar.totalContributions} contributions in the last year</div>
-
-      <div className="overflow-x-auto">
-        <div className="inline-flex gap-1">
-          <div className="flex flex-col gap-[3px] pt-[18px]">
-            {WEEKDAY_LABELS.map((label, i) => (
-              <span key={i} className="h-[10px] text-[9px] leading-[10px] text-[#858585]">
-                {label}
-              </span>
-            ))}
-          </div>
-
-          <div className="relative inline-block">
-            <div className="relative mb-1 h-[14px]" style={{ width: totalWeeks * 13 }}>
-              {monthMarkers.map(({ weekIndex, label }) => (
-                <span
-                  key={weekIndex}
-                  className="absolute top-0 text-[10px] text-[#858585]"
-                  style={{ left: weekIndex * 13 }}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-
-            <div className="flex gap-[3px]">
-              {calendar.weeks.map((week, weekIndex) => (
-                <div key={weekIndex} className="flex flex-col gap-[3px]">
-                  {week.days.map((day) => {
-                    const revealed = weekIndex < revealedWeeks;
-                    const color = revealed ? LEVEL_COLORS[day.level] : LEVEL_COLORS[0];
-                    return (
-                      <div
-                        key={day.date}
-                        role="gridcell"
-                        tabIndex={0}
-                        aria-label={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
-                        title={`${day.count} contribution${day.count === 1 ? '' : 's'} on ${day.date}`}
-                        className="h-[10px] w-[10px] rounded-[2px] outline-none transition-colors duration-150 focus-visible:ring-1 focus-visible:ring-[#007acc]"
-                        style={{ backgroundColor: color }}
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center justify-end gap-1 text-[10px] text-[#858585]">
-        <span>Less</span>
-        {([0, 1, 2, 3, 4] as const).map((level) => (
-          <div key={level} className="h-[10px] w-[10px] rounded-[2px]" style={{ backgroundColor: LEVEL_COLORS[level] }} />
-        ))}
-        <span>More</span>
-      </div>
+      {grid}
+      {legend}
     </div>
   );
 }

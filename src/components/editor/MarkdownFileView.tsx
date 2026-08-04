@@ -18,13 +18,18 @@ import { createRevealMarkdownComponents } from './markdown/revealMarkdownCompone
  * layer importing each other in a cycle.
  */
 export function MarkdownFileView({ file }: { file: VirtualFile }) {
-  // Sprint 10D.2: profile.md is the one markdown file wide enough to give
-  // its floated `profile-sidebar` (see ProfileSidebar.tsx) room to sit
-  // beside the flowing text without cramping either side. Every other
-  // markdown file keeps the original max-w-3xl width, completely
-  // unchanged — this is a width difference on the shared wrapper, not a
-  // different rendering path.
-  const containerWidthClass = file.id === 'profile' ? 'max-w-5xl' : 'max-w-3xl';
+  // Sprint 10D.2: whoami.md is the one markdown file wide enough to let its
+  // widgets (IdentityTerminals, AboutActivityRow, ContributionsTerminal — see
+  // documentationWidgets.tsx) breathe instead of reading as a narrow prose
+  // column. Layout Refactor iteration 2 bumped this from max-w-5xl to
+  // max-w-6xl: at 5xl the terminal row and the GitHub contribution graph
+  // were already filling their own column, but that column itself sat
+  // narrow against the pane — this widens the column, not the widgets'
+  // internal proportions. Every other markdown file keeps the original
+  // max-w-3xl width, completely unchanged — this is a width difference on
+  // the shared wrapper, not a different rendering path.
+  const isWhoami = file.id === 'whoami';
+  const containerWidthClass = isWhoami ? 'max-w-6xl' : 'max-w-3xl';
 
   const unitCount = useMemo(() => estimateMarkdownBlockCount(file.content), [file.content]);
   const sequence = useFileRevealSequence({ fileId: file.id, unitCount });
@@ -55,7 +60,7 @@ export function MarkdownFileView({ file }: { file: VirtualFile }) {
           createRevealMarkdownComponents' own per-tag classNames (shared
           PROSE_CLASSNAMES), not on selectors here — this wrapper only owns
           reading width and base font. */}
-      <div className={`${containerWidthClass} font-sans`}>
+      <div className={`${containerWidthClass} font-sans ${isWhoami ? 'whoami-doc' : ''}`}>
         <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {file.content}
         </Markdown>

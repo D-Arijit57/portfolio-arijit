@@ -716,34 +716,21 @@ print(f"Welcome to {me.name}'s workspace.")
       path: '/about',
       children: [
         {
-          id: 'profile',
-          name: 'profile.md',
+          id: 'whoami',
+          name: 'whoami.md',
           type: 'markdown',
-          path: '/about/profile.md',
-          content: `# Arijit Das
+          path: '/about/whoami.md',
+          content: `# whoami
 
-Full Stack Engineer | AI Enthusiast | Systems Architect
-
-\`\`\`profile-sidebar
+\`\`\`identity-terminals
 \`\`\`
 
-Hello! I'm a software engineer passionate about building scalable, high-performance applications. I bridge the gap between complex backend architectures and intuitive, pixel-perfect frontend experiences.
+---
 
-\`\`\`tech-stack
+\`\`\`about-activity-row
 \`\`\`
 
-## Core Competencies
-
-- **Frontend:** Advanced state management, Performance optimization, WebGL rendering.
-- **Backend:** Microservices design, Distributed systems, RESTful API and GraphQL development.
-- **DevOps:** CI/CD pipeline automation, Infrastructure as Code, Monitoring.
-- **AI/ML:** Prompt engineering, RAG pipelines, fine-tuning open-source models for specific domains.
-
-> Code is read far more often than it's written — I optimize for the person who inherits this next.
-
-## Recent Activity
-
-\`\`\`github-recent-activity
+\`\`\`contributions-terminal
 \`\`\`
 `,
         } as VirtualFile,

@@ -21,7 +21,7 @@ export function resolveUrlPathToFile(pathname: string) {
            fPath === normalizedPath + '.mmd' ||
            fPath === normalizedPath + '.sh' ||
            fPath === normalizedPath + '/readme.md' ||
-           fPath === normalizedPath + '/profile.md' ||
+           fPath === normalizedPath + '/whoami.md' ||
            fPath === normalizedPath + '/work_history.yaml' ||
            fPath === normalizedPath + '/contact.sh';
   });
@@ -67,7 +67,7 @@ export function useRouterSync() {
         newPath = newPath.replace(/\.(md|ts|py|json|yaml|yml|sh|mmd)$/, '');
         
         // Custom cleanups based on user request
-        if (newPath === '/journey/about/profile') newPath = '/journey/about';
+        if (newPath === '/journey/about/whoami') newPath = '/journey/about';
         if (newPath === '/journey/experience/work_history') newPath = '/journey/experience';
         if (newPath === '/journey/contact/contact') newPath = '/journey/contact';
         

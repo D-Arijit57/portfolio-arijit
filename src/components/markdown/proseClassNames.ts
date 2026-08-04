@@ -6,9 +6,9 @@
  * a warm tan accent lifted directly from that reference — applied to both
  * inline code AND bold/strong text (the reference's own "American Chase"-
  * style emphasis), since plain markdown content with no inline code (e.g.
- * profile.md's `**Frontend:**`-style labels) needs somewhere for that accent
+ * whoami.md's `**Frontend:**`-style labels) needs somewhere for that accent
  * to actually show up.
- * MarkdownFileView (profile.md, README.md, RESUME.md, any generic .md) and
+ * MarkdownFileView (whoami.md, README.md, RESUME.md, any generic .md) and
  * the Project Documentation Viewer (cortexa.md, any /projects/<Name>/*.md)
  * both read from this one module, so a future markdown page can't introduce
  * a third variant.

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { namespaceOf } from '../../search/types';
 
 // Sprint 10G: GitHub's generated files stay fully fetchable by id (see
-// useStore.ts's HIDDEN_BROWSE_NAMESPACES note — ProfileSidebar's widgets
+// useStore.ts's HIDDEN_BROWSE_NAMESPACES note — ContributionsTerminal's widgets
 // depend on that) but shouldn't be listed here, since this bypasses the
 // tree Explorer/Terminal already have the folder hidden from.
 const paletteFiles = () => allFiles.filter((file) => namespaceOf(file) !== 'github');

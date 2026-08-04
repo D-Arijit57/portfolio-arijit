@@ -50,7 +50,7 @@ const PHASE_LABEL: Record<Exclude<BuildPhase, 'idle'>, string> = {
 
 /**
  * Sprint 10F.1: RESUME.md's dedicated two-panel view — a custom editor
- * experience (like profile.md's), not the generic markdown renderer for the
+ * experience (like whoami.md's), not the generic markdown renderer for the
  * page as a whole. RIGHT is the Three.js preview of the actual downloadable
  * resume; this has never changed.
  *

@@ -148,6 +148,37 @@ export function createRevealMarkdownComponents(sequenceRef: RefObject<FileReveal
     const i = index++;
     const sequence = sequenceRef.current;
 
+    // Widgets (IdentityTerminals, RecentActivityLog's commit timeline,
+    // ContributionsTerminal, etc.) can run their own long, independently
+    // -timed animations — viewport triggers, multi-second sequences —
+    // wholly unrelated to this *file's* own (much shorter) block-open
+    // stagger. Collapsing the wrapper to a bare fragment once the file's
+    // sequence completes is safe for a plain heading/paragraph, whose own
+    // reveal is driven by this same sequence and is therefore already
+    // finished by then, but for a widget still mid-animation it swaps the
+    // wrapper's element type — motion.div to Fragment — which unmounts
+    // and remounts the widget's whole subtree, killing any in-flight
+    // animation and losing all its state. Widgets always keep the same
+    // motion.div wrapper element, so React only ever updates it, never
+    // remounts what's inside.
+    if (isWidget) {
+      return (
+        <RevealNestingContext.Provider value={true}>
+          <motion.div
+            initial={sequence.isComplete ? false : 'hidden'}
+            animate="visible"
+            custom={i}
+            variants={sequence.unitVariants}
+            onAnimationComplete={
+              !sequence.isComplete && sequence.isLastUnit(i) ? sequence.onLastUnitComplete : undefined
+            }
+          >
+            {renderFence()}
+          </motion.div>
+        </RevealNestingContext.Provider>
+      );
+    }
+
     if (sequence.isComplete) {
       return <RevealNestingContext.Provider value={true}>{renderFence()}</RevealNestingContext.Provider>;
     }

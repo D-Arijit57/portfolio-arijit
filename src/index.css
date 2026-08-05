@@ -83,6 +83,32 @@
   }
 }
 
+/* ContributionsTerminal's scroll-discovery indicator: the arrow (only —
+   the "More output below" text stays fully static) floats gently while the
+   indicator is on screen, the one deliberate exception to this feature's
+   "plays once, no looping" rule. A static hint wasn't registering as a
+   scroll cue at all; this is the conventional treatment for scroll-down
+   affordances specifically because static ones get missed. Kept calm on
+   purpose — slow, no bounce/elastic — so it suggests scrolling rather than
+   demanding attention. The indicator itself (this class included) still
+   only ever plays once per session: see INDICATOR_TRANSITION_MS in
+   ContributionsTerminal.tsx, which removes it from the DOM for good the
+   instant the contribution section is reached. */
+@keyframes discovery-arrow-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(7px); }
+}
+
+.discovery-arrow-float {
+  animation: discovery-arrow-float 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-arrow-float {
+    animation: none;
+  }
+}
+
 /* GitHubContributionGraph: single, non-looping glow on today's cell once
    the reveal sequence settles — a ring, not a scale/color change, so it
    reads as a quiet highlight rather than a notification badge. Color

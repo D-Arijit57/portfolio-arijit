@@ -104,7 +104,17 @@ export function RecentActivityLog({ sourceFileId = 'github:activity' }: RecentAc
             <span className="h-2 w-2 rounded-full bg-[#3fb950]" />
             <span className="ml-2 text-[10px]">git log --oneline</span>
           </div>
-          <div className="px-3 py-2">
+          {/*
+            Bounded height, not a truncated list: on a real GitHub account
+            this can hold far more entries than any fixed test data did, and
+            an unbounded box pushes every section below it (including
+            ContributionsTerminal's scroll-discovery indicator) further down
+            the page than expected — reported as "it's fine in my test data
+            but sits way lower on the real page." Scrolling internally here
+            keeps this section's footprint predictable regardless of how
+            much real activity there is, without hiding any of it.
+          */}
+          <div className="max-h-[220px] overflow-y-auto px-3 py-2">
             {entries.map((entry, i) => {
               const nodeDelay = skip ? 0 : BASE_DELAY_S + i * STEP_S;
               const isLast = i === entries.length - 1;

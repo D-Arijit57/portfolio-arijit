@@ -491,7 +491,7 @@ export const useStore = create<StoreState>((set, get) => ({
     // (WA-08) rather than leaving the restore path undiscoverable.
     if (id === PLAYGROUND_FILE_ID) {
       notificationService.info({
-        title: 'Playground closed',
+        title: 'workspace.yaml closed',
         message: "Run 'playground' in the terminal to restore it.",
         source: 'Editor',
         duration: 6000,

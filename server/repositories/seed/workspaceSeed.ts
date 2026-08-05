@@ -652,55 +652,40 @@ export const workspaceSeed: VirtualFolder = {
   children: [
     {
       id: 'readme',
-      name: 'README.md',
+      name: 'welcome.md',
       type: 'markdown',
-      path: '/README.md',
-      content: `# Welcome to my Journey
+      path: '/welcome.md',
+      content: `# Welcome.
 
-Hi, I'm a developer building modern web experiences.
-Welcome to my interactive portfolio structured as a VS Code workspace.
+This workspace isn't meant to be read top to bottom.
 
-## Getting Started
+Explore it like a real project — every folder, file, and terminal holds a different part of the journey.
 
-Feel free to explore the files and learn more about my background.
-
-- Use the **Explorer** on the left to navigate between sections.
-- Check out the **Terminal** below to interact via commands.
-
-\`\`\`bash
-# Try running this command below:
-npm run about
+\`\`\`welcome-checklist
 \`\`\`
 
-> **Quick Start**
->
-> This workspace is interactive.
->
-> Run \`help\` in the terminal below to begin exploring the portfolio.
+\`\`\`welcome-commands
+\`\`\`
 `,
     } as VirtualFile,
     {
       id: 'playground',
-      name: 'playground.py',
-      type: 'python',
-      path: '/playground.py',
-      content: `from dataclasses import dataclass
+      name: 'workspace.yaml',
+      type: 'yaml',
+      path: '/workspace.yaml',
+      content: `workspace:
+  mode: interactive
 
-@dataclass
-class Engineer:
-    name: str
-    focus: list[str]
+navigation:
+  explorer: enabled
+  terminal: enabled
 
-me = Engineer(
-    name="Arijit Das",
-    focus=[
-        "Full Stack",
-        "AI",
-        "System Design"
-    ]
-)
+experience:
+  animations: enabled
 
-print(f"Welcome to {me.name}'s workspace.")
+goal:
+  discover
+  explore
 `,
     } as VirtualFile,
     {

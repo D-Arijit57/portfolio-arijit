@@ -50,7 +50,7 @@ export function useRouterSync() {
     if (window.location.pathname !== '/' && window.location.pathname.startsWith('/journey')) {
       handlePopState();
     } else if (window.location.pathname === '/') {
-      window.history.replaceState(null, '', '/journey/readme');
+      window.history.replaceState(null, '', '/journey/welcome');
     }
     setInitialRouteResolved(true);
 

@@ -12,10 +12,10 @@ import type { CommandDefinition } from '../types';
  */
 export const playgroundCommand: CommandDefinition = {
   name: 'playground',
-  description: 'Open the playground editor beside the current file',
+  description: 'Open the workspace config beside the current file',
   category: 'workspace',
   execute: (ctx) => {
     ctx.openToSide('playground');
-    return { output: [{ type: 'file-link', fileId: 'playground', label: 'Opened playground.py' }] };
+    return { output: [{ type: 'file-link', fileId: 'playground', label: 'Opened workspace.yaml' }] };
   },
 };

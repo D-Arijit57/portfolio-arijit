@@ -17,7 +17,7 @@ const MIN_DESCRIPTION_WORDS = 2;
  * lists (documentation/featureList.ts), just keyed on a leading `<a>`
  * instead of a leading `<strong>`. This is what powers the "Continue
  * Exploring" section, but is entirely generic — any future project doc
- * bullet list shaped `[Title](target) — description` becomes a LinkCardGrid,
+ * bullet list shaped `[Title](target) — description` becomes a LinkFileList,
  * whether the target is another workspace file or an external URL.
  */
 export function tryExtractLinkCards(node: HastLikeNode): LinkCardItem[] | undefined {

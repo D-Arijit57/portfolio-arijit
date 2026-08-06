@@ -109,6 +109,29 @@
   }
 }
 
+/* ProblemSolutionTerminals' build-in-progress indicator (Iteration 5 §4):
+   three chevrons pulsing in a staggered wave (see each span's own
+   animation-delay in ProblemSolutionTerminals.tsx) to read as motion
+   flowing from the Problem terminal toward the Solution terminal — a
+   second deliberate looping exception alongside discovery-arrow-float
+   above. Stops for good once the build reaches "done": BuildStatus swaps
+   to a different element (Solution Found) entirely rather than pausing
+   this animation in place. */
+@keyframes build-flow-pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+
+.build-flow-chevron {
+  animation: build-flow-pulse 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-flow-chevron {
+    animation: none;
+  }
+}
+
 /* GitHubContributionGraph: single, non-looping glow on today's cell once
    the reveal sequence settles — a ring, not a scale/color change, so it
    reads as a quiet highlight rather than a notification badge. Color

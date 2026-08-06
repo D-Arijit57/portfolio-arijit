@@ -3,10 +3,11 @@ import type { Components } from 'react-markdown';
 import { tryExtractFeatureList } from '../../documentation/featureList';
 import { tryExtractLinkCards } from '../../documentation/linkCards';
 import { tryDetectCallout } from '../../documentation/callout';
-import type { HastLikeNode } from '../../documentation/hastLike';
+import { collectText, type HastLikeNode } from '../../documentation/hastLike';
 import { FeatureGrid } from './FeatureGrid';
-import { LinkCardGrid } from './LinkCardGrid';
+import { LinkFileList } from './LinkFileList';
 import { Callout } from './Callout';
+import { TransitionGlyph } from './TransitionGlyph';
 import { CodeBlock } from '../markdown/CodeBlock';
 import { InlineCode } from '../markdown/InlineCode';
 import { PROSE_CLASSNAMES } from '../markdown/proseClassNames';
@@ -27,6 +28,13 @@ import { widgetForLanguage } from './documentationWidgets';
  * the *current* document's own folder — `basePath` is closed over here
  * rather than threaded through every component's props individually.
  */
+// Documentation Redesign: a subtle glyph (its own standalone paragraph, blank-
+// line-separated in the source markdown) between two sections — e.g. Problem
+// Statement's body ending in a bare "↓" before the next section begins.
+// Recognizing a small fixed set rather than any single character keeps this
+// intentional (a real "—" or "-" em-dash paragraph should never be swallowed).
+const TRANSITION_GLYPHS = new Set(['→', '↓', '===>']);
+
 export function createDocumentationComponents(basePath: string): Components {
   return {
     // h1/h2 are rare in section body markdown (the document's title comes
@@ -51,7 +59,11 @@ export function createDocumentationComponents(basePath: string): Components {
     h6({ children }) {
       return <h6 className={PROSE_CLASSNAMES.h6}>{children}</h6>;
     },
-    p({ children }) {
+    p({ node, children }) {
+      const text = node ? collectText(node as unknown as HastLikeNode).trim() : '';
+      if (TRANSITION_GLYPHS.has(text)) {
+        return <TransitionGlyph glyph={text} />;
+      }
       return <p className={PROSE_CLASSNAMES.p}>{children}</p>;
     },
     a({ href, children }) {
@@ -80,7 +92,7 @@ export function createDocumentationComponents(basePath: string): Components {
       if (featureItems) return <FeatureGrid items={featureItems} />;
 
       const linkItems = rawNode ? tryExtractLinkCards(rawNode) : undefined;
-      if (linkItems) return <LinkCardGrid items={linkItems} basePath={basePath} />;
+      if (linkItems) return <LinkFileList items={linkItems} basePath={basePath} />;
 
       return <ul className={PROSE_CLASSNAMES.ul}>{children}</ul>;
     },

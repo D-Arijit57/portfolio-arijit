@@ -1,4 +1,4 @@
-import { Book, AlertCircle, Sparkles, Network, Cpu, GitBranch, Gauge, Rocket, FileText, type LucideIcon } from 'lucide-react';
+import { Book, AlertCircle, Lightbulb, Sparkles, Network, Cpu, GitBranch, Gauge, Rocket, FileText, type LucideIcon } from 'lucide-react';
 import { colorForString } from '../manifest/colorHash';
 
 /**
@@ -16,6 +16,7 @@ export interface DocumentationSectionVisual {
 const KEYWORD_ICONS: [pattern: RegExp, icon: LucideIcon][] = [
   [/overview/i, Book],
   [/problem/i, AlertCircle],
+  [/solution/i, Lightbulb],
   [/feature/i, Sparkles],
   [/architecture/i, Network],
   [/technolog|stack/i, Cpu],

@@ -156,38 +156,39 @@ experiences:
 // src/content/workspaceSeed.ts's own copy — same duplication convention as
 // RFC_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above. Update both by
 // hand together.
+//
+// Documentation Redesign (Iteration 2): see src/content/workspaceSeed.ts's
+// own comment on this constant for the full rationale — metadata trimmed
+// to Status only, Problem Statement + Solution collapse into the
+// `problem-solution-terminals` widget, badges switched to lowercase
+// package-style names. No new capability described anywhere on this page.
 const CORTEXA_DOC_MARKDOWN = `---
 summary: A technical interview platform that unifies scheduling, live video, and an integrated coding environment into a single, connected workflow.
-badges: [Next.js, React, TypeScript, Clerk, Convex, Stream, Monaco Editor]
-highlights: [Real-time state via Convex subscriptions, Managed auth & RBAC via Clerk, Managed video & recording via Stream, Domain-separated business logic across 5 bounded contexts]
-metadata: [Status: Production Ready, Architecture: Service-Composed, Frontend: Next.js, Backend: Convex, Authentication: Clerk, Realtime: Stream + Convex]
+badges: [nextjs, react, typescript, clerk, convex, stream, monaco]
+highlights: [Convex-backed real-time sync, Clerk-managed role-based access, Automated code judging, Stream-managed video & recording, Service-composed across 5 bounded contexts]
+metadata: [Status: Deployed]
 ---
 
 # Cortexa
 
-## Overview
-
-Cortexa is a technical interview platform that unifies scheduling, live video, and an integrated coding environment into a single, connected workflow. It replaces the common pattern of stitching together a calendar tool, a video conferencing app, and a separate code-sharing tool for each interview with one system that understands an interview as a first-class object — from booking through evaluation.
-
-## Problem Statement
-
-Conducting a structured technical interview typically means coordinating several disconnected tools — a scheduler, a video call, and a separate code editor — followed by manual note-taking and ad hoc review after the fact. This fragmentation makes interviews harder to run consistently and leaves code evaluation entirely up to the interviewer's real-time judgment. Cortexa keeps scheduling, the live session, the coding workspace, and the resulting artifacts inside one connected system.
+\`\`\`problem-solution-terminals
+\`\`\`
 
 ## Core Features
 
-- **Interview scheduling** — booking and managing interview time slots.
-- **Live interviews** — video, audio, and screen sharing for the interviewer/candidate session, with recording.
-- **Integrated coding workspace** — an in-browser, multi-language code editor embedded directly in the interview session.
-- **Automated code evaluation** — submitted code is run against test cases and produces a verdict, rather than relying solely on the interviewer's manual review.
-- **Recording management** — interview recordings are retained and associated with their interview for later review.
-- **Authenticated access with role-based permissions** — interviewers and candidates operate under managed identity and access control.
+- **Interview scheduling** — book and manage interview time slots.
+- **Live interviews** — video, audio, and screen sharing, with recording, for the interviewer/candidate session.
+- **Integrated coding workspace** — an in-browser, multi-language code editor built into the interview session.
+- **Automated code evaluation** — submitted code runs against real test cases and returns a verdict.
+- **Recording management** — interview recordings are retained and linked back to their interview.
+- **Role-based access** — interviewers and candidates operate under managed identity and access control.
 
 ## Continue Exploring
 
-- [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
-- [Technology Manifest](manifest.yaml) — Browse the complete categorized technology inventory.
-- [GitHub Repository](https://github.com/D-Arijit57) — Explore the implementation and source code.
-- [Live Demo](https://cortexa-eight.vercel.app/) — Experience Cortexa in action.
+- [architecture.mmd](architecture.mmd) — Interactive system architecture diagram.
+- [manifest.yaml](manifest.yaml) — Categorized technology inventory.
+- [repository.git](https://github.com/D-Arijit57) — Source code on GitHub.
+- [demo.live](https://cortexa-eight.vercel.app/) — Live, deployed instance of the app.
 `;
 
 // Manifest Viewer (Engineering Manifest Explorer): every top-level key

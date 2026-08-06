@@ -2,44 +2,63 @@ import React from 'react';
 
 /**
  * Owns the single overflow-y-auto scroll container (data-doc-scroll-root,
- * read by both TableOfContents' IntersectionObserver and ReadingProgress)
- * and the responsive two-column grid. `items-start` keeps the sidebar's
+ * read by TableOfContents' own IntersectionObserver) and the responsive
+ * two-column grid. `items-start` keeps the sidebar's
  * grid cell from stretching to the (taller) main column's height, which
  * would otherwise break `sticky`'s effective range. On narrow widths the
  * grid collapses to one column and `sticky` naturally becomes inert.
+ *
+ * Layout Refinement (Iteration 4): `intro` renders full-bleed above the
+ * main/sidebar grid instead of sharing the narrower main column — content
+ * placed there (a doc's markdown intro, before any H2) gets the whole
+ * max-w-6xl width rather than main's width-minus-240px-sidebar, which is
+ * what let Cortexa's two problem/solution terminals grow from a cramped,
+ * portrait-ish pair into proper side-by-side panels. Optional: a doc with
+ * no intro content passes nothing and the grid sits directly under the
+ * hero/metadata exactly as before.
  */
 export function DocumentationLayout({
   hero,
   metadata,
+  intro,
   main,
   sidebar,
   containerRef,
 }: {
   hero: React.ReactNode;
   metadata?: React.ReactNode;
+  intro?: React.ReactNode;
   main: React.ReactNode;
   sidebar: React.ReactNode;
   /** Sprint: Workspace-Wide File Opening Animation System — lets the reveal
    * engine's interruption listeners attach to the same scroll container
-   * TableOfContents/ReadingProgress already key off of, instead of a second
-   * ref. Optional so every other caller (none currently) stays unaffected. */
+   * TableOfContents already keys off of, instead of a second ref. Optional
+   * so every other caller (none currently) stays unaffected. */
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   return (
     <div
       data-doc-scroll-root
       ref={containerRef}
-      className="h-full w-full overflow-y-auto bg-[#1e1e1e] p-8 font-sans"
+      // Interaction Polish (Iteration 5 §1): overflow-x-hidden as a hard
+      // backstop — nothing on this page should ever be able to force a
+      // horizontal scrollbar, regardless of what a future doc's content
+      // does. Nested horizontally-scrollable content (e.g. a wide markdown
+      // table's own overflow-x-auto wrapper, PROSE_CLASSNAMES.tableWrapper)
+      // is unaffected: this only clips content that pokes past this
+      // container's own box, not a descendant's independent scroll area.
+      className="h-full w-full overflow-x-hidden overflow-y-auto bg-[#1e1e1e] p-8 font-sans"
       // Markdown typography redesign: Inter, scoped to this project-doc
       // subtree only (see MarkdownFileView.tsx's identical override) —
       // covers hero/metadata/main/sidebar alike, so the whole documentation
       // page reads as one consistent system.
       style={{ '--font-sans': "'Inter', ui-sans-serif, system-ui, sans-serif" } as React.CSSProperties}
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         {hero}
         {metadata}
-        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_280px]">
+        {intro}
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-[1fr_240px]">
           <div className="min-w-0">{main}</div>
           {sidebar}
         </div>

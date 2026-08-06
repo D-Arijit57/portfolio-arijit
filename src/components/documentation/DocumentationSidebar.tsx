@@ -1,23 +1,36 @@
 import React from 'react';
 import { Sparkle } from 'lucide-react';
-import type { DocumentationFrontmatter, DocumentationSectionModel } from '../../documentation/types';
-import { ReadingProgress } from './ReadingProgress';
+import type { DocumentationSectionModel } from '../../documentation/types';
 import { TableOfContents } from './TableOfContents';
 
 /**
  * Two independent, static (no entrance animation — this is chrome, not
- * content) sections: Project Highlights from frontmatter, and reading
- * position + TOC. Returns null if neither has anything to show, so an
- * unadorned doc doesn't get an empty sidebar column.
+ * content) sections: Engineering Notes, and the Outline. Returns null if
+ * neither has anything to show, so an unadorned doc doesn't get an empty
+ * sidebar column.
+ *
+ * Workspace Polish (Iteration 7 §4): dropped the reading-progress bar that
+ * used to sit above the Outline — a horizontal "you are X% through this
+ * page" indicator is a blog/docs-site convention (MkDocs, Docusaurus, this
+ * site's own old Contents panel) with no equivalent in a code editor's own
+ * Outline panel, and its blue fill was the specific "documentation
+ * underline" this iteration's brief called out to remove. The Outline's own
+ * functionality (jump to section, active-section highlight) is unaffected.
+ *
+ * Documentation Redesign (Iteration 3): `highlights` is now an explicit prop
+ * rather than raw frontmatter — Cortexa's own highlights are paired with its
+ * Core Features section instead (EngineeringNotesColumn.tsx), so
+ * ProjectDocumentationViewer.tsx passes an empty array here for that one
+ * doc; every other project doc still gets its highlights rendered in this
+ * sidebar exactly as before.
  */
 export function DocumentationSidebar({
-  frontmatter,
+  highlights,
   sections,
 }: {
-  frontmatter: DocumentationFrontmatter;
+  highlights: string[];
   sections: DocumentationSectionModel[];
 }) {
-  const highlights = Array.isArray(frontmatter.highlights) ? frontmatter.highlights : [];
   if (highlights.length === 0 && sections.length === 0) return null;
 
   return (
@@ -25,7 +38,7 @@ export function DocumentationSidebar({
       {highlights.length > 0 && (
         <div>
           <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[#858585]">
-            Project Highlights
+            Engineering Notes
           </div>
           <div className="flex flex-col gap-2">
             {highlights.map((highlight) => (
@@ -43,7 +56,6 @@ export function DocumentationSidebar({
 
       {sections.length > 0 && (
         <div>
-          <ReadingProgress />
           <TableOfContents sections={sections} />
         </div>
       )}

@@ -14,7 +14,7 @@ const EXTERNAL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
  * or `manifest.yaml` resolves to that sibling VirtualFile generically (no
  * hardcoded project/file ids); a `scheme://` URL is always external. A
  * relative name that doesn't match any sibling file degrades to
- * 'unresolved' — still rendered as a link (see LinkCardGrid), just without
+ * 'unresolved' — still rendered as a link (see LinkFileList), just without
  * in-app navigation, rather than being silently dropped.
  */
 export function resolveLinkTarget(href: string, basePath: string): LinkTarget {

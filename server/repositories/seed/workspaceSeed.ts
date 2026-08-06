@@ -655,37 +655,22 @@ export const workspaceSeed: VirtualFolder = {
       name: 'welcome.md',
       type: 'markdown',
       path: '/welcome.md',
-      content: `# Welcome.
-
-This workspace isn't meant to be read top to bottom.
-
-Explore it like a real project — every folder, file, and terminal holds a different part of the journey.
-
-\`\`\`welcome-checklist
-\`\`\`
-
-\`\`\`welcome-commands
+      content: `\`\`\`welcome-intro
 \`\`\`
 `,
     } as VirtualFile,
     {
-      id: 'playground',
-      name: 'workspace.yaml',
-      type: 'yaml',
-      path: '/workspace.yaml',
-      content: `workspace:
-  mode: interactive
-
-navigation:
-  explorer: enabled
-  terminal: enabled
-
-experience:
-  animations: enabled
-
-goal:
-  discover
-  explore
+      id: 'startup-log',
+      name: 'startup.log',
+      type: 'log',
+      path: '/startup.log',
+      content: `Initializing workspace...
+Loading explorer...
+Loading projects...
+Loading experience...
+Loading animations...
+Git repository detected...
+Workspace ready.
 `,
     } as VirtualFile,
     {

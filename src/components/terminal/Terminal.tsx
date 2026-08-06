@@ -3,7 +3,6 @@ import { useStore } from '../../store/useStore';
 import { getPrompt } from '../../terminal/prompt';
 import { OutputRenderer } from './OutputRenderer';
 import { ResizeHandle } from '../shared/ResizeHandle';
-import { useOnboardingTerminalTyping } from '../../hooks/useOnboardingTerminalTyping';
 
 /**
  * UI shell only (TERMINAL_DESIGN.md §1, §6). Collects input, displays
@@ -14,8 +13,6 @@ export function Terminal() {
   const { terminalState, setTerminalInput, submitTerminalCommand, navigateHistory, setTerminalHeight } = useStore();
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useOnboardingTerminalTyping(inputRef);
 
   useEffect(() => {
     if (bottomRef.current) {

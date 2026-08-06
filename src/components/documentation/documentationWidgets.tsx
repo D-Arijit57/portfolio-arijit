@@ -5,8 +5,7 @@ import { AboutSection } from '../shared/AboutSection';
 import { AboutActivityRow } from '../shared/AboutActivityRow';
 import { GitHubContributionGraph } from '../shared/GitHubContributionGraph';
 import { RecentActivityLog } from '../shared/RecentActivityLog';
-import { WelcomeChecklist } from '../shared/WelcomeChecklist';
-import { WelcomeCommands } from '../shared/WelcomeCommands';
+import { WelcomeIntro } from '../shared/WelcomeIntro';
 
 /**
  * Extension point for embedding rich widgets inside ordinary markdown files,
@@ -31,8 +30,7 @@ const MARKDOWN_WIDGETS: Record<string, React.ComponentType> = {
   'about-activity-row': AboutActivityRow,
   'github-contribution-calendar': GitHubContributionGraph,
   'github-recent-activity': RecentActivityLog,
-  'welcome-checklist': WelcomeChecklist,
-  'welcome-commands': WelcomeCommands,
+  'welcome-intro': WelcomeIntro,
 };
 
 export function widgetForLanguage(className: string | undefined): React.ComponentType | undefined {

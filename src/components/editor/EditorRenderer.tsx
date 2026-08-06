@@ -8,6 +8,7 @@ import { isManifestFile } from '../../manifest/fileMatch';
 import { isProjectDocFile } from '../../documentation/fileMatch';
 import { ProjectDocumentationViewer } from '../documentation/ProjectDocumentationViewer';
 import { MarkdownFileView } from './MarkdownFileView';
+import { StartupLogViewer } from './StartupLogViewer';
 import { ShikiEditor } from './ShikiEditor';
 import { ResumeWorkspace } from '../resume/ResumeWorkspace';
 import { resolveVisualization } from '../../graph/registry/visualizationRegistry';
@@ -31,6 +32,12 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   // Animation System sprint, which drives every other renderer below.
   if (file.id === 'resume') {
     return <ResumeWorkspace file={file} />;
+  }
+
+  // startup.log owns its own animated boot-log renderer — see
+  // StartupLogViewer.tsx and lib/startupLog.ts.
+  if (file.id === 'startup-log') {
+    return <StartupLogViewer file={file} />;
   }
 
   // Sprint: Workspace-Wide File Opening Animation System — each renderer

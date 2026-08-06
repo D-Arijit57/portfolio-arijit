@@ -12,7 +12,7 @@ import { resumeCommand } from './resume';
 import { projectsCommand } from './projects';
 import { contactCommand } from './contact';
 import { themeCommand } from './theme';
-import { playgroundCommand } from './playground';
+import { startupCommand } from './startup';
 
 /**
  * The one file touched to add a new command (TERMINAL_DESIGN.md §5, §15).
@@ -32,5 +32,5 @@ export function registerBuiltinCommands(): void {
   registerCommand(projectsCommand);
   registerCommand(contactCommand);
   registerCommand(themeCommand);
-  registerCommand(playgroundCommand);
+  registerCommand(startupCommand);
 }

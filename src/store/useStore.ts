@@ -63,11 +63,11 @@ registerBuiltinCommands();
 const initialWorkspaceFiles = getAllFiles(workspaceSeed);
 buildIndex(initialWorkspaceFiles.filter(isBrowsable));
 
-// Sprint 10C.1: the two fileIds the README+Playground onboarding pairing is
+// Sprint 10C.1: the two fileIds the README+startup.log onboarding pairing is
 // built from — named once here so openFile()'s onboarding logic and the
 // initial boot state can't drift out of sync with each other.
 const README_FILE_ID = 'readme';
-const PLAYGROUND_FILE_ID = 'playground';
+const STARTUP_LOG_FILE_ID = 'startup-log';
 
 const MAX_TERMINAL_HISTORY = 200;
 
@@ -178,7 +178,7 @@ interface StoreState {
   // true; irrelevant to (and untouched by) single-pane layout.
   splitRatio: number;
   // Sprint 10C: the fileId of the tab that caused an *automatic* split via
-  // openToSide() (e.g. Playground), or null if the current split is either
+  // openToSide() (e.g. startup.log), or null if the current split is either
   // absent or was turned on manually (Command Palette's "Toggle Split
   // Editor"). closeFile() only reverts editorSplit back to false when the
   // closed tab is the one that owns the split — a manual split stays put
@@ -249,11 +249,11 @@ export const useStore = create<StoreState>((set, get) => ({
   activeFileId: README_FILE_ID,
   // Sprint 10C.1: the boot state is exactly what openFile(README_FILE_ID)
   // itself would produce (see its onboarding branch below) — README is
-  // always shown paired with Playground, on boot and any time the user
+  // always shown paired with startup.log, on boot and any time the user
   // navigates back to it.
   openedTabs: [
     { id: 'tab-readme', fileId: README_FILE_ID, pane: 'left' },
-    { id: 'tab-playground', fileId: PLAYGROUND_FILE_ID, pane: 'right' },
+    { id: 'tab-startup-log', fileId: STARTUP_LOG_FILE_ID, pane: 'right' },
   ],
   explorerState: {
     isOpen: true,
@@ -297,11 +297,11 @@ export const useStore = create<StoreState>((set, get) => ({
   bootActive: true,
   editorSplit: true,
   splitRatio: 0.5,
-  // 'playground' owns the split whether it got there via the README
+  // startup.log owns the split whether it got there via the README
   // onboarding pairing (boot, or openFile(README_FILE_ID) later) or via the
-  // manual `playground` command (openToSide) — closeFile() collapses to a
+  // manual `startup` command (openToSide) — closeFile() collapses to a
   // single editor either way with no extra branching required.
-  splitTrigger: PLAYGROUND_FILE_ID,
+  splitTrigger: STARTUP_LOG_FILE_ID,
 
   workspaceTree: workspaceSeed,
   workspaceFiles: initialWorkspaceFiles,
@@ -329,16 +329,16 @@ export const useStore = create<StoreState>((set, get) => ({
   // rather than as scattered README checks in Explorer/Search/etc.
   openFile: (id, pane) => set((state) => {
     // Landing on README always (re)establishes the onboarding pairing with
-    // Playground, replacing whatever the workspace was showing — the same
+    // startup.log, replacing whatever the workspace was showing — the same
     // outcome whether this is the very first render or a return visit.
     if (id === README_FILE_ID) {
       const ts = Date.now();
       return {
         editorSplit: true,
-        splitTrigger: PLAYGROUND_FILE_ID,
+        splitTrigger: STARTUP_LOG_FILE_ID,
         openedTabs: [
           { id: `tab-${ts}-readme`, fileId: README_FILE_ID, pane: 'left' },
-          { id: `tab-${ts}-playground`, fileId: PLAYGROUND_FILE_ID, pane: 'right' },
+          { id: `tab-${ts}-startup-log`, fileId: STARTUP_LOG_FILE_ID, pane: 'right' },
         ],
         activeFileId: README_FILE_ID,
       };
@@ -409,15 +409,15 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // Leaving the README+Playground onboarding pairing for any other file
-    // quietly closes Playground and returns to a single editor. Derived
+    // Leaving the README+startup.log onboarding pairing for any other file
+    // quietly closes startup.log and returns to a single editor. Derived
     // from the current tabs rather than a stored flag, so it only fires for
-    // this specific pairing and never collapses a split the `playground`
+    // this specific pairing and never collapses a split the `startup`
     // command created around some other file (openToSide()'s own
     // splitTrigger ownership is untouched by this branch).
     const isReadmeOnboarding = state.editorSplit &&
       state.openedTabs.some(t => t.fileId === README_FILE_ID) &&
-      state.openedTabs.some(t => t.fileId === PLAYGROUND_FILE_ID);
+      state.openedTabs.some(t => t.fileId === STARTUP_LOG_FILE_ID);
 
     if (isReadmeOnboarding) {
       return {
@@ -442,7 +442,7 @@ export const useStore = create<StoreState>((set, get) => ({
   }),
 
   // Sprint 10C: the one explicit "split for a reason" action — used today by
-  // the `playground` terminal command, and the mechanism a future "Open to
+  // the `startup` terminal command, and the mechanism a future "Open to
   // Side" command or Atlas comparison view would call too. Unlike openFile(),
   // this never replaces the current tab: it turns split on if needed and
   // opens the file into the *other* pane, beside whatever's active. If a
@@ -486,13 +486,13 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     });
 
-    // WA-08: closing the playground is the one file-close producers were
-    // asked to surface — points the user at the `playground` command
+    // WA-08: closing startup.log is the one file-close producers were
+    // asked to surface — points the user at the `startup` command
     // (WA-08) rather than leaving the restore path undiscoverable.
-    if (id === PLAYGROUND_FILE_ID) {
+    if (id === STARTUP_LOG_FILE_ID) {
       notificationService.info({
-        title: 'workspace.yaml closed',
-        message: "Run 'playground' in the terminal to restore it.",
+        title: 'startup.log closed',
+        message: "Run 'startup' in the terminal to restore it.",
         source: 'Editor',
         duration: 6000,
       });

@@ -17,6 +17,7 @@ const FileIconMap: Record<string, React.ReactNode> = {
   json: <FileJson size={16} className="text-[#cbcb41]" />,
   yaml: <FileJson size={16} className="text-[#cb3837]" />,
   shell: <TerminalIcon size={16} className="text-[#4d5a5e]" />,
+  log: <TerminalIcon size={16} className="text-[#4d5a5e]" />,
   mermaid: <FileText size={16} className="text-[#ff3670]" />,
   default: <FileIcon size={16} className="text-[#cccccc]" />,
 };

@@ -77,8 +77,8 @@ export function buildConstellationGraph(model: ManifestModel): ConstellationGrap
   const idByName = new Map<string, string>();
 
   model.categories.forEach((category, categoryIndex) => {
-    const color = constellationColorForCategory(categoryIndex);
-    categories.push({ key: category.key, label: category.title, color, count: category.technologies.length });
+    const categoryColor = constellationColorForCategory(categoryIndex);
+    categories.push({ key: category.key, label: category.title, color: categoryColor, count: category.technologies.length });
 
     category.technologies.forEach((tech) => {
       const id = `tech:${category.key}:${tech.technology}`;
@@ -93,7 +93,10 @@ export function buildConstellationGraph(model: ManifestModel): ConstellationGrap
         categoryKey: category.key,
         categoryLabel: category.title,
         categoryIndex,
-        color,
+        // Explicit per-technology color wins when a manifest authors one;
+        // every manifest that doesn't (Cortexa's, still) gets exactly the
+        // category-hash color it always has.
+        color: tech.color ?? categoryColor,
         tier: tech.importance ?? 'supporting',
         position: tech.position,
       });

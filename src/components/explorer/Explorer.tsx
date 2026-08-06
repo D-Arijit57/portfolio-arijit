@@ -96,26 +96,32 @@ function FolderNode({ node, level, staggerReveal }: { node: VirtualFolder; level
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            {node.children.map((child, i) => {
-              const content = 'content' in child
-                ? <FileNode node={child as VirtualFile} level={level + 1} />
-                : <FolderNode node={child as VirtualFolder} level={level + 1} staggerReveal={staggerReveal} />;
+            {node.children
+              // startup.log is a boot-sequence artifact, always paired
+              // statically with welcome.md's right pane (see useStore.ts's
+              // openedTabs/splitTrigger) — never a file the user should
+              // browse to or open independently via the Explorer tree.
+              .filter((child) => child.id !== 'startup-log')
+              .map((child, i) => {
+                const content = 'content' in child
+                  ? <FileNode node={child as VirtualFile} level={level + 1} />
+                  : <FolderNode node={child as VirtualFolder} level={level + 1} staggerReveal={staggerReveal} />;
 
-              if (!staggerReveal) {
-                return <React.Fragment key={child.id}>{content}</React.Fragment>;
-              }
+                if (!staggerReveal) {
+                  return <React.Fragment key={child.id}>{content}</React.Fragment>;
+                }
 
-              return (
-                <motion.div
-                  key={child.id}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.2, delay: 0.05 + i * 0.04, ease: 'easeOut' }}
-                >
-                  {content}
-                </motion.div>
-              );
-            })}
+                return (
+                  <motion.div
+                    key={child.id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.2, delay: 0.05 + i * 0.04, ease: 'easeOut' }}
+                  >
+                    {content}
+                  </motion.div>
+                );
+              })}
           </motion.div>
         )}
       </AnimatePresence>

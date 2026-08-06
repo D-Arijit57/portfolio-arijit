@@ -130,8 +130,16 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
   // node/edge highlighting from a timer instead of the mouse, reusing the
   // exact same PathState/opacity pipeline hover already uses.
   const [mode, setMode] = useState<CanvasMode>('normal');
-  const [selectedTraceName, setSelectedTraceName] = useState<string>(Object.keys(TRACE_WORKFLOWS)[0]);
-  const traceWorkflow = TRACE_WORKFLOWS[selectedTraceName] ?? [];
+  const projectTraceWorkflows = model ? TRACE_WORKFLOWS[model.projectKey] ?? {} : {};
+  const [selectedTraceName, setSelectedTraceName] = useState<string>(Object.keys(projectTraceWorkflows)[0] ?? '');
+  // A trace name from a different project must never bleed across a
+  // project switch, the same "reset on model change" rule the
+  // hover/select-node effect above already follows.
+  useEffect(() => {
+    setSelectedTraceName(Object.keys(projectTraceWorkflows)[0] ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model]);
+  const traceWorkflow = projectTraceWorkflows[selectedTraceName] ?? [];
   // Hovering/selecting a node takes precedence over an in-progress trace —
   // the user is inspecting something, so the trace timer pauses in place
   // (not resets) and resumes once activeNodeId clears.
@@ -396,7 +404,7 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
             title="Trace workflow"
             className="rounded border border-[#3c3c3c] bg-[#1e1e1e] px-1.5 py-1 text-[12px] text-[#cccccc] outline-none"
           >
-            {Object.keys(TRACE_WORKFLOWS).map((name) => (
+            {Object.keys(projectTraceWorkflows).map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>

@@ -1,6 +1,7 @@
 import { VirtualFolder, VirtualFile, ExplorerNode } from '../types';
 import { modelToMermaid } from '../architecture/renderers/mermaidRenderer';
 import { cortexaArchitecture } from './architecture/cortexa';
+import { rakshachakraArchitecture } from './architecture/rakshachakra';
 import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
 import { workHistory } from './workHistory';
 
@@ -54,6 +55,12 @@ Learn More
 // above — server/repositories/seed/workspaceSeed.ts can't import from src/,
 // so its copy is a literal string kept in sync by hand.
 const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
+
+// Same generated-not-hand-written relationship as CORTEXA_ARCHITECTURE_MERMAID
+// above, from src/content/architecture/rakshachakra.ts. Same duplication
+// caveat — server/repositories/seed/workspaceSeed.ts's copy is a literal
+// string kept in sync by hand.
+const RAKSHACHAKRA_ARCHITECTURE_MERMAID = modelToMermaid(rakshachakraArchitecture);
 
 // Career Roadmap redesign: work_history.yaml's displayed source is
 // generated from the canonical WorkExperience[] (src/content/workHistory.ts),
@@ -255,6 +262,183 @@ const CORTEXA_MANIFEST_YAML = `{
       "tags": ["Managed Service"],
       "importance": "supporting",
       "position": { "x": 0.19, "y": -0.14 }
+    }
+  ]
+}
+`;
+
+// Rakshachakra: hand-authored project documentation, same shape/convention
+// as CORTEXA_DOC_MARKDOWN above (frontmatter + Overview/Problem Statement/
+// Core Features/Continue Exploring) — kept textually identical to server/
+// repositories/seed/workspaceSeed.ts's own copy, update both by hand
+// together. Continue Exploring has 3 link-cards, not Cortexa's 4: no live
+// demo URL exists for this project, and inventing one isn't warranted.
+const RAKSHACHAKRA_DOC_MARKDOWN = `---
+summary: A Flutter-based mobile banking demo built around behavior-based continuous authentication — verifying identity throughout a session, not just at login.
+badges: [Flutter, Dart, Firebase, Cloud Firestore, Python, Provider, local_auth]
+highlights: [Continuous behavioral risk scoring across the full session, 25+ behavioral signals feeding a live risk model, Adaptive step-up authentication by risk tier, Cloud-hosted model retraining as behavior evolves]
+metadata: [Status: Demo / Prototype, Architecture: Layered (Presentation/Application/Data/ML), Platform: Flutter, Backend: Firebase + Python ML Service, Authentication: Continuous Behavioral + Biometric, Risk Engine: Cloud-Hosted Model]
+---
+
+# Rakshachakra
+
+## Overview
+
+Rakshachakra is a Flutter-based mobile banking demo built around behavior-based continuous authentication. Instead of verifying identity once at login, it continuously evaluates whether live touch, motion, and device behavior still match the enrolled user's profile, and adjusts the security response in real time based on the resulting risk score. It replaces the common pattern of a single login checkpoint with a system that treats identity as something to be continuously re-confirmed throughout a session.
+
+## Problem Statement
+
+Most mobile banking apps authenticate a user once at login and then trust that session until it expires or the user logs out — leaving no mechanism to detect a stolen or hijacked session where the underlying behavior no longer matches the real user. Rakshachakra keeps behavioral signal collection, feature extraction, risk inference, and the resulting security response inside one continuously running pipeline, rather than treating authentication as a single gate the user passes through once.
+
+## Core Features
+
+- **Continuous behavioral authentication** — identity is re-evaluated throughout the session against touch, motion, and device signals, not just once at login.
+- **Behavioral feature extraction** — raw sensor and interaction events are transformed into 25+ behavioral features describing how the current user is interacting with the device.
+- **Real-time risk inference** — extracted features are scored against the enrolled behavioral profile to produce a live risk/confidence score.
+- **Adaptive response engine** — security response scales with risk: low risk continues normally, medium risk triggers step-up authentication, high risk locks or restricts the session.
+- **Cloud-backed model retraining** — the behavioral model evolves over time as legitimate usage patterns change, via a dedicated retraining pipeline.
+- **Local and biometric authentication support** — device-level biometric and local authentication checks back the behavioral layer.
+
+## Continue Exploring
+
+- [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
+- [Technology Manifest](manifest.yaml) — Browse the complete categorized technology inventory.
+- [GitHub Repository](https://github.com/D-Arijit57/Rakshachakra) — Explore the implementation and source code.
+`;
+
+// Rakshachakra's Manifest Viewer source — same JSON-flow-style-inside-a-
+// .yaml-file convention as CORTEXA_MANIFEST_YAML above (see that constant's
+// comment for why: parseManifest() uses JSON.parse(), not a real YAML
+// parser).
+//
+// Layout v5 — Crystal Lattice (final direction after 4 rejected passes:
+// dense 20-node lattice, curated 8-node tree, Orion). Per explicit user
+// direction, this is NOT a real-world constellation reference at all —
+// silhouette (a gem/crystal reading) took precedence over literal
+// dependency accuracy throughout, including one deliberate deviation from
+// the user's own suggested edge list: their brief left Cloud Firestore
+// with a single connection (to Firebase), which conflicts with their own
+// "no dangling nodes" rule — added `Cloud Firestore -> Python ML` (closing
+// a triangle with the existing Firebase<->Python ML core edge) to fix
+// that, exactly the kind of adjustment the brief explicitly permits
+// ("the important part is not the exact edges").
+//
+// Structure: Flutter/Firebase/Python ML form the rigid 3-node core
+// triangle. Three more triangular facets share an edge with the core or
+// with each other — Flutter-Provider-Dart, Flutter-Firebase-Provider, and
+// Firebase-Python-ML-Cloud-Firestore — plus one two-hop cross-brace
+// (Flutter -> Local Auth -> Hive -> fed by Python ML) that anchors at
+// BOTH ends rather than dead-ending, satisfying "cross-bracing" and "no
+// isolated branches" simultaneously. Every node has >= 2 connections
+// (verified programmatically), zero edge crossings (verified via segment-
+// intersection check on these exact coordinates), zero cycles, single
+// connected component. Bounding box is compact/near-square (~1.15 x 1.05
+// normalized units) rather than the previous landscape or portrait
+// layouts — deliberately gem-like rather than elongated.
+//
+// Hierarchy: Flutter alone is `primary` tier (largest/brightest, the
+// existing isRoot sparkle treatment). Firebase and Python ML are
+// `secondary`. Every other node is `supporting` — this is the data-only
+// way "Flutter should read as clearly most important, Firebase/Python ML
+// as clear seconds" is satisfied without any renderer change, reusing
+// ConstellationStar.tsx's existing tier-driven size/glow exactly as
+// before.
+//
+// Colors/tags/roles/descriptions are unchanged from the prior 8-node
+// pass (Dart's revived from the very first 20-node lattice, byte-
+// identical to that round). Node set: Sensors Plus dropped, Dart restored
+// — this exact 8 (Flutter, Dart, Provider, Hive, Firebase, Cloud
+// Firestore, Python ML, Local Auth) per explicit instruction.
+const RAKSHACHAKRA_MANIFEST_YAML = `{
+  "project": "Rakshachakra",
+  "description": "The core technologies that define Rakshachakra's architecture — a curated overview, not an exhaustive dependency list (see rakshachakra.md for the full feature/package inventory).",
+  "mobileApp": [
+    {
+      "technology": "Flutter",
+      "role": "Application Framework",
+      "description": "Cross-platform mobile framework powering the entire client application.",
+      "tags": ["Core"],
+      "importance": "primary",
+      "position": { "x": 0.15, "y": 0.35 },
+      "color": "#3B82F6",
+      "connectsTo": ["Firebase", "Python ML", "Provider", "Local Auth"]
+    },
+    {
+      "technology": "Dart",
+      "role": "Programming Language",
+      "description": "Primary language for the Flutter application and its business logic.",
+      "tags": ["Core"],
+      "importance": "supporting",
+      "position": { "x": -0.25, "y": -0.10 },
+      "color": "#60A5FA",
+      "connectsTo": ["Provider", "Flutter"]
+    },
+    {
+      "technology": "Provider",
+      "role": "State Management",
+      "description": "App-wide state management across the Flutter widget tree.",
+      "tags": ["Core"],
+      "importance": "supporting",
+      "position": { "x": 0.10, "y": 0.05 },
+      "color": "#38BDF8",
+      "connectsTo": ["Firebase"]
+    }
+  ],
+  "localData": [
+    {
+      "technology": "Hive",
+      "role": "Local Database",
+      "description": "Lightweight local key-value/object storage for on-device data.",
+      "tags": ["Local Storage"],
+      "importance": "supporting",
+      "position": { "x": 0.15, "y": 0.95 },
+      "color": "#5EEAD4"
+    }
+  ],
+  "authentication": [
+    {
+      "technology": "Local Auth",
+      "role": "Biometric Authentication",
+      "description": "Device-level biometric and local authentication checks.",
+      "tags": ["Biometric", "Local"],
+      "importance": "supporting",
+      "position": { "x": -0.10, "y": 0.70 },
+      "color": "#2DD4BF",
+      "connectsTo": ["Hive"]
+    }
+  ],
+  "cloudAndData": [
+    {
+      "technology": "Firebase",
+      "role": "Cloud Platform",
+      "description": "Core Firebase integration underpinning the app's cloud services.",
+      "tags": ["Managed Service"],
+      "importance": "secondary",
+      "position": { "x": 0.55, "y": 0.15 },
+      "color": "#F97316",
+      "connectsTo": ["Python ML", "Cloud Firestore"]
+    },
+    {
+      "technology": "Cloud Firestore",
+      "role": "Cloud Database",
+      "description": "Cloud data storage and sync for user profile and session data.",
+      "tags": ["Database", "Sync"],
+      "importance": "supporting",
+      "position": { "x": 0.90, "y": 0.35 },
+      "color": "#FBBF24",
+      "connectsTo": ["Python ML"]
+    }
+  ],
+  "intelligenceLayer": [
+    {
+      "technology": "Python ML",
+      "role": "Behavioral Risk Inference",
+      "description": "Python service serving real-time behavioral risk inference and periodic model retraining.",
+      "tags": ["Python", "Inference"],
+      "importance": "secondary",
+      "position": { "x": 0.50, "y": 0.60 },
+      "color": "#A855F7",
+      "connectsTo": ["Hive"]
     }
   ]
 }
@@ -657,13 +841,6 @@ Workspace ready.
 `,
     } as VirtualFile,
     {
-      id: 'resume',
-      name: 'hire_me.md',
-      type: 'markdown',
-      path: '/hire_me.md',
-      content: HIRE_ME_REPORT,
-    } as VirtualFile,
-    {
       id: 'about',
       name: 'about',
       path: '/about',
@@ -684,6 +861,13 @@ Workspace ready.
 \`\`\`contributions-terminal
 \`\`\`
 `,
+        } as VirtualFile,
+        {
+          id: 'resume',
+          name: 'hire_me.md',
+          type: 'markdown',
+          path: '/about/hire_me.md',
+          content: HIRE_ME_REPORT,
         } as VirtualFile,
       ],
     } as VirtualFolder,
@@ -731,6 +915,34 @@ Workspace ready.
               type: 'yaml',
               path: '/projects/Cortexa/manifest.yaml',
               content: CORTEXA_MANIFEST_YAML,
+            } as VirtualFile,
+          ],
+        } as VirtualFolder,
+        {
+          id: 'rakshachakra',
+          name: 'Rakshachakra',
+          path: '/projects/Rakshachakra',
+          children: [
+            {
+              id: 'rakshachakra_readme',
+              name: 'rakshachakra.md',
+              type: 'markdown',
+              path: '/projects/Rakshachakra/rakshachakra.md',
+              content: RAKSHACHAKRA_DOC_MARKDOWN,
+            } as VirtualFile,
+            {
+              id: 'rakshachakra_arch',
+              name: 'architecture.mmd',
+              type: 'mermaid',
+              path: '/projects/Rakshachakra/architecture.mmd',
+              content: RAKSHACHAKRA_ARCHITECTURE_MERMAID,
+            } as VirtualFile,
+            {
+              id: 'rakshachakra_manifest',
+              name: 'manifest.yaml',
+              type: 'yaml',
+              path: '/projects/Rakshachakra/manifest.yaml',
+              content: RAKSHACHAKRA_MANIFEST_YAML,
             } as VirtualFile,
           ],
         } as VirtualFolder,

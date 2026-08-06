@@ -66,6 +66,11 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
   });
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
+  // Every unique node.color needs its own glow gradient def (see the
+  // `<defs>` comment above) — deduped since several nodes in the same
+  // family (e.g. Rakshachakra's device-sensor cluster) legitimately share
+  // one hex value.
+  const glowGradientColors = useMemo(() => Array.from(new Set(graph.nodes.map((n) => n.color))), [graph]);
   const parentById = useMemo(() => new Map(graph.edges.map((e) => [e.to, e.from])), [graph]);
   const childrenById = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -172,17 +177,28 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
             <stop offset="60%" stopColor="#050708" />
             <stop offset="100%" stopColor="#010102" />
           </radialGradient>
-          {/* One radial "star" gradient per category color — bright
-              near-white core fading through the category's own hue into
-              full transparency. ConstellationStar's layered halo/bloom
-              circles sample this instead of a flat fill, which is what
-              makes a node read as a light source rather than a filled UI
-              circle with a blur behind it. */}
-          {graph.categories.map((cat) => (
-            <radialGradient key={cat.key} id={`constellation-star-glow-${cat.color.slice(1)}`} cx="50%" cy="50%" r="50%">
+          {/* One radial "star" gradient per distinct node color — bright
+              near-white core fading through that color into full
+              transparency. ConstellationStar's layered halo/bloom circles
+              sample this (by node.color, not category color — see
+              ConstellationStar.tsx's glowGradientId) instead of a flat
+              fill, which is what makes a node read as a light source
+              rather than a filled UI circle with a blur behind it. Keyed
+              off the graph's actual node colors, not graph.categories'
+              colors: a manifest with no per-technology `color` (Cortexa's)
+              has every node fall back to its category color, so this set
+              is identical to "one per category" for that case — but a
+              manifest that DOES author per-technology colors
+              (Rakshachakra's crystal-lattice palette) needs a gradient for
+              every one of those colors too, or any node whose color
+              doesn't happen to match its category's hash color would
+              reference a `url(#...)` id that was never defined and render
+              with no glow at all. */}
+          {glowGradientColors.map((color) => (
+            <radialGradient key={color} id={`constellation-star-glow-${color.slice(1)}`} cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity={0.95} />
-              <stop offset="22%" stopColor={cat.color} stopOpacity={0.85} />
-              <stop offset="100%" stopColor={cat.color} stopOpacity={0} />
+              <stop offset="22%" stopColor={color} stopOpacity={0.85} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
             </radialGradient>
           ))}
           <filter id="constellation-node-glow" x="-100%" y="-100%" width="300%" height="300%">

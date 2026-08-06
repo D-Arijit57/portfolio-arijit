@@ -23,7 +23,11 @@ import { ConstellationScene } from './ConstellationScene';
  *
  * Nothing here is Cortexa-specific — a different project's manifest
  * produces a different constellation with zero changes to this file or
- * ConstellationScene.
+ * ConstellationScene. Rakshachakra's own visual identity (a crystal-lattice
+ * topology, per-technology colors) lives entirely in its manifest.yaml data
+ * (hand-authored position/connectsTo/color, see workspaceSeed.ts) and one
+ * small optional `color` field on ManifestTechnology (constellationGraph.ts)
+ * — never a per-project branch here.
  */
 export function ManifestConstellation({ model, fileId }: { model: ManifestModel; fileId: string }) {
   const graph = useMemo(() => buildConstellationGraph(model), [model]);

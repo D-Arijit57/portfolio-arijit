@@ -5,24 +5,45 @@ import { buildPathState, edgeKey, type PathState } from './dependencyPath';
 /**
  * Architecture Canvas 2.0 — Trace Mode's named workflows. Canvas-local
  * *presentation* config (which real, already-existing nodes to visit in
- * what order), not new architectural data — every id below is one of
- * Cortexa's real 15 nodes, and every consecutive pair is a real edge
- * (verified against src/content/architecture/cortexa.ts's 16 edges; the
- * brief's own example trace, Client->Next.js->Convex->Interview
- * Scheduling->Recording Manager->Judge Pipeline, wasn't walkable — Convex's
- * four business-domain edges are parallel siblings, not a chain — these
- * two replace it).
+ * what order), not new architectural data — every id below is a real node
+ * in its project's own ArchitectureModel, and every consecutive pair is a
+ * real edge. Keyed by projectKey first (not a single flat workflow map) —
+ * Cortexa's and Rakshachakra's node ids don't overlap, so a single shared
+ * map would let one project's trace silently reference another's
+ * nonexistent nodes (caught when Rakshachakra became the registry's second
+ * project, ARCHITECTURE_PLATFORM_DESIGN.md §13/§14).
+ *
+ * Cortexa's two workflows: verified against src/content/architecture/
+ * cortexa.ts's 16 edges; the brief's own example trace,
+ * Client->Next.js->Convex->Interview Scheduling->Recording
+ * Manager->Judge Pipeline, wasn't walkable — Convex's four business-domain
+ * edges are parallel siblings, not a chain — these two replace it.
+ *
+ * Rakshachakra's two workflows: verified against src/content/architecture/
+ * rakshachakra.ts's 18 edges.
  */
-export const TRACE_WORKFLOWS: Record<string, string[]> = {
-  'Interview Scheduling Request': ['client', 'scheduling_ui', 'next_js_app', 'convex', 'interview_scheduling'],
-  'Coding Challenge & Judge Evaluation': [
-    'client',
-    'monaco_editor',
-    'next_js_app',
-    'convex',
-    'coding_challenge',
-    'judge_pipeline',
-  ],
+export const TRACE_WORKFLOWS: Record<string, Record<string, string[]>> = {
+  cortexa: {
+    'Interview Scheduling Request': ['client', 'scheduling_ui', 'next_js_app', 'convex', 'interview_scheduling'],
+    'Coding Challenge & Judge Evaluation': [
+      'client',
+      'monaco_editor',
+      'next_js_app',
+      'convex',
+      'coding_challenge',
+      'judge_pipeline',
+    ],
+  },
+  rakshachakra: {
+    'Behavioral Risk Scoring': [
+      'sensor_capture',
+      'flutter_app',
+      'risk_inference_service',
+      'risk_scoring',
+      'adaptive_response',
+    ],
+    'Profile Enrollment & Sync': ['biometric_enrollment', 'flutter_app', 'firebase_firestore', 'profile_initialization'],
+  },
 };
 
 const STEP_DURATION_MS = 700;

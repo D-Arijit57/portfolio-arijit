@@ -37,6 +37,7 @@ function isManifestTechnology(value: unknown): value is ManifestTechnology {
   if (v.tags !== undefined && !(Array.isArray(v.tags) && v.tags.every((t) => typeof t === 'string'))) return false;
   if (v.importance !== undefined && !IMPORTANCE_VALUES.has(v.importance as string)) return false;
   if (v.position !== undefined && !isPosition(v.position)) return false;
+  if (v.color !== undefined && typeof v.color !== 'string') return false;
   if (v.connectsTo !== undefined && !(Array.isArray(v.connectsTo) && v.connectsTo.every((t) => typeof t === 'string'))) {
     return false;
   }

@@ -34,8 +34,8 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
     return <ResumeWorkspace file={file} />;
   }
 
-  // startup.log owns its own animated boot-log renderer — see
-  // StartupLogViewer.tsx and lib/startupLog.ts.
+  // startup.log owns its own animated renderer — see StartupLogViewer.tsx
+  // and components/signature/TerminalRunner.tsx.
   if (file.id === 'startup-log') {
     return <StartupLogViewer file={file} />;
   }

@@ -10,7 +10,7 @@ import { resolveIcon } from './icons';
 import { NodeDetailPopover } from './NodeDetailPopover';
 import { Minimap } from './Minimap';
 import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
-import { getFullDependencyPath, visualStateForNode, visualStateForEdge, edgeKey } from './dependencyPath';
+import { getFullDependencyPath, getDirectConnections, visualStateForNode, visualStateForEdge, edgeKey } from './dependencyPath';
 import { motionConfigForEdge } from './edgeCommunication';
 import { EdgePacketTrail, EdgeFlowAnimation } from './EdgePacket';
 import { TRACE_WORKFLOWS, useTraceStepper } from './traceWorkflows';
@@ -70,6 +70,14 @@ const EDGE_COLOR: Record<string, string> = {
 };
 const EDGE_OPACITY: Record<string, number> = { default: 1, connected: 1, dimmed: 0.2 };
 const EDGE_WIDTH: Record<string, number> = { default: 1.5, connected: 2.5, dimmed: 1.5 };
+// Cortexa Redesign Phase 6: hover's dimming is deliberately gentler than
+// click/select's ("reduce visual prominence... do not dim them completely
+// — just enough to guide attention") — select's stronger 0.2 dim is
+// unchanged, since the brief never asks to touch that existing behavior.
+const HOVER_DIMMED_OPACITY = 0.5;
+// Small, subtle emphasis on the exact hovered/selected node — "increase
+// its emphasis slightly," paired with the existing NODE_STROKE.active bump.
+const ACTIVE_NODE_SCALE = 1.04;
 // Post-reveal, state-driven opacity changes (hover/select/trace dimming)
 // need their own small eased transition — reusing revealSequence's own
 // `{duration:0}` post-reveal short-circuit (meant for reveal choreography
@@ -118,10 +126,17 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
   }, [model]);
 
   const activeNodeId = hoveredNodeId ?? selectedNodeId;
-  const hoverOrSelectPath = useMemo(
-    () => (model ? getFullDependencyPath(model, activeNodeId) : undefined),
-    [model, activeNodeId],
-  );
+  // Cortexa Redesign Phase 6: hover and select deliberately use different
+  // path scopes now — hover answers "what does this directly communicate
+  // with?" (getDirectConnections), while click/select keeps the existing
+  // full transitive walk (NodeDetailPopover's Inputs/Outputs still want the
+  // complete picture, not just 1-hop). Hover always wins when both are
+  // present, matching activeNodeId's own existing precedence above.
+  const hoverOrSelectPath = useMemo(() => {
+    if (!model) return undefined;
+    if (hoveredNodeId) return getDirectConnections(model, hoveredNodeId);
+    return getFullDependencyPath(model, selectedNodeId);
+  }, [model, hoveredNodeId, selectedNodeId]);
 
   // Architecture Canvas 2.0: Normal / Demo / Trace. Local to this
   // component — nothing outside it needs to read mode, unlike hover/select
@@ -346,6 +361,13 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
     ? model.edges.filter((e) => e.from === selectedNode.id).map((e) => model.nodes.find((n) => n.id === e.to)?.title ?? e.to)
     : [];
 
+  // Cortexa Redesign Phase 6: the hover-only "engineering note" caption —
+  // deliberately not the click-triggered NodeDetailPopover (a side panel,
+  // which the brief explicitly wants this lightweight hover feature to
+  // avoid). Reuses node.description, already authored for every node.
+  const hoveredNode = hoveredNodeId ? model.nodes.find((n) => n.id === hoveredNodeId) : undefined;
+  const isHoverSourced = Boolean(hoveredNodeId);
+
   const currentZoomPercent = Math.round(viewport.scale * 100);
   const zoomOptions = Array.from(new Set([...ZOOM_PRESETS, currentZoomPercent])).sort((a, b) => a - b);
 
@@ -425,6 +447,28 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
         </button>
       </div>
 
+      {/* Cortexa Redesign Phase 6 — the hover-only "engineering note": a
+          fixed-height caption row, not a popup/tooltip anchored to the
+          cursor or node, so hovering never shifts layout or overlaps the
+          graph. Empty and reserving its own space when nothing's hovered;
+          fades its text in/out as the hovered node changes. Deliberately
+          separate from NodeDetailPopover (click-only, a side panel) per the
+          brief's "no pop-up dialogs, no side panels" constraint. */}
+      <div className="flex h-[30px] shrink-0 items-center border-b border-[#3c3c3c] bg-[#1e1e1e] px-3 text-[12px]">
+        {hoveredNode && (
+          <motion.div
+            key={hoveredNode.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'easeOut' }}
+            className="truncate"
+          >
+            <span className="font-medium text-white">{hoveredNode.title}</span>
+            {hoveredNode.description && <span className="text-[#858585]"> — {hoveredNode.description}</span>}
+          </motion.div>
+        )}
+      </div>
+
       <div ref={containerRef} className="relative flex-1 overflow-hidden" tabIndex={-1} onKeyDown={handleKeyDown}>
         <svg
           ref={svgRef}
@@ -470,6 +514,8 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
               const y2 = to.y;
               const midY = (y1 + y2) / 2;
               const edgeState = visualStateForEdge(edge.from, edge.to, relationships);
+              const edgeOpacity =
+                edgeState === 'dimmed' && isHoverSourced ? HOVER_DIMMED_OPACITY : EDGE_OPACITY[edgeState];
               const unitIndex = model.nodes.length + index;
               // Edges animate to their hover/select-state-driven target
               // opacity (EDGE_OPACITY[edgeState]), not the shared variants'
@@ -489,7 +535,7 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
                 <motion.g
                   key={`${edge.from}-${edge.to}-${index}`}
                   initial={{ opacity: 0 }}
-                  animate={{ opacity: EDGE_OPACITY[edgeState] }}
+                  animate={{ opacity: edgeOpacity }}
                   transition={edgeTransition}
                   onAnimationComplete={revealSequence.isLastUnit(unitIndex) ? revealSequence.onLastUnitComplete : undefined}
                 >
@@ -534,6 +580,8 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
               const style = CATEGORY_STYLES[node.category];
               const Icon = resolveIcon(node.icon ?? style.icon) ?? resolveIcon(style.icon);
               const nodeState = visualStateForNode(node.id, relationships);
+              const nodeOpacity =
+                nodeState === 'dimmed' && isHoverSourced ? HOVER_DIMMED_OPACITY : NODE_OPACITY[nodeState];
               // Same pattern as edges above: timing from the shared
               // variants, opacity target stays this node's own
               // hover/select-driven value rather than the variants' flat 1.
@@ -558,56 +606,67 @@ export function ArchitectureCanvas({ file }: { file: VirtualFile }) {
                   key={node.id}
                   transform={`translate(${position.x}, ${position.y})`}
                   initial={{ opacity: 0 }}
-                  animate={{ opacity: NODE_OPACITY[nodeState] }}
+                  animate={{ opacity: nodeOpacity }}
                   transition={nodeTransition}
                   onAnimationComplete={
                     revealSequence.isLastUnit(nodeIndex) ? revealSequence.onLastUnitComplete : undefined
                   }
                 >
-                  {!reduceMotion && (
+                  {/* Cortexa Redesign Phase 6: a small scale-up on the exact
+                      hovered/selected node ("increase its emphasis
+                      slightly... small scale"), isolated in its own inner
+                      group so it never touches the outer group's static
+                      position transform above — no risk to node layout. */}
+                  <motion.g
+                    style={{ transformBox: 'fill-box', transformOrigin: '50% 50%' }}
+                    animate={{ scale: nodeState === 'active' ? ACTIVE_NODE_SCALE : 1 }}
+                    transition={STATE_TRANSITION}
+                  >
+                    {!reduceMotion && (
+                      <rect
+                        width={NODE_WIDTH}
+                        height={NODE_HEIGHT}
+                        rx={6}
+                        fill="none"
+                        stroke={style.accentColor}
+                        strokeWidth={2}
+                        opacity={0}
+                        style={{
+                          animation: `arch-heartbeat ${heartbeatDurationS}s ease-in-out infinite`,
+                          animationDelay: `${heartbeatDelayS}s`,
+                        }}
+                      />
+                    )}
                     <rect
                       width={NODE_WIDTH}
                       height={NODE_HEIGHT}
                       rx={6}
-                      fill="none"
+                      fill="#252526"
                       stroke={style.accentColor}
-                      strokeWidth={2}
-                      opacity={0}
-                      style={{
-                        animation: `arch-heartbeat ${heartbeatDurationS}s ease-in-out infinite`,
-                        animationDelay: `${heartbeatDelayS}s`,
-                      }}
+                      strokeWidth={NODE_STROKE[nodeState]}
                     />
-                  )}
-                  <rect
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
-                    rx={6}
-                    fill="#252526"
-                    stroke={style.accentColor}
-                    strokeWidth={NODE_STROKE[nodeState]}
-                  />
-                  <rect width={4} height={NODE_HEIGHT} fill={style.accentColor} rx={2} />
-                  <foreignObject x={0} y={0} width={NODE_WIDTH} height={NODE_HEIGHT}>
-                    <button
-                      type="button"
-                      data-architecture-node={node.id}
-                      className="flex h-full w-full items-center gap-2 px-3 pl-4 text-left focus:outline-none"
-                      onMouseEnter={() => setHoveredArchitectureNode(node.id)}
-                      onMouseLeave={() => setHoveredArchitectureNode(null)}
-                      onFocus={() => setHoveredArchitectureNode(node.id)}
-                      onBlur={() => setHoveredArchitectureNode(null)}
-                      onClick={() => setSelectedArchitectureNode(node.id)}
-                    >
-                      {Icon && <Icon size={16} color={style.accentColor} className="shrink-0" />}
-                      <span className="min-w-0">
-                        <span className="block truncate text-[12px] font-medium text-white">{node.title}</span>
-                        {node.technology && (
-                          <span className="block truncate text-[10px] text-[#858585]">{node.technology}</span>
-                        )}
-                      </span>
-                    </button>
-                  </foreignObject>
+                    <rect width={4} height={NODE_HEIGHT} fill={style.accentColor} rx={2} />
+                    <foreignObject x={0} y={0} width={NODE_WIDTH} height={NODE_HEIGHT}>
+                      <button
+                        type="button"
+                        data-architecture-node={node.id}
+                        className="flex h-full w-full items-center gap-2 px-3 pl-4 text-left focus:outline-none"
+                        onMouseEnter={() => setHoveredArchitectureNode(node.id)}
+                        onMouseLeave={() => setHoveredArchitectureNode(null)}
+                        onFocus={() => setHoveredArchitectureNode(node.id)}
+                        onBlur={() => setHoveredArchitectureNode(null)}
+                        onClick={() => setSelectedArchitectureNode(node.id)}
+                      >
+                        {Icon && <Icon size={16} color={style.accentColor} className="shrink-0" />}
+                        <span className="min-w-0">
+                          <span className="block truncate text-[12px] font-medium text-white">{node.title}</span>
+                          {node.technology && (
+                            <span className="block truncate text-[10px] text-[#858585]">{node.technology}</span>
+                          )}
+                        </span>
+                      </button>
+                    </foreignObject>
+                  </motion.g>
                 </motion.g>
               );
             })}

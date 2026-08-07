@@ -13,6 +13,12 @@ import { resolveLinkTarget } from '../../documentation/resolveLinkTarget';
  * treatment), not a card lift. Navigation is unchanged from the previous
  * LinkCardGrid: internal targets (resolveLinkTarget) open in-app via the
  * same VFS `openFile`, external targets are a plain new-tab anchor.
+ *
+ * `staggerSeconds` (Iteration 8): same optional-with-default pattern as
+ * FeatureGrid.tsx's own — every non-Cortexa caller keeps the original fast
+ * 0.04s stagger; Cortexa's explore.sh-gated Continue Exploring passes a
+ * slower value so the rows read as "appear sequentially... not
+ * simultaneously" rather than a near-instant pop.
  */
 const EXTENSION_ICON: Record<string, { Icon: LucideIcon; color: string }> = {
   mmd: { Icon: FileText, color: '#ff3670' },
@@ -29,7 +35,15 @@ function iconForTitle(title: string): { Icon: LucideIcon; color: string } {
 const ROW_CLASS =
   'group flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[#cccccc] transition-colors hover:bg-[#2a2d2e]';
 
-export function LinkFileList({ items, basePath }: { items: LinkCardItem[]; basePath: string }) {
+export function LinkFileList({
+  items,
+  basePath,
+  staggerSeconds = 0.04,
+}: {
+  items: LinkCardItem[];
+  basePath: string;
+  staggerSeconds?: number;
+}) {
   const openFile = useStore((state) => state.openFile);
 
   return (
@@ -40,7 +54,7 @@ export function LinkFileList({ items, basePath }: { items: LinkCardItem[]; baseP
         const motionProps = {
           initial: { opacity: 0, y: 8 },
           animate: { opacity: 1, y: 0 },
-          transition: { duration: 0.25, delay: index * 0.04, ease: 'easeOut' as const },
+          transition: { duration: 0.25, delay: index * staggerSeconds, ease: 'easeOut' as const },
         };
 
         const content = (

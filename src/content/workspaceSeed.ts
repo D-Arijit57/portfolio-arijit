@@ -77,22 +77,14 @@ const WORK_HISTORY_YAML = workHistoryToYaml(workHistory);
 // identical to server/repositories/seed/workspaceSeed.ts's own copy, update
 // both by hand together.
 //
-// Documentation Redesign (Iteration 2): metadata trimmed to Status only
-// (Architecture/Frontend/Backend/Authentication/Realtime now live in
-// manifest.yaml, not this overview — MetadataRow.tsx already renders
-// nothing once Status is its only entry, no component change needed for
-// this). Status reads as a deployment indicator (DocumentationHero.tsx's
-// green-dot treatment) rather than a "Status:" label. Problem Statement +
-// Solution collapse into the `problem-solution-terminals` widget
-// (ProblemSolutionTerminals.tsx, registered in documentationWidgets.tsx) —
-// two parallel typed terminal sessions instead of prose, same
-// "hardcoded-content widget for one specific page" precedent as
-// welcome-intro/identity-terminals. Deliberately placed in the doc's intro
-// (before any H2), not inside its own H2 section — no heading/icon/divider
-// chrome above it, so the terminals themselves are the section's entire
-// presentation. `badges` switched to lowercase package-style names. No
-// capability described anywhere on this page is new — every line still
-// traces to the same real feature set the original copy documented.
+// Documentation Redesign: `badges` switched to lowercase package-style
+// names. This markdown source is read only for its `frontmatter` — title
+// and summary become the page's `head -1` line (CortexaIdentityLine),
+// while status and badges are printed later by run-cortexa's own `cat`
+// (ExecutionReplayTerminal). Cortexa's renderer never reads `model.intro`
+// or `model.sections` at all: the three-terminal narrative and its
+// capability spec are authored in src/content/cortexaNarrative.ts, which
+// is also what keeps the decision↔evidence hover links in sync.
 const CORTEXA_DOC_MARKDOWN = `---
 summary: A technical interview platform that unifies scheduling, live video, and an integrated coding environment into a single, connected workflow.
 badges: [nextjs, react, typescript, clerk, convex, stream, monaco]
@@ -101,9 +93,6 @@ metadata: [Status: Deployed]
 ---
 
 # Cortexa
-
-\`\`\`problem-solution-terminals
-\`\`\`
 
 ## Core Features
 

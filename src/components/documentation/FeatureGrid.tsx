@@ -10,8 +10,16 @@ import type { FeatureListItem } from '../../documentation/featureList';
  * border-radius box, no shadow) reading like a spec sheet a real README
  * would ship, not a marketing feature grid. Hover is a subtle background
  * tint, never a lift.
+ *
+ * `staggerSeconds` (Iteration 8): optional, defaults to the original fast
+ * 0.04s stagger every non-Cortexa caller still gets. Cortexa's own
+ * ExecutionStage-driven flow (ProjectDocumentationViewer.tsx) passes a
+ * slower value through createDocumentationComponents' own optional
+ * parameter so its Core Features reveal reads as a deliberate "reveal one,
+ * pause, reveal next" beat rather than a near-simultaneous pop — same
+ * motion, different pace, no new animation language.
  */
-export function FeatureGrid({ items }: { items: FeatureListItem[] }) {
+export function FeatureGrid({ items, staggerSeconds = 0.04 }: { items: FeatureListItem[]; staggerSeconds?: number }) {
   return (
     <div className="my-4 flex flex-col divide-y divide-[#3c3c3c] border-y border-[#3c3c3c]">
       {items.map((item, index) => (
@@ -19,7 +27,7 @@ export function FeatureGrid({ items }: { items: FeatureListItem[] }) {
           key={item.term}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: index * 0.04, ease: 'easeOut' }}
+          transition={{ duration: 0.25, delay: index * staggerSeconds, ease: 'easeOut' }}
           whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
           className="flex items-baseline gap-2.5 px-1 py-2.5"
         >

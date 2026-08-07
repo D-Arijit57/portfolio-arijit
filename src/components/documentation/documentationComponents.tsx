@@ -5,6 +5,7 @@ import { tryExtractLinkCards } from '../../documentation/linkCards';
 import { tryDetectCallout } from '../../documentation/callout';
 import { collectText, type HastLikeNode } from '../../documentation/hastLike';
 import { FeatureGrid } from './FeatureGrid';
+import { FeatureOutputTerminal } from './FeatureOutputTerminal';
 import { LinkFileList } from './LinkFileList';
 import { Callout } from './Callout';
 import { TransitionGlyph } from './TransitionGlyph';
@@ -27,7 +28,27 @@ import { widgetForLanguage } from './documentationWidgets';
  * relative link-card targets (documentation/resolveLinkTarget.ts) against
  * the *current* document's own folder — `basePath` is closed over here
  * rather than threaded through every component's props individually.
+ *
+ * `options.itemStaggerSeconds` (Iteration 8): optional, undefined for every
+ * caller except Cortexa's own — passed straight through to FeatureGrid/
+ * LinkFileList's own identically-named-in-spirit `staggerSeconds` prop
+ * (each defaults to the original 0.04s on its own, so leaving this
+ * `undefined` reproduces the exact previous behavior for every other doc).
+ *
+ * `options.featureTerminal` (Cortexa Workspace Refinement §6–9): also
+ * Cortexa-only. When set, a detected feature list renders as
+ * FeatureOutputTerminal (the big stdout-style Core Features terminal)
+ * instead of FeatureGrid's card list — same detection
+ * (tryExtractFeatureList), different output, so Core Features' markdown
+ * source needs zero changes to support either renderer. `onComplete` lets
+ * CortexaExecutionFlow know once the terminal's own typed reveal genuinely
+ * finishes (not merely once it mounts) — see FeatureOutputTerminal's own
+ * doc comment for why that distinction matters here.
  */
+interface DocumentationComponentsOptions {
+  itemStaggerSeconds?: number;
+  featureTerminal?: { onComplete?: () => void };
+}
 // Documentation Redesign: a subtle glyph (its own standalone paragraph, blank-
 // line-separated in the source markdown) between two sections — e.g. Problem
 // Statement's body ending in a bare "↓" before the next section begins.
@@ -35,7 +56,8 @@ import { widgetForLanguage } from './documentationWidgets';
 // intentional (a real "—" or "-" em-dash paragraph should never be swallowed).
 const TRANSITION_GLYPHS = new Set(['→', '↓', '===>']);
 
-export function createDocumentationComponents(basePath: string): Components {
+export function createDocumentationComponents(basePath: string, options: DocumentationComponentsOptions = {}): Components {
+  const { itemStaggerSeconds, featureTerminal } = options;
   return {
     // h1/h2 are rare in section body markdown (the document's title comes
     // from DocumentationHero, and each section's own H2 is rendered by
@@ -89,10 +111,16 @@ export function createDocumentationComponents(basePath: string): Components {
       const rawNode = node as unknown as HastLikeNode | undefined;
 
       const featureItems = rawNode ? tryExtractFeatureList(rawNode) : undefined;
-      if (featureItems) return <FeatureGrid items={featureItems} />;
+      if (featureItems) {
+        return featureTerminal ? (
+          <FeatureOutputTerminal items={featureItems} onComplete={featureTerminal.onComplete} />
+        ) : (
+          <FeatureGrid items={featureItems} staggerSeconds={itemStaggerSeconds} />
+        );
+      }
 
       const linkItems = rawNode ? tryExtractLinkCards(rawNode) : undefined;
-      if (linkItems) return <LinkFileList items={linkItems} basePath={basePath} />;
+      if (linkItems) return <LinkFileList items={linkItems} basePath={basePath} staggerSeconds={itemStaggerSeconds} />;
 
       return <ul className={PROSE_CLASSNAMES.ul}>{children}</ul>;
     },

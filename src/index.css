@@ -109,26 +109,68 @@
   }
 }
 
-/* ProblemSolutionTerminals' build-in-progress indicator (Iteration 5 §4):
-   three chevrons pulsing in a staggered wave (see each span's own
-   animation-delay in ProblemSolutionTerminals.tsx) to read as motion
-   flowing from the Problem terminal toward the Solution terminal — a
-   second deliberate looping exception alongside discovery-arrow-float
-   above. Stops for good once the build reaches "done": BuildStatus swaps
-   to a different element (Solution Found) entirely rather than pausing
-   this animation in place. */
-@keyframes build-flow-pulse {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
+/* ExecutionWireLayer's traveling pulse (Cortexa Workspace Refinement §3–4):
+   a short bright dash sliding along an execution wire's path while its
+   stage is actively running — the replacement for the old three-chevron
+   build-flow-pulse this same comment used to describe. `pathLength="100"`
+   on the SVG path normalizes stroke length to 100 units regardless of the
+   path's real on-screen length, so this one dash-offset animation looks
+   identical whether the wire is short (problem.sh -> cortexa.sh) or long
+   and bent (cortexa.sh -> Core Features). Stops for good once a stage
+   finishes: ExecutionWireLayer swaps the edge to its permanent "connected"
+   glow state rather than pausing this animation in place. */
+@keyframes wire-pulse-travel {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
 }
 
-.build-flow-chevron {
-  animation: build-flow-pulse 1.1s ease-in-out infinite;
+.execution-wire-pulse {
+  animation: wire-pulse-travel 1.3s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .build-flow-chevron {
+  .execution-wire-pulse {
     animation: none;
+  }
+}
+
+/* cortexa.md's connectors (CortexaConnectors.tsx): a wire draws itself
+   once, at the moment its upstream terminal actually hands a value
+   downstream — the constraint from problem.sh, the decisions from
+   cortexa.sh. Deliberately one-shot and `forwards`, never looping: the
+   motion reports a real state change rather than running for atmosphere,
+   which is the whole difference between a connector that means something
+   and one that's decoration. Shares `wire-pulse-travel`'s pathLength=100
+   normalization trick so a short straight wire and a long bent one draw at
+   the same apparent speed. */
+/* run-cortexa's documentation block (ExecutionReplayTerminal.tsx) mounts
+   rather than fading from opacity 0, so that it doesn't reserve height
+   while the terminal is still growing line by line. Mounting means a CSS
+   transition has nothing to transition *from* — hence a keyframe. */
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[fade-rise_320ms_ease-out_both\] {
+    animation: none;
+  }
+}
+
+@keyframes wire-draw {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+.execution-wire-draw {
+  animation: wire-draw 450ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-wire-draw {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 }
 

@@ -104,6 +104,35 @@ export function getFullDependencyPath(model: ArchitectureModel, nodeId: string |
   return { activeNodeId: nodeId, connectedNodeIds, connectedEdgeKeys };
 }
 
+/**
+ * Direct (1-hop) neighbors of `nodeId` only — every node with an edge
+ * immediately into or out of it, and those edges themselves. Cortexa
+ * Redesign Phase 6: hover uses this instead of getFullDependencyPath's full
+ * transitive walk above — "what does this service communicate with?", not
+ * "everything upstream/downstream of it" — while click/select keeps the
+ * full-path behavior unchanged, so the two interactions stay deliberately
+ * different in scope (hover for a quick, local answer; click for the
+ * complete picture in NodeDetailPopover).
+ */
+export function getDirectConnections(model: ArchitectureModel, nodeId: string | null): PathState {
+  if (!nodeId) return EMPTY_PATH_STATE;
+
+  const connectedNodeIds = new Set<string>();
+  const connectedEdgeKeys = new Set<string>();
+
+  for (const edge of model.edges) {
+    if (edge.from === nodeId) {
+      connectedNodeIds.add(edge.to);
+      connectedEdgeKeys.add(edgeKey(edge.from, edge.to));
+    } else if (edge.to === nodeId) {
+      connectedNodeIds.add(edge.from);
+      connectedEdgeKeys.add(edgeKey(edge.from, edge.to));
+    }
+  }
+
+  return { activeNodeId: nodeId, connectedNodeIds, connectedEdgeKeys };
+}
+
 export type NodeVisualState = 'active' | 'connected' | 'dimmed' | 'default';
 
 export function visualStateForNode(nodeId: string, path: PathState): NodeVisualState {

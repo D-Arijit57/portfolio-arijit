@@ -18,11 +18,12 @@ import { TableOfContents } from './TableOfContents';
  * functionality (jump to section, active-section highlight) is unaffected.
  *
  * Documentation Redesign (Iteration 3): `highlights` is now an explicit prop
- * rather than raw frontmatter — Cortexa's own highlights are paired with its
- * Core Features section instead (EngineeringNotesColumn.tsx), so
- * ProjectDocumentationViewer.tsx passes an empty array here for that one
- * doc; every other project doc still gets its highlights rendered in this
- * sidebar exactly as before.
+ * rather than raw frontmatter. Cortexa never reaches this component at all
+ * — Cortexa Workspace Refinement removed its Engineering Notes sidebar
+ * outright (DocumentationLayout.tsx's own `sidebar` prop is optional now,
+ * and ProjectDocumentationViewer.tsx passes none for Cortexa, see its own
+ * doc comment); every other project doc still gets its highlights rendered
+ * in this sidebar exactly as before.
  */
 export function DocumentationSidebar({
   highlights,

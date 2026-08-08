@@ -14,6 +14,7 @@ import type { SearchResult } from '../search/types';
 import { notificationService } from '../notifications/notificationService';
 import type { Notification } from '../notifications/types';
 import { isManifestFile } from '../manifest/fileMatch';
+import { isWorkHistoryFile } from '../experience/fileMatch';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
 export type SearchStatus = 'idle' | 'searching' | 'done';
@@ -365,6 +366,23 @@ export const useStore = create<StoreState>((set, get) => ({
         splitTrigger: null,
         splitRatio: 0.5,
         openedTabs: [{ id: `tab-${ts}-manifest`, fileId: id, pane: 'left' as const }],
+        activeFileId: id,
+      };
+    }
+
+    // Work History pipeline: work_history.yaml renders as a full-canvas
+    // experience visualization (see experience/fileMatch.ts and the
+    // Visualization Registry), not as a source|preview split — the pipeline
+    // track needs the full editor width to read as a system rather than as
+    // a squeezed diagram. Same single-full-width-pane treatment, and same
+    // reasoning, as the manifest branch directly above.
+    if (file && isWorkHistoryFile(file)) {
+      const ts = Date.now();
+      return {
+        editorSplit: false,
+        splitTrigger: null,
+        splitRatio: 0.5,
+        openedTabs: [{ id: `tab-${ts}-work-history`, fileId: id, pane: 'left' as const }],
         activeFileId: id,
       };
     }

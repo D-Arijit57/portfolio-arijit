@@ -67,11 +67,17 @@ function computeGuideIndentUnits(rawLines: string[], indentUnits: number[]): num
  * highlight's continuation lines align just past its "- " marker instead
  * of falling back to the container's left edge.
  *
- * Sprint: Workspace-Wide File Opening Animation System — `sequence` (built
- * once by WorkHistoryViewer, one unit per source line, matching this
- * component's existing one-row-per-line rendering exactly rather than
- * grouping rows the way useShikiRevealHighlight does for editable files)
- * staggers each row in; a trailing cursor row appears once complete.
+ * Sprint: Workspace-Wide File Opening Animation System — `sequence` (one
+ * unit per source line, matching this component's one-row-per-line
+ * rendering exactly rather than grouping rows the way
+ * useShikiRevealHighlight does for editable files) staggers each row in; a
+ * trailing cursor row appears once complete.
+ *
+ * Its caller is now the pipeline's "view source" toggle
+ * (PipelineVisualization.tsx), which passes a *disabled* sequence: the
+ * source is a reference the reader opens deliberately, so it renders at its
+ * final state instantly rather than typing itself out again on every
+ * toggle.
  */
 export function WorkHistoryYamlBlock({
   code,

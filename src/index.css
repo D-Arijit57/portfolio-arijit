@@ -124,8 +124,17 @@
   to { stroke-dashoffset: 0; }
 }
 
+/* CortexaConnectors is this class's only live consumer — ExecutionWireLayer
+   above is orphaned (nothing imports it), so the timing here is free to
+   serve the connector alone. It's the one looping animation on cortexa.md
+   and the exception to the rule stated below it: it runs only while the
+   decisions wire has landed and run-cortexa hasn't started producing
+   output — a real state, not atmosphere — and only after the reader has
+   actually stalled there (CortexaExecutionFlow's STALL_MS). Slowed from
+   1.3s and left half-lit on purpose: this is meant to be caught by
+   peripheral vision on the way to being scrolled past, not read. */
 .execution-wire-pulse {
-  animation: wire-pulse-travel 1.3s linear infinite;
+  animation: wire-pulse-travel 2s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -146,7 +155,11 @@
 /* run-cortexa's documentation block (ExecutionReplayTerminal.tsx) mounts
    rather than fading from opacity 0, so that it doesn't reserve height
    while the terminal is still growing line by line. Mounting means a CSS
-   transition has nothing to transition *from* — hence a keyframe. */
+   transition has nothing to transition *from* — hence a keyframe. The
+   block's *box* is a separate matter: it grows from 0 to its measured
+   height (RECORD_EXPAND_MS) so the panel's one large expansion doesn't
+   jump the content a settled reader is already looking at. Content rises
+   into a box that is opening; the two run together by design. */
 @keyframes fade-rise {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -290,8 +303,8 @@
 
 /* Scroll stays functional, the track/thumb just doesn't render — used
    wherever a native scrollbar would look out of place next to the rest of
-   the workspace's own chrome (e.g. WorkHistoryViewer's two side-by-side
-   panels). */
+   the workspace's own chrome (e.g. the Work History pipeline's full-canvas
+   scroll region). */
 .no-scrollbar {
   scrollbar-width: none;
   -ms-overflow-style: none;

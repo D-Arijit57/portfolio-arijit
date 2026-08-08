@@ -26,10 +26,14 @@ function formatExperience(exp: WorkExperience): string {
   ];
 
   // A blank line between each highlight, matching the reference exactly —
-  // still a valid YAML block sequence with blank lines between items.
+  // still a valid YAML block sequence with blank lines between items. Only
+  // `text` is emitted: a Highlight's `metric` is an annotation of this
+  // sentence, not a fact alongside it (see the field's own doc comment), so
+  // the generated source is byte-identical to what it was before metrics
+  // existed — and the two hand-maintained seed copies stay untouched.
   exp.highlights.forEach((h, i) => {
     if (i > 0) lines.push('');
-    lines.push(`      - ${h}`);
+    lines.push(`      - ${h.text}`);
   });
 
   return lines.join('\n');

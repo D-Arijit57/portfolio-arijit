@@ -25,6 +25,44 @@ const BRIGHTEN_MS = 250;
 const DECISION_ROW_MS = 70;
 const SCROLL_INDICATOR_MS = 500;
 
+/**
+ * The vertical room run-cortexa needs *below its own top edge* before its
+ * replay is worth starting — chrome, body padding, and every event row the
+ * build phase will print:
+ *
+ *   45  header (13px title, py-3, hairline border)
+ * + 48  body padding (p-6, both sides)
+ * +144  6 event rows (13px at leading-1.55 ≈ 20px, plus py-[2px])
+ * + 36  the closing summary line (mt-4 + one row)
+ *
+ * Derived from the panel's type scale rather than measured, because the
+ * height only exists after the sequence it gates has already run. It
+ * deliberately covers the *replaying* panel and not the record block that
+ * mounts afterward: gating on the fully settled height would delay the
+ * trigger so long that the panel's top edge would already be leaving the
+ * pane before anything started, which trades one framing problem for a
+ * worse one. The record block's expansion is handled where it belongs —
+ * as a height transition in ExecutionReplayTerminal, not by holding the
+ * whole sequence back.
+ */
+const EXECUTION_ROOM_PX = 280;
+/** Breathing room kept between the framing gate and the pane's own edges. */
+const EXECUTION_ROOM_MARGIN_PX = 48;
+
+/**
+ * How long the reader has to sit still, with run-cortexa woken but not yet
+ * framed, before the decisions wire starts pulsing toward it.
+ *
+ * The delay is the whole design. A reader who is already scrolling never
+ * sees the pulse at all — it exists only for the one who actually stopped,
+ * which is the only person it has anything to tell. And at the moment the
+ * wire lands (~1.5s in) the reader is still working through cortexa.sh's
+ * five decision rows; a cue firing then would compete with the content it's
+ * trying to get them past. Three seconds is roughly when those rows have
+ * been read.
+ */
+const STALL_MS = 2800;
+
 type Stage =
   | 'problem'
   | 'constraint-wire'
@@ -68,11 +106,26 @@ const STAGE_ORDER: Stage[] = [
  * has genuinely completed; a woken terminal brightens before it produces
  * output. Nothing is chained on a guessed duration.
  *
- * run-cortexa additionally waits until it's scrolled into view — it's the
- * only terminal that starts below the fold, and being last in the chain it
- * can wait without blocking anything. If the reader scrolls past it
- * mid-replay, the remaining events finish at an accelerated rate rather
- * than pausing, so nobody ever scrolls back to a half-built terminal.
+ * run-cortexa additionally waits until it's *framed*, not merely until its
+ * top edge grazes the fold — it's the only terminal that starts below the
+ * fold and the only one that grows downward while it plays, so starting it
+ * the instant its header peeked into view meant the newest line could print
+ * somewhere the reader wasn't looking. The gate is a sentinel pinned
+ * EXECUTION_ROOM_PX below the panel's top: when that point is on screen,
+ * there is room for every event row to land where it can be watched. Being
+ * last in the chain, it can wait for that without blocking anything.
+ *
+ * That gate creates a state the page has to be honest about: the wire has
+ * landed and the panel is lit, but nothing is printing. A woken shell in
+ * that state isn't blank — it holds a cursor (ExecutionReplayTerminal's
+ * `awake`) — and if the reader stops there for STALL_MS, the wire feeding
+ * it pulses downward until the replay starts. Neither says "scroll"; both
+ * say "this is running and its output is below," which is the same
+ * information without the instruction.
+ *
+ * If the reader scrolls past it mid-replay, the remaining events finish at
+ * an accelerated rate rather than pausing, so nobody ever scrolls back to a
+ * half-built terminal.
  *
  * `skip` (reduced motion, or already played this session) renders the whole
  * chain at its final state — fully readable and fully interactive with no
@@ -98,10 +151,30 @@ export function CortexaExecutionFlow({
   const [activeDecision, setActiveDecision] = useState<DecisionId | null>(null);
 
   // run-cortexa is the only terminal that begins below the fold, so it's the
-  // only one whose start is gated on being seen. `useInViewOnce` latches, so
+  // only one whose start is gated on being seen — and it's gated on being
+  // seen *with room to build*, via a sentinel pinned that far below the
+  // panel's top edge (see EXECUTION_ROOM_PX). `useInViewOnce` latches, so
   // scrolling away afterward never rewinds it.
-  const { ref: executionInViewRef, inView: executionInView } = useInViewOnce<HTMLDivElement>(0.1);
+  const { ref: executionInViewRef, inView: executionInView } = useInViewOnce<HTMLSpanElement>(0);
   const [executionPassed, setExecutionPassed] = useState(false);
+
+  // The room asked for is clamped to what the documentation pane can
+  // actually show. Without this, a short window would put the sentinel
+  // permanently below the visible area and the replay would never fire at
+  // all — the one failure mode worse than starting too early.
+  const [executionRoom, setExecutionRoom] = useState(EXECUTION_ROOM_PX);
+
+  useEffect(() => {
+    if (skip) return undefined;
+    const measure = () => {
+      const pane = document.querySelector('[data-doc-scroll-root]');
+      const available = (pane?.clientHeight ?? window.innerHeight) - EXECUTION_ROOM_MARGIN_PX;
+      setExecutionRoom(Math.max(0, Math.min(EXECUTION_ROOM_PX, available)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [skip]);
 
   const stageAtLeast = useCallback(
     (target: Stage) => STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(target),
@@ -147,6 +220,35 @@ export function CortexaExecutionFlow({
     );
     return () => timers.forEach(window.clearTimeout);
   }, [stage, skip]);
+
+  // The waiting state: the decisions have been delivered and run-cortexa is
+  // lit, but it isn't framed well enough to start. Left alone that reads as
+  // a stuck terminal, so the wire feeding it pulses — but only once the
+  // reader has genuinely stopped moving for STALL_MS. Any scroll re-arms
+  // the timer, so the cue is never on screen for someone already heading
+  // where it would point them.
+  const executionWaiting = !skip && stageAtLeast('execution') && !executionInView;
+  const [executionStalled, setExecutionStalled] = useState(false);
+
+  useEffect(() => {
+    if (!executionWaiting) {
+      setExecutionStalled(false);
+      return undefined;
+    }
+    const pane = document.querySelector('[data-doc-scroll-root]');
+    let timer = 0;
+    const arm = () => {
+      window.clearTimeout(timer);
+      setExecutionStalled(false);
+      timer = window.setTimeout(() => setExecutionStalled(true), STALL_MS);
+    };
+    arm();
+    pane?.addEventListener('scroll', arm, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      pane?.removeEventListener('scroll', arm);
+    };
+  }, [executionWaiting]);
 
   // Has the reader scrolled the execution terminal back off-screen while it
   // was still building? Then let it finish fast rather than stall.
@@ -199,7 +301,18 @@ export function CortexaExecutionFlow({
 
       {/* The evidence, full width beneath — the replay's timestamped rows
           were the most width-starved content on the page. */}
-      <div ref={executionInViewRef} className="mt-6">
+      <div className="relative mt-6">
+        {/* The framing gate, not a layout element: a zero-size marker at the
+            depth the replay will grow to. When it's on screen, the build has
+            somewhere to be watched. Absolutely positioned so it can sit
+            below the panel's current (nearly empty) height without
+            reserving any of it. */}
+        <span
+          ref={executionInViewRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 block h-px w-px"
+          style={{ top: executionRoom }}
+        />
         <CortexaTerminalPanel
           ref={executionRef}
           fileName="./run-cortexa"
@@ -212,6 +325,7 @@ export function CortexaExecutionFlow({
         >
           <ExecutionReplayTerminal
             start={stageAtLeast('execution') && (skip || executionInView)}
+            awake={stageAtLeast('execution')}
             skip={skip}
             accelerated={executionPassed}
             frontmatter={frontmatter}
@@ -231,6 +345,7 @@ export function CortexaExecutionFlow({
         constraintDrawn={skip || stageAtLeast('constraint-wire')}
         decisionsDrawn={skip || stageAtLeast('execution-wire')}
         linkActive={activeDecision !== null}
+        pending={executionStalled}
         onConstraintDrawn={handleConstraintDrawn}
         onDecisionsDrawn={handleDecisionsDrawn}
       />

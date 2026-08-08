@@ -1,7 +1,6 @@
 import React from 'react';
 import { useStore } from '../../store/useStore';
 import { getFileById } from '../../content/fileSystem';
-import { WorkHistoryViewer } from './WorkHistoryViewer';
 import { ArchitectureCanvas } from '../architecture/ArchitectureCanvas';
 import { ManifestViewer } from '../manifest/ManifestViewer';
 import { isManifestFile } from '../../manifest/fileMatch';
@@ -56,9 +55,9 @@ function renderFileContent(file: VirtualFile) {
     return isProjectDocFile(file) ? <ProjectDocumentationViewer file={file} /> : <MarkdownFileView file={file} />;
   }
 
-  if (file.id === 'work_history') {
-    return <WorkHistoryViewer />;
-  }
+  // work_history.yaml deliberately has no branch here anymore — it resolves
+  // through the Visualization Registry below (see graph/registerBuiltins.ts),
+  // the first renderer to make that migration.
 
   // Portfolio Polish Sprint (Architecture full-screen): .mmd is a dedicated
   // full-screen visualization, not a code file — every pane renders the

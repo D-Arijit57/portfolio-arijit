@@ -56,6 +56,15 @@ function verticalPath(from: Point, to: Point): string {
  * which is what wakes the downstream terminal. Nothing downstream brightens
  * before its signal has physically arrived. Glow is reserved for the draw
  * itself and for an active hover link, so it always reports something.
+ *
+ * `pending` is the one looping motion on the page, and it earns the
+ * exception the same way: it reports a real state rather than running for
+ * atmosphere. It means *this signal has been delivered and the terminal it
+ * feeds has not produced output yet* — true only while run-cortexa sits
+ * woken but unframed, and it stops the instant the replay begins. It
+ * travels source → target, which is downward, which is where the reader
+ * needs to go to see the output it's promising. See CortexaExecutionFlow's
+ * STALL_MS for why it doesn't start the moment that state is entered.
  */
 export function CortexaConnectors({
   containerRef,
@@ -65,6 +74,7 @@ export function CortexaConnectors({
   constraintDrawn,
   decisionsDrawn,
   linkActive,
+  pending,
   onConstraintDrawn,
   onDecisionsDrawn,
 }: {
@@ -75,6 +85,8 @@ export function CortexaConnectors({
   constraintDrawn: boolean;
   decisionsDrawn: boolean;
   linkActive: boolean;
+  /** Decisions delivered, replay not yet started — see the note above. */
+  pending: boolean;
   onConstraintDrawn?: () => void;
   onDecisionsDrawn?: () => void;
 }) {
@@ -145,6 +157,7 @@ export function CortexaConnectors({
     wire: Wire | undefined,
     visible: boolean,
     lit: boolean,
+    pulsing: boolean,
     onDrawComplete: (() => void) | undefined,
   ) => {
     if (!wire || !visible) return null;
@@ -167,6 +180,27 @@ export function CortexaConnectors({
           style={{ transition: 'stroke-width 150ms ease-out, stroke-opacity 150ms ease-out' }}
           onAnimationEnd={onDrawComplete}
         />
+        {/* The travelling pulse rides *over* the drawn wire rather than
+            replacing it — the wire itself must stay solid, because it's
+            still asserting a dependency that exists. A short dash on a
+            pathLength=100 track (one 8-unit pulse per 100-unit period)
+            reads as a packet moving down the trace; animating the whole
+            dasharray would read as the wire redrawing itself, which would
+            claim the decisions were being re-delivered. Deliberately quiet:
+            no glow, half opacity, slower than the draw. */}
+        {pulsing && (
+          <path
+            d={wire.d}
+            pathLength={100}
+            fill="none"
+            stroke={ACCENT}
+            strokeWidth={2}
+            strokeOpacity={0.5}
+            strokeLinecap="round"
+            strokeDasharray="8 92"
+            className="execution-wire-pulse"
+          />
+        )}
         {[wire.from, wire.to].map((point, index) => (
           <circle
             key={index}
@@ -184,8 +218,8 @@ export function CortexaConnectors({
 
   return (
     <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-      {renderWire(geometry.problemToSolution, constraintDrawn, false, onConstraintDrawn)}
-      {renderWire(geometry.solutionToExecution, decisionsDrawn, linkActive, onDecisionsDrawn)}
+      {renderWire(geometry.problemToSolution, constraintDrawn, false, false, onConstraintDrawn)}
+      {renderWire(geometry.solutionToExecution, decisionsDrawn, linkActive, pending, onDecisionsDrawn)}
     </svg>
   );
 }

@@ -64,7 +64,7 @@ export function SpanningContributions({ items }: { items: SpanningContribution[]
             <div className="mt-2 flex flex-wrap items-baseline gap-x-8 gap-y-1">
               <TechnologyRow technologies={item.technologies} />
               <span className="font-mono text-[11px]" style={{ color: CONTENT_DIM }}>
-                work_history.yaml · highlight{item.sourceHighlights.length > 1 ? 's' : ''}{' '}
+                americanchase.yaml · highlight{item.sourceHighlights.length > 1 ? 's' : ''}{' '}
                 {item.sourceHighlights.map((index) => index + 1).join(', ')}
               </span>
             </div>

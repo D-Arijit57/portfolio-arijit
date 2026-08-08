@@ -42,7 +42,7 @@ export function StageDetail({ stage, panelId, tabId }: { stage: PipelineStage; p
 
         {stage.sourceHighlights.length > 0 && (
           <p className="font-mono text-[11px]" style={{ color: CONTENT_DIM }}>
-            work_history.yaml · highlight{stage.sourceHighlights.length > 1 ? 's' : ''}{' '}
+            americanchase.yaml · highlight{stage.sourceHighlights.length > 1 ? 's' : ''}{' '}
             {stage.sourceHighlights.map((index) => index + 1).join(', ')}
           </p>
         )}

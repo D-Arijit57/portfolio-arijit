@@ -14,7 +14,7 @@ import {
 // character-by-character rather than fading in whole line-groups — "someone
 // calmly writing code," not a documentation block appearing. Every real file
 // in this workspace (playground.py, contact.sh, the skills/*.yaml files,
-// work_history.yaml) is comfortably under a few hundred characters, so full
+// americanchase.yaml) is comfortably under a few hundred characters, so full
 // per-character fidelity costs nothing in practice; MAX_INDIVIDUAL_CHARS is
 // a generous but real ceiling — a hypothetical future huge generated file
 // gracefully falls back to the old whole-line-group fade (still bounded by

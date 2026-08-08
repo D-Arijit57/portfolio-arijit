@@ -23,7 +23,7 @@ import type { VirtualFile } from '../../../types';
 const STACK_BREAKPOINT_PX = 640;
 
 /**
- * work_history.yaml as a full-canvas engineering artifact: the system one
+ * americanchase.yaml as a full-canvas engineering artifact: the system one
  * engineer worked on, with his contributions located in it.
  *
  * It replaced a 50/50 source|preview split whose right half was a rendered

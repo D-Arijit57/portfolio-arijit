@@ -62,7 +62,7 @@ const CORTEXA_ARCHITECTURE_MERMAID = modelToMermaid(cortexaArchitecture);
 // string kept in sync by hand.
 const RAKSHACHAKRA_ARCHITECTURE_MERMAID = modelToMermaid(rakshachakraArchitecture);
 
-// Career Roadmap redesign: work_history.yaml's displayed source is
+// Career Roadmap redesign: americanchase.yaml's displayed source is
 // generated from the canonical WorkExperience[] (src/content/workHistory.ts),
 // the same relationship CORTEXA_ARCHITECTURE_MERMAID has with
 // cortexaArchitecture above — the Career Roadmap panel imports that array
@@ -878,10 +878,10 @@ Workspace ready.
       path: '/experience',
       children: [
         {
-          id: 'work_history',
-          name: 'work_history.yaml',
+          id: 'american_chase',
+          name: 'americanchase.yaml',
           type: 'yaml',
-          path: '/experience/work_history.yaml',
+          path: '/experience/americanchase.yaml',
           content: WORK_HISTORY_YAML,
         } as VirtualFile,
       ],

@@ -12,7 +12,7 @@ import { ExperienceVisualizationViewer } from '../components/experience/Experien
  *
  * The registry's own comment anticipated this: migrating hardcoded
  * EditorRenderer branches onto it "once it has proven itself with
- * `skills.graph`". work_history.yaml is the first to make that move, which
+ * `skills.graph`". americanchase.yaml is the first to make that move, which
  * is why its EditorRenderer branch is gone.
  */
 registerVisualization({

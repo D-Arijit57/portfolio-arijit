@@ -5,14 +5,14 @@ import { useStore } from '../../store/useStore';
 import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 import { parseLineToCharTokens, type CharToken } from '../../lib/shikiLineReveal';
 
-// Markdown typography & animation redesign: work_history.yaml is a
+// Markdown typography & animation redesign: americanchase.yaml is a
 // programming/data file, not documentation — it types in character-by-
 // character like every other source file now, instead of fading in whole
 // rows. Each row still enters at its own row-level moment (sequence's
 // existing per-line stagger, unchanged — the "row sliding up" already read
 // well), and its own characters type out in a small fixed step starting
 // from that same moment, decoupled from the shared sequence's own
-// even-spacing formula (a work_history.yaml row is short enough that a
+// even-spacing formula (a americanchase.yaml row is short enough that a
 // flat local step reads as calm, deliberate typing without needing the
 // full jitter/grouping machinery useShikiRevealHighlight uses for whole
 // files).
@@ -57,10 +57,10 @@ function computeGuideIndentUnits(rawLines: string[], indentUnits: number[]): num
 }
 
 /**
- * Line-aware, indent-guide-drawing YAML block for work_history.yaml's left
+ * Line-aware, indent-guide-drawing YAML block for americanchase.yaml's left
  * pane. Split out from the plain "dump Shiki's HTML in one div" approach
  * (which the manifest.yaml/architecture.mmd viewers can get away with,
- * since their lines are short) because work_history.yaml's `highlights`
+ * since their lines are short) because americanchase.yaml's `highlights`
  * entries are long enough to wrap — this renders each source line as its
  * own row so it can (a) draw the indent guide lines VS Code shows for
  * nested YAML, and (b) apply a CSS hanging indent per row so a wrapped

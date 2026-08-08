@@ -4,7 +4,7 @@ import { PipelineVisualization } from './pipeline/PipelineVisualization';
 import type { VirtualFile } from '../../types';
 
 /**
- * The Visualization Registry's entry point for work_history.yaml, and the
+ * The Visualization Registry's entry point for americanchase.yaml, and the
  * only place an `ExperienceVisualization`'s `type` is dispatched on.
  *
  * A second renderer (timeline, system) would add one branch here and one

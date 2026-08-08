@@ -1,7 +1,7 @@
 import type { WorkExperience } from '../experience/types';
 
 /**
- * The canonical structured source for work_history.yaml. The displayed YAML
+ * The canonical structured source for americanchase.yaml. The displayed YAML
  * (src/experience/renderers/yamlRenderer.ts) is generated from `highlights`
  * here — the same "model in, source text out" relationship
  * CORTEXA_ARCHITECTURE_MERMAID has with src/content/architecture/cortexa.ts.
@@ -47,7 +47,7 @@ export const workHistory: WorkExperience[] = [
     visualization: {
       type: 'pipeline',
       title: 'a document, end to end',
-      derivedFrom: 'reconstructed from work_history.yaml · not live instrumentation',
+      derivedFrom: 'reconstructed from americanchase.yaml · not live instrumentation',
 
       stages: [
         {

@@ -370,7 +370,7 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // Work History pipeline: work_history.yaml renders as a full-canvas
+    // Work History pipeline: americanchase.yaml renders as a full-canvas
     // experience visualization (see experience/fileMatch.ts and the
     // Visualization Registry), not as a source|preview split — the pipeline
     // track needs the full editor width to read as a system rather than as

@@ -59,7 +59,7 @@ The backend-side name for invariants that hold over the entire tree as a unit �
 This was left implicit in the first draft; the stress test showed that's not safe once ids come from two independent sources (hand-authored static content, two live external integrations). Frozen now:
 
 **Static content ids** (Sprint 2 and beyond):
-- Hand-assigned at authoring time, matching the existing seed convention (`readme`, `playground`, `about`, `profile`, `work_history`, `cortexa`, `cortexa_readme`, …).
+- Hand-assigned at authoring time, matching the existing seed convention (`readme`, `playground`, `about`, `profile`, `american_chase`, `cortexa`, `cortexa_readme`, …).
 - Must not contain a `:` character — the colon is reserved as the namespace separator for generated ids (below). This is what makes static/generated collision structurally impossible, not just conventionally unlikely.
 - Uniqueness is enforced the same way as everything else: `FileSystemService`'s tree-wide validation (§5) is the actual backstop, regardless of how an id was produced.
 

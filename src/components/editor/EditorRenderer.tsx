@@ -55,7 +55,7 @@ function renderFileContent(file: VirtualFile) {
     return isProjectDocFile(file) ? <ProjectDocumentationViewer file={file} /> : <MarkdownFileView file={file} />;
   }
 
-  // work_history.yaml deliberately has no branch here anymore — it resolves
+  // americanchase.yaml deliberately has no branch here anymore — it resolves
   // through the Visualization Registry below (see graph/registerBuiltins.ts),
   // the first renderer to make that migration.
 

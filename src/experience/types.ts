@@ -1,5 +1,5 @@
 /**
- * Domain model for work_history.yaml — the same "structured model is the
+ * Domain model for americanchase.yaml — the same "structured model is the
  * source of truth, the renderer only reads it" philosophy as the
  * Architecture Platform (src/architecture/types.ts) and the Manifest
  * Viewer (src/manifest/types.ts), applied to work history instead.
@@ -8,7 +8,7 @@
  *
  *   `highlights`   the résumé sentences. The only thing yamlRenderer.ts
  *                  reads, and therefore the only thing that reaches the
- *                  displayed work_history.yaml source.
+ *                  displayed americanchase.yaml source.
  *
  *   `visualization` an *interpretation* of those same sentences as the
  *                  system they describe. Model-only. It never reaches the
@@ -124,7 +124,7 @@ export interface PipelineVisualizationModel {
   title: string;
   /**
    * Rendered verbatim in the footer. The pipeline is an interpretation of
-   * work_history.yaml, not instrumentation of a live system, and the page
+   * americanchase.yaml, not instrumentation of a live system, and the page
    * says so rather than implying otherwise.
    */
   derivedFrom: string;

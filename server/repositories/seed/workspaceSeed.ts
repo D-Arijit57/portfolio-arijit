@@ -888,10 +888,10 @@ Workspace ready.
       path: '/experience',
       children: [
         {
-          id: 'work_history',
-          name: 'work_history.yaml',
+          id: 'american_chase',
+          name: 'americanchase.yaml',
           type: 'yaml',
-          path: '/experience/work_history.yaml',
+          path: '/experience/americanchase.yaml',
           content: WORK_HISTORY_YAML,
         } as VirtualFile,
       ],

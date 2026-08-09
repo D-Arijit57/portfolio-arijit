@@ -15,6 +15,7 @@ import { notificationService } from '../notifications/notificationService';
 import type { Notification } from '../notifications/types';
 import { isManifestFile } from '../manifest/fileMatch';
 import { isWorkHistoryFile } from '../experience/fileMatch';
+import { isContactFile } from '../contact/fileMatch';
 
 export type SavingState = 'idle' | 'saving' | 'success' | 'error';
 export type SearchStatus = 'idle' | 'searching' | 'done';
@@ -387,6 +388,25 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
+    // The Handoff: contact.sh renders as a full-width single pane, same
+    // treatment and same reasoning as the manifest/work-history branches
+    // above — an export list with real keyboard shortcuts needs to read as
+    // the whole workspace's exit, not a document squeezed into half a
+    // split. Without this branch it inherited the generic
+    // resolveTargetPane() placement and opened beside whatever was already
+    // active, which is what left it splittable (and easy to miss) before
+    // this file existed.
+    if (file && isContactFile(file)) {
+      const ts = Date.now();
+      return {
+        editorSplit: false,
+        splitTrigger: null,
+        splitRatio: 0.5,
+        openedTabs: [{ id: `tab-${ts}-contact`, fileId: id, pane: 'left' as const }],
+        activeFileId: id,
+      };
+    }
+
     // Portfolio Polish Sprint (Architecture full-screen): architecture.mmd is
     // a dedicated full-screen visualization, never a raw-source/canvas
     // mirror (that self-split lived here until this sprint — see
@@ -741,9 +761,23 @@ export const useStore = create<StoreState>((set, get) => ({
         });
       }
     } catch (err) {
+      // Resilience fallback: workspaceTree/workspaceFiles are already the
+      // static seed (set at store creation above — see that field's own
+      // comment), and buildIndex() already ran against it at module load —
+      // a failed hydration has nothing to overwrite and nothing left
+      // un-indexed. Rendering the app now, from that seed, is what keeps
+      // the portfolio (including the Handoff/contact experience) reachable
+      // when the VFS API is temporarily unavailable, rather than
+      // hard-blocking every visitor behind App.tsx's BootErrorScreen for a
+      // backend hiccup. The failure is still recorded for diagnosis; it
+      // just no longer gates the UI (vfsError stays null, which is what
+      // App.tsx's gate already checks).
+      const message = err instanceof Error ? err.message : 'Failed to load workspace';
+      console.error('[hydrateVFS] backend unavailable, continuing with static seed:', message);
       set({
+        vfsLoaded: true,
         vfsLoading: false,
-        vfsError: err instanceof Error ? err.message : 'Failed to load workspace',
+        vfsError: null,
       });
     }
   },

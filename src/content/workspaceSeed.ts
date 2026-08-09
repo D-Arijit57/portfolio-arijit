@@ -4,6 +4,8 @@ import { cortexaArchitecture } from './architecture/cortexa';
 import { rakshachakraArchitecture } from './architecture/rakshachakra';
 import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
 import { workHistory } from './workHistory';
+import { contactChannelsToShellScript } from '../contact/renderers/shellRenderer';
+import { CONTACT_CHANNELS } from './contact';
 
 // hire_me.md: the left panel's content is a hand-authored artifact styled
 // like generated CLI output — "why hire this engineer" — rather than
@@ -71,6 +73,14 @@ const RAKSHACHAKRA_ARCHITECTURE_MERMAID = modelToMermaid(rakshachakraArchitectur
 // repositories/seed/workspaceSeed.ts can't import from src/, so its copy is
 // a literal string kept in sync by hand.
 const WORK_HISTORY_YAML = workHistoryToYaml(workHistory);
+
+// contact.sh's displayed source — same "model in, source text out"
+// relationship as WORK_HISTORY_YAML above, from src/content/contact.ts's
+// CONTACT_CHANNELS (itself a projection of ResumeContact, never a second
+// set of literal values). Same duplication caveat as the others — server/
+// repositories/seed/workspaceSeed.ts can't import from src/, so its copy
+// is a literal string kept in sync by hand.
+const CONTACT_SH_CONTENT = contactChannelsToShellScript(CONTACT_CHANNELS);
 
 // Hand-authored project documentation, same duplication convention as
 // RFC_MARKDOWN and CORTEXA_ARCHITECTURE_MERMAID above — kept textually
@@ -973,13 +983,7 @@ Workspace ready.
           name: 'contact.sh',
           type: 'shell',
           path: '/contact/contact.sh',
-          content: `#!/bin/bash
-# Run this to contact me
-
-echo "Email: dasarijit5704@gmail.com"
-echo "GitHub: github.com/yourusername"
-echo "LinkedIn: linkedin.com/in/yourusername"
-`,
+          content: CONTACT_SH_CONTENT,
         } as VirtualFile,
       ],
     } as VirtualFolder,

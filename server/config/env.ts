@@ -7,6 +7,8 @@ export interface AppConfig {
   readonly githubUsername?: string;
   readonly githubToken?: string;
   readonly leetcodeUsername?: string;
+  readonly resendApiKey?: string;
+  readonly feedbackToEmail?: string;
 }
 
 function readEnv(name: string, fallback?: string): string {
@@ -31,5 +33,10 @@ export const config: AppConfig = {
   corsOrigin: readEnv('CORS_ORIGIN', 'http://localhost:3000'),
   githubUsername: readOptionalEnv('GITHUB_USERNAME'),
   githubToken: readOptionalEnv('GITHUB_TOKEN'),
-  leetcodeUsername: readOptionalEnv('LEETCODE_USERNAME'), 
+  leetcodeUsername: readOptionalEnv('LEETCODE_USERNAME'),
+  // Genuinely optional, same reasoning as githubToken above: contact.sh's
+  // Review must degrade to a 503 (feedbackService.ts), never crash backend
+  // boot, when unconfigured — the Handoff stays fully functional either way.
+  resendApiKey: readOptionalEnv('RESEND_API_KEY'),
+  feedbackToEmail: readOptionalEnv('FEEDBACK_TO_EMAIL'),
 };

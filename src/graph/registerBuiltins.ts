@@ -3,6 +3,8 @@ import { isGraphFile } from './fileMatch';
 import { KnowledgeGraphViewer } from '../components/graph/KnowledgeGraphViewer';
 import { isWorkHistoryFile } from '../experience/fileMatch';
 import { ExperienceVisualizationViewer } from '../components/experience/ExperienceVisualizationViewer';
+import { isContactFile } from '../contact/fileMatch';
+import { ContactHandoff } from '../components/contact/ContactHandoff';
 
 /**
  * Side-effect module: populates the Visualization Registry with the
@@ -25,4 +27,10 @@ registerVisualization({
   id: 'experience-pipeline',
   matches: isWorkHistoryFile,
   component: ExperienceVisualizationViewer,
+});
+
+registerVisualization({
+  id: 'contact-handoff',
+  matches: isContactFile,
+  component: ContactHandoff,
 });

@@ -143,6 +143,27 @@
   }
 }
 
+/* americanchase.yaml's terminal chain (TerminalExecutionWire.tsx): the same
+   `wire-pulse-travel` keyframe as the looping pulse above, run exactly
+   once. The two are deliberately different declarations of one primitive
+   rather than two keyframes — Cortexa's loop reports an ongoing state
+   ("delivered, downstream hasn't produced output yet"), while this reports
+   a single event: Terminal 1 finished and is handing execution to Terminal
+   2. It is mounted only for the duration of that handoff and unmounted on
+   `animationend`, which is also what wakes the receiving terminal — so
+   nothing is left animating once the transfer has landed. Faster than the
+   loop (600ms vs 2s) because this one is meant to be watched, not caught
+   in peripheral vision. */
+.execution-wire-transfer {
+  animation: wire-pulse-travel 600ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-wire-transfer {
+    animation: none;
+  }
+}
+
 /* cortexa.md's connectors (CortexaConnectors.tsx): a wire draws itself
    once, at the moment its upstream terminal actually hands a value
    downstream — the constraint from problem.sh, the decisions from

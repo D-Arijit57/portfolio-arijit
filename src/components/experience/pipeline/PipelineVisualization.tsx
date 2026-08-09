@@ -1,51 +1,80 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import type { PipelineVisualizationModel, WorkExperience } from '../../../experience/types';
-import { defaultStageId } from '../../../experience/pipeline';
-import { prefersReducedMotion } from '../../../lib/typingReveal';
-import { WorkHistoryYamlBlock } from '../WorkHistoryYamlBlock';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useFileRevealSequence } from '../../../hooks/useFileRevealSequence';
-import { PipelineHeader } from './PipelineHeader';
-import { PipelineTrack } from './PipelineTrack';
-import { StageDetail } from './StageDetail';
-import { SpanningContributions } from './SpanningContributions';
-import { CONTENT_DIM, RULE, SURFACE, TEXT } from './tokens';
+import { hasAnimated, markAnimated, prefersReducedMotion } from '../../../lib/typingReveal';
+import { ExperienceTerminalOne } from './terminal/ExperienceTerminalOne';
+import { ExperienceTerminalTwo } from './terminal/ExperienceTerminalTwo';
+import { ExperienceTerminalThree } from './terminal/ExperienceTerminalThree';
+import { PROMPT_ACCENT } from './terminal/ExperienceTerminalPanel';
+import { TerminalExecutionWire, type WireState } from './terminal/TerminalExecutionWire';
+import { ROBOTO_MONO } from './terminal/robotoMono';
+import { SURFACE } from './tokens';
+import type { PipelineVisualizationModel, WorkExperience } from '../../../experience/types';
 import type { VirtualFile } from '../../../types';
 
-/**
- * Container width below which the axis rotates from four columns to
- * stacked rows. Measured, not guessed: on the real shell the columns hold
- * up to a ~630px pane, begin overflowing vertically around ~500px as claims
- * wrap to three and four lines, and hit a hard ~80px column floor below
- * ~330px where the pane starts scrolling sideways. Same value and same
- * container-measured convention the retired WorkHistoryViewer used.
- */
-const STACK_BREAKPOINT_PX = 640;
+const CHAIN_SESSION_KEY = 'americanchase-execution-chain';
 
 /**
- * americanchase.yaml as a full-canvas engineering artifact: the system one
- * engineer worked on, with his contributions located in it.
+ * The pause between Terminal 1 finishing and the channel to Terminal 2
+ * opening. Cortexa's own PROBLEM_READ_MS, reused rather than re-picked:
+ * there, it's how long problem.sh is left to be read before it emits its
+ * constraint; here it's the same beat, for the same reason — the handoff
+ * has to look like a consequence of the first terminal's output, which
+ * means the output needs a moment to exist as something read rather than
+ * something passed through.
+ */
+const SETTLE_READ_MS = 600;
+
+/** Cortexa's BRIGHTEN_MS: the dormant → active fade, run before the woken terminal produces any output. */
+const BRIGHTEN_MS = 250;
+
+/**
+ * The execution chain, as one dependency sequence rather than two terminals
+ * that happen to animate in order. Mirrors CortexaExecutionFlow's stage
+ * model exactly, including its central rule: each step is released by a
+ * real completion signal from the step before it — Terminal 1's last line's
+ * `animationend`, then the wire's own draw `animationend`, then the pulse's
+ * — never by a duration guessed alongside them.
+ */
+type ChainStage = 'terminal-one' | 'settling' | 'wire' | 'transfer' | 'waking' | 'terminal-two';
+
+const CHAIN_ORDER: ChainStage[] = ['terminal-one', 'settling', 'wire', 'transfer', 'waking', 'terminal-two'];
+
+/**
+ * americanchase.yaml, terminalized (Terminalized Workspace redesign,
+ * Phase 3 of 3 — complete): three self-contained terminal sessions —
+ * ExperienceTerminalOne (`cat ./americanchase.yaml` — what was the work),
+ * ExperienceTerminalTwo (`./pipeline.sh` — how did the system work, all
+ * four stages visible at once), and ExperienceTerminalThree (the actual
+ * YAML source, hidden until "view source" is opened). Each terminal owns
+ * its own reveal sequence and session key; this file just mounts them and
+ * owns the one thing genuinely shared across all three — the "view
+ * source" trigger and its collapse/expand state.
  *
- * It replaced a 50/50 source|preview split whose right half was a rendered
- * résumé. Read as data, those four résumé sentences describe *one* internal
- * tool used by *one* operations team — he automated its intake, made its
- * contents findable, kept it stable, and shipped it with the people who use
- * it. The résumé format shredded that; this puts it back.
+ * The trigger reads `$ cat ./americanchase.yaml` rather than a
+ * conventional "view source" link (Terminal 3's own brief: it should feel
+ * like a command, not a website control) and is deliberately NOT identical
+ * to Terminal 1's own tab title, which uses the same command for a
+ * different reason (Terminal 1 is the *interpreted* reading; Terminal 3 is
+ * the literal file) — Terminal 3's own panel is titled
+ * "americanchase.yaml — source" once open, so the two never look like
+ * duplicate tabs.
  *
- * Composition is sized to the editor's real canvas: header, axis, evidence
- * and the spanning band sit within one screen, so selecting a stage never
- * scrolls the pipeline out of view. That constraint is why the stages carry
- * their own claims — the workflow reads at rest, and interaction adds depth
- * rather than being the price of comprehension.
+ * Terminal 3 mounts lazily on first open (`hasOpened`) — nothing about it
+ * costs anything until a reader deliberately asks for it — then stays
+ * mounted so subsequent collapse/expand only ever toggles a CSS
+ * `grid-template-rows` transition (0fr ↔ 1fr), the standard
+ * measurement-free way to animate an unknown-height panel. No JS height
+ * measurement, no animation library; `prefers-reduced-motion` simply
+ * removes the transition, so collapse/expand becomes an instant snap with
+ * every bit of information already in the DOM either way.
  *
- * Vertical rhythm is deliberately uneven. A flat gap between every band
- * made the evidence look like one more piece of chrome; the largest space
- * on the page is now the one between the axis and the evidence it produced,
- * because that gap is the page's only real hierarchy break.
- *
- * The source is never hidden: it's one toggle away, and the artifact labels
- * itself a reconstruction of it. Each stage names the highlight it came
- * from, so the interpretation is auditable rather than asserted.
+ * PipelineTrack.tsx, PipelineStageMarker.tsx, PipelineHeader.tsx and
+ * SpanningContributions.tsx are unused by this file as of Phase 2 and
+ * remain so — left in place rather than deleted; this is that deferred
+ * cleanup pass's natural home once the redesign itself is confirmed.
+ * StageDetail.tsx and WorkHistoryYamlBlock.tsx needed zero changes across
+ * all three phases: both are reused completely unmodified.
  */
 export function PipelineVisualization({
   experience,
@@ -56,128 +85,163 @@ export function PipelineVisualization({
   visualization: PipelineVisualizationModel;
   file: VirtualFile;
 }) {
-  const idPrefix = useId();
-  const [selectedId, setSelectedId] = useState(() => defaultStageId(visualization));
-  const [showSource, setShowSource] = useState(false);
-  const [stacked, setStacked] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  /** The chain's own coordinate space — must be the element the wire's SVG
+   * is absolutely positioned against, not the padded scroll container
+   * outside it, or every measured endpoint lands offset by that padding. */
+  const chainRef = useRef<HTMLDivElement>(null);
+  const terminalOneRef = useRef<HTMLDivElement>(null);
+  const terminalTwoRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useRef(prefersReducedMotion()).current;
+  const sourcePanelId = useId();
 
-  const selected = visualization.stages.find((stage) => stage.id === selectedId);
+  const [expanded, setExpanded] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
 
-  // Four bands the eye lands on: header, axis, evidence, spanning.
-  const sequence = useFileRevealSequence({ fileId: file.id, unitCount: 4 });
+  // Reduced motion, or a repeat visit this session: the whole chain renders
+  // at its final state — both terminals active, the channel idle, the
+  // pipeline settled — with no handoff to watch and nothing missing.
+  const skipChain = useRef(reduceMotion || hasAnimated(CHAIN_SESSION_KEY)).current;
+  const [chain, setChain] = useState<ChainStage>(skipChain ? 'terminal-two' : 'terminal-one');
+
+  useEffect(() => {
+    if (!skipChain) markAnimated(CHAIN_SESSION_KEY);
+  }, [skipChain]);
+
+  const chainAtLeast = (target: ChainStage) => CHAIN_ORDER.indexOf(chain) >= CHAIN_ORDER.indexOf(target);
+
+  // Terminal 1 genuinely finished printing → hold a beat, then open the
+  // channel. The only timer in the chain; every other step is released by
+  // an animation actually completing.
+  const handleTerminalOneComplete = useCallback(() => {
+    if (skipChain) return;
+    setChain((stage) => (stage === 'terminal-one' ? 'settling' : stage));
+  }, [skipChain]);
+
+  useEffect(() => {
+    if (skipChain || chain !== 'settling') return undefined;
+    const timer = window.setTimeout(() => setChain('wire'), SETTLE_READ_MS);
+    return () => window.clearTimeout(timer);
+  }, [skipChain, chain]);
+
+  // The wire finished drawing → send the packet.
+  const handleWireDrawn = useCallback(() => {
+    setChain((stage) => (stage === 'wire' ? 'transfer' : stage));
+  }, []);
+
+  // The packet arrived → brighten Terminal 2, then let it run. Output only
+  // begins once the terminal is fully lit (Cortexa's own rule).
+  const handleTransferArrived = useCallback(() => {
+    setChain((stage) => (stage === 'transfer' ? 'waking' : stage));
+  }, []);
+
+  useEffect(() => {
+    if (skipChain || chain !== 'waking') return undefined;
+    const timer = window.setTimeout(() => setChain('terminal-two'), BRIGHTEN_MS);
+    return () => window.clearTimeout(timer);
+  }, [skipChain, chain]);
+
+  const wireState: WireState = skipChain
+    ? 'idle'
+    : chain === 'terminal-one' || chain === 'settling'
+      ? 'dormant'
+      : chain === 'wire'
+        ? 'drawing'
+        : chain === 'transfer'
+          ? 'transferring'
+          : 'idle';
 
   // The source view is a reference, not a performance — it renders at its
-  // final state with no typing, so toggling to it is instant every time.
+  // final state with no typing, so opening it is instant every time.
   const sourceSequence = useFileRevealSequence({
     fileId: `${file.id}-source`,
     unitCount: 1,
     enabled: false,
   });
 
-  // Measured against the *container*, not the viewport: this lives inside a
-  // resizable editor pane, so viewport width says nothing useful about how
-  // much room the axis actually has.
-  useEffect(() => {
-    const node = sequence.containerRef.current;
-    if (!node) return undefined;
-    const observer = new ResizeObserver(([entry]) => {
-      const width = entry?.contentRect.width ?? 0;
-      setStacked(width > 0 && width < STACK_BREAKPOINT_PX);
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleToggle = () => {
+    if (!hasOpened) setHasOpened(true);
+    setExpanded((value) => !value);
+  };
 
   return (
     <div
-      ref={sequence.containerRef as React.RefObject<HTMLDivElement>}
+      ref={containerRef}
       className="no-scrollbar h-full w-full overflow-y-auto overflow-x-hidden px-8 py-5"
       style={{ backgroundColor: SURFACE }}
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col">
-        <motion.div initial="hidden" animate="visible" custom={0} variants={sequence.unitVariants}>
-          <PipelineHeader experience={experience} visualization={visualization} />
-        </motion.div>
+      {/* Widened from max-w-5xl (1024px): the pipeline is horizontal and
+          is supposed to use the editor's real width, so capping the page
+          at a reading column was leaving most of a wide pane unused. The
+          cap that remains only stops the terminals stretching absurdly on
+          an ultra-wide monitor; Terminal 1's prose sets its own 72ch
+          measure independently, so widening this never hurts readability. */}
+      {/* `relative` so the execution channel's absolutely-positioned SVG
+          overlay shares this element's coordinate space — the same
+          container-relative measurement CortexaConnectors does. */}
+      <div ref={chainRef} className="relative mx-auto flex w-full max-w-[1500px] flex-col">
+        <TerminalExecutionWire
+          containerRef={chainRef}
+          fromRef={terminalOneRef}
+          toRef={terminalTwoRef}
+          state={wireState}
+          onDrawComplete={handleWireDrawn}
+          onTransferComplete={handleTransferArrived}
+        />
 
-        {/* Tight: the header is a caption to the axis, not a section of its own. */}
-        <motion.div
-          className="mt-4"
-          initial="hidden"
-          animate="visible"
-          custom={1}
-          variants={sequence.unitVariants}
-        >
-          <PipelineTrack
-            stages={visualization.stages}
-            selectedId={selectedId}
-            idPrefix={idPrefix}
-            stacked={stacked}
-            onSelect={setSelectedId}
+        <div ref={terminalOneRef}>
+          <ExperienceTerminalOne
+            experience={experience}
+            visualization={visualization}
+            onRevealComplete={handleTerminalOneComplete}
           />
-        </motion.div>
+        </div>
 
-        {selected && (
-          <motion.div
-            className="mt-7"
-            initial="hidden"
-            animate="visible"
-            custom={2}
-            variants={sequence.unitVariants}
-          >
-            {/* Keyed on the stage so switching crossfades the evidence
-                while the accent rule slides along the axis above — the two
-                together read as moving through one system rather than
-                swapping panels. */}
-            <motion.div
-              key={selected.id}
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={reduceMotion ? { duration: 0 } : { duration: 0.12, ease: 'easeOut' }}
-            >
-              <StageDetail
-                stage={selected}
-                panelId={`${idPrefix}-panel`}
-                tabId={`${idPrefix}-tab-${selected.id}`}
-              />
-            </motion.div>
-          </motion.div>
-        )}
+        {/* The gap the channel runs through. Wide enough for the wire to
+            read as a span between two processes rather than a seam between
+            two stacked boxes; not so wide that the terminals stop feeling
+            like one system. */}
+        <div ref={terminalTwoRef} className="mt-10">
+          <ExperienceTerminalTwo visualization={visualization} active={chainAtLeast('terminal-two')} />
+        </div>
 
-        <motion.div
-          className="mt-6"
-          initial="hidden"
-          animate="visible"
-          custom={3}
-          variants={sequence.unitVariants}
-        >
-          <SpanningContributions items={visualization.spanning} />
-        </motion.div>
-
-        <footer className="mt-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-          <span className="font-mono text-[11px]" style={{ color: CONTENT_DIM }}>
-            {visualization.derivedFrom}
-          </span>
+        <footer className="mt-6 flex flex-col items-end">
           <button
             type="button"
-            onClick={() => setShowSource((value) => !value)}
-            aria-expanded={showSource}
-            className="font-mono text-[11px] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
-            style={{ color: TEXT }}
+            onClick={handleToggle}
+            aria-expanded={expanded}
+            aria-controls={sourcePanelId}
+            className="flex items-center gap-1.5 text-[11px] text-[#6e7681] hover:text-[#cccccc] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
+            style={{ fontFamily: ROBOTO_MONO }}
           >
-            {showSource ? 'hide source' : 'view source'}
+            <ChevronRight
+              size={12}
+              aria-hidden="true"
+              style={{
+                transform: expanded ? 'rotate(90deg)' : 'none',
+                transition: reduceMotion ? 'none' : 'transform 150ms ease-out',
+              }}
+            />
+            <span style={{ color: PROMPT_ACCENT }}>$</span> cat ./americanchase.yaml
           </button>
 
-          {showSource && (
-            <div className="mt-2 w-full border-t pt-4" style={{ borderColor: RULE }}>
-              <WorkHistoryYamlBlock
-                code={file.content}
-                lang={file.type === 'typescript' ? 'ts' : file.type}
-                sequence={sourceSequence}
-              />
+          <div
+            id={sourcePanelId}
+            className="w-full"
+            style={{
+              display: 'grid',
+              gridTemplateRows: expanded ? '1fr' : '0fr',
+              transition: reduceMotion ? 'none' : 'grid-template-rows 220ms ease-out',
+            }}
+          >
+            <div className="overflow-hidden">
+              {hasOpened && (
+                <div className="mt-4">
+                  <ExperienceTerminalThree file={file} sequence={sourceSequence} />
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </footer>
       </div>
     </div>

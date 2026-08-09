@@ -35,3 +35,23 @@ export const DIFF_REMOVED = '#c9736b';
 export const DIFF_ADDED = '#6a9955';
 
 export const ACTIVE_BG = 'rgba(255,255,255,0.04)';
+
+/**
+ * Terminal-shell panel colours (Terminal 1/2/3 — see pipeline/terminal/).
+ * Not new values: #111318/#2d2d30 are whoami.md's own TerminalInfoCard
+ * panel background and border verbatim — reused so American Chase's
+ * terminals read as the same terminal system already established
+ * elsewhere in the workspace, one shade darker than SURFACE the same way
+ * TerminalInfoCard sits one shade darker than whoami.md's page background.
+ */
+export const PANEL_BG = '#111318';
+export const PANEL_BORDER = '#2d2d30';
+
+/**
+ * The status green for a stage that executed successfully (`200 OK`) —
+ * the exact value IdentityTerminals.tsx already uses for whoami.md's
+ * "Available ●" dot, reused rather than invented. Deliberately not
+ * DIFF_ADDED (#6a9955): that one means "this line was added" in the
+ * evidence diff, and a stage's execution status is a different statement.
+ */
+export const SUCCESS = '#3fb950';

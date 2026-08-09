@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useFileRevealSequence } from '../../../hooks/useFileRevealSequence';
+import { useInViewOnce } from '../../../hooks/useInViewOnce';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../../lib/typingReveal';
 import { ExperienceTerminalOne } from './terminal/ExperienceTerminalOne';
 import { ExperienceTerminalTwo } from './terminal/ExperienceTerminalTwo';
@@ -27,6 +28,18 @@ const SETTLE_READ_MS = 600;
 
 /** Cortexa's BRIGHTEN_MS: the dormant → active fade, run before the woken terminal produces any output. */
 const BRIGHTEN_MS = 250;
+
+/**
+ * How much of Terminal 2 must be on screen before its pipeline is worth
+ * running — the American Chase counterpart to CortexaExecutionFlow's
+ * `executionInView` gate (same `useInViewOnce` hook, same one-shot latch).
+ * Unlike run-cortexa, this pipeline doesn't grow while it plays — the whole
+ * four-stage row is laid out from the first frame — so there's no need for
+ * Cortexa's "room below the top edge" sentinel math; gating on the row
+ * itself crossing this threshold is enough to guarantee the reader can
+ * actually watch the stages unlock.
+ */
+const PIPELINE_VISIBLE_THRESHOLD = 0.4;
 
 /**
  * The execution chain, as one dependency sequence rather than two terminals
@@ -109,6 +122,16 @@ export function PipelineVisualization({
   }, [skipChain]);
 
   const chainAtLeast = (target: ChainStage) => CHAIN_ORDER.indexOf(chain) >= CHAIN_ORDER.indexOf(target);
+
+  // Terminal 2 may brighten and print its static shell (the "$ ./pipeline.sh"
+  // line, the dormant four-stage architecture) as soon as the chain hands it
+  // execution, off-screen or not — that part is cheap and reserves its own
+  // layout. The stage-by-stage unlock cascade is the part actually worth
+  // watching, so it additionally waits for this latch: don't blindly run the
+  // whole pipeline animation while the reader can't see it (brief §13).
+  const { ref: terminalTwoInViewRef, inView: terminalTwoInView } =
+    useInViewOnce<HTMLDivElement>(PIPELINE_VISIBLE_THRESHOLD);
+  const pipelineMayRun = skipChain || (chainAtLeast('terminal-two') && terminalTwoInView);
 
   // Terminal 1 genuinely finished printing → hold a beat, then open the
   // channel. The only timer in the chain; every other step is released by
@@ -201,8 +224,18 @@ export function PipelineVisualization({
             read as a span between two processes rather than a seam between
             two stacked boxes; not so wide that the terminals stop feeling
             like one system. */}
-        <div ref={terminalTwoRef} className="mt-10">
-          <ExperienceTerminalTwo visualization={visualization} active={chainAtLeast('terminal-two')} />
+        <div
+          ref={(node) => {
+            terminalTwoRef.current = node;
+            terminalTwoInViewRef.current = node;
+          }}
+          className="mt-10"
+        >
+          <ExperienceTerminalTwo
+            visualization={visualization}
+            active={chainAtLeast('terminal-two')}
+            running={pipelineMayRun}
+          />
         </div>
 
         <footer className="mt-6 flex flex-col items-end">

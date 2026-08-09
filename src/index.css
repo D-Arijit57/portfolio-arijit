@@ -152,14 +152,137 @@
    2. It is mounted only for the duration of that handoff and unmounted on
    `animationend`, which is also what wakes the receiving terminal — so
    nothing is left animating once the transfer has landed. Faster than the
-   loop (600ms vs 2s) because this one is meant to be watched, not caught
-   in peripheral vision. */
+   loop (220ms vs 2s) because this one is meant to be watched, not caught
+   in peripheral vision — tightened twice now (600ms, then 380ms, now
+   220ms): each pass still read as a drift down a short, already-visible
+   channel rather than a handoff at real speed. */
 .execution-wire-transfer {
-  animation: wire-pulse-travel 600ms ease-out forwards;
+  animation: wire-pulse-travel 220ms ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .execution-wire-transfer {
+    animation: none;
+  }
+}
+
+/* americanchase.yaml's pipeline connectors (PipelineArrow.tsx): the packet
+   handed from one stage to the next as the pipeline unlocks left to right.
+   A DOM dot rather than the SVG dash used by the terminal-to-terminal wire
+   above, because these connectors are plain 1px flex tracks whose length is
+   decided by the layout — there is no path to normalize against, and
+   `pathLength` buys nothing on a straight line. Same duration and the same
+   accent, so the two read as one motion language.
+
+   `left` rather than `transform`: a percentage translateX resolves against
+   the dot's own 5px width, not the track's, and the alternative (measuring
+   the track to translate by pixels) would add a ResizeObserver to every
+   connector for a 600ms one-shot. The dot is absolutely positioned and out
+   of flow, so this repaints without ever triggering layout on anything
+   else. It fades at both ends so it enters and leaves the track rather than
+   popping. */
+@keyframes pipeline-pulse-x {
+  0% { left: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+@keyframes pipeline-pulse-y {
+  0% { top: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* 150ms — tightened twice now (600ms, then 260ms, now 150ms): watched at
+   real speed each slower value still read as a dot drifting across the
+   connector rather than a packet moving between two stages. A stage's own
+   dwell (see STAGE_DWELL_MS in ExperienceTerminalTwo.tsx) already carries
+   the "processing happened" beat, so the travel itself only needs to be
+   fast and legible. */
+.pipeline-pulse-x {
+  animation: pipeline-pulse-x 150ms ease-out forwards;
+}
+
+.pipeline-pulse-y {
+  animation: pipeline-pulse-y 150ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-pulse-x,
+  .pipeline-pulse-y {
+    animation: none;
+  }
+}
+
+/* The unlock impact at a stage's own `[0N]` marker — two staggered rings,
+   not one, so the arrival reads as a small burst rather than a single ring
+   growing outward. CSS transform/opacity only, no blur: a "tiny electrical
+   packet arriving," not a glow. Mounted for SHOCKWAVE_MS
+   (ExperienceTerminalTwo.tsx) and then unmounted — it never loops. */
+@keyframes pipeline-shockwave {
+  0% { transform: scale(0.4); opacity: 0.85; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.pipeline-shockwave {
+  position: absolute;
+  left: -3px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  border: 1px solid #4fc1ff;
+  pointer-events: none;
+  animation: pipeline-shockwave 260ms ease-out forwards;
+}
+
+.pipeline-shockwave::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid #4fc1ff;
+  opacity: 0;
+  animation: pipeline-shockwave 260ms ease-out forwards;
+  animation-delay: 65ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-shockwave,
+  .pipeline-shockwave::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ExperienceTerminalTwo's boot block: each line snaps to visible near the
+   instant its `animationDelay` (BOOT_LINE_DELAYS_MS) elapses — opacity
+   only, no translateY, so there's no "sliding UI element" motion to watch,
+   only a line that wasn't there and then is. That "printed, not animated"
+   quality plus the irregular per-line delays is what reads as boot/process
+   output rather than a list revealing itself.
+
+   `linear`, not `steps(1, end)`: an earlier version used a ~20ms
+   steps(1) animation to get a hard on/off cut with no interpolation, but at
+   that duration the animation intermittently never resolved to its end
+   state at all (reproduced across a fresh dev-server restart, so not stale
+   HMR) — steps() animations that short apparently don't reliably survive a
+   full paint cycle in every render path. 70ms linear is long enough to
+   schedule safely across several frames while still reading as a fast
+   snap, not a fade — there's no easing curve softening either end. */
+@keyframes boot-line-print {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.boot-line-print {
+  animation: boot-line-print 70ms linear both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-line-print {
     animation: none;
   }
 }

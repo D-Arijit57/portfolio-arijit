@@ -1,33 +1,42 @@
 import React from 'react';
-import { PANEL_BG, PANEL_BORDER, RULE } from '../tokens';
-import { ROBOTO_MONO } from './robotoMono';
+import { PANEL_BG, PANEL_BORDER } from '../tokens';
 
-export const PROMPT_ACCENT = '#569cd6'; // VS Code prompt-blue — the same accent whoami.md's own $ prompts use, not a new colour.
+/**
+ * cortexa.md's own accent, `documentation/CortexaTerminalPanel.tsx`'s
+ * `ACCENT` verbatim — Terminal 1 and 2 now converge on cortexa.md's exact
+ * terminal style (see below), not a nearby lookalike blue.
+ */
+export const PROMPT_ACCENT = '#38BDF8';
+/** cortexa.md's own body text colour, `CortexaTerminalPanel.tsx`'s `TEXT`. */
+const CORTEXA_TEXT = '#E5E7EB';
 const DOT_COLORS = ['#ff5f56', '#ffbd2e', '#27c93f']; // Standard terminal traffic-light — same values CortexaTerminalPanel/TerminalWindowSvg already use.
 export const TERMINAL_CWD = '~/journey/experience';
 
 /**
- * The shared shell for all three American Chase terminal surfaces
- * (Terminal 1 — americanchase.yaml, Terminal 2 — pipeline.sh, Terminal 3 —
- * source). Modeled on documentation/CortexaTerminalPanel.tsx's shape
- * (rounded panel, hairline header divider, traffic-light dots) — the
- * strongest reusable terminal-window shell already in the codebase — but
- * deliberately a sibling component, not a shared import: Cortexa's shell
- * is that page's own visual identity (Geist Mono body, `#38BDF8` accent,
- * `#161B22` panel), and this feature has its own (Roboto Mono throughout,
- * whoami.md's `#111318`/`#2d2d30` panel colours, VS Code prompt-blue) —
- * copying the *shape* without importing the *page* keeps the two features
- * independent, per "do not touch unrelated renderers."
+ * The shared shell for Terminal 1 (americanchase.yaml) and Terminal 2
+ * (pipeline.sh) — deliberately no longer a "sibling, not a shared import"
+ * of `documentation/CortexaTerminalPanel.tsx`, but a match to its *exact*
+ * terminal style: same panel background (`#161B22`), same translucent
+ * `rgba(255,255,255,.08)` border used for both the outer frame and the
+ * header divider, same `rounded-xl`, same header padding/type scale, same
+ * full-opacity 9px dots, same `font-mono` (Geist Mono) body at
+ * `text-[14px] leading-[1.9]`. An earlier pass deliberately kept this
+ * feature's own palette (Roboto Mono, whoami.md's panel colours) on the
+ * theory that copying the *shape* without importing the *page* kept the
+ * two features independent — since superseded: the brief now asks for
+ * cortexa.md's terminal style itself, not a lookalike inspired by it.
+ * Terminal 3 (the source view) still uses this shell for its outer frame,
+ * but keeps its own plain-label header (see `isPrompt` below) and its own
+ * body typeface (`WorkHistoryYamlBlock`'s Geist Mono + Shiki, unrelated to
+ * this change) — this pass was scoped to Terminal 1 and 2 specifically.
  *
- * The header is window chrome only — a short, static, dim title (like a
- * real terminal tab: "bash", a filename) plus the traffic-light dots.
- * It deliberately does NOT carry the live `$ command` prompt: a real
- * terminal's title bar doesn't retype what the shell is doing, and a
- * previous version of this shell put the full `user@host:cwd$ command`
- * line in the header, which read as chrome duplicating content instead of
- * framing it. The prompt itself now lives in the scrolling body, as the
- * first line of output — see `TerminalPromptLine` below — exactly where a
- * real terminal prints it.
+ * The header carries the command itself — `$ cat ./americanchase.yaml`,
+ * `$ ./pipeline.sh` — the `$` in cortexa.md's accent, the rest in
+ * cortexa.md's text colour, exactly `CortexaTerminalPanel`'s own
+ * `<span>$ </span><span>{fileName}</span>` markup. A title that isn't a
+ * command (Terminal 3's "americanchase.yaml — source") still renders as a
+ * plain dim label — only strings that actually start with `$` get the
+ * prompt treatment.
  */
 export function ExperienceTerminalPanel({
   title,
@@ -51,9 +60,14 @@ export function ExperienceTerminalPanel({
   dormant?: boolean;
   children: React.ReactNode;
 }) {
+  const isPrompt = title.startsWith('$');
+
   return (
+    // rounded-xl, matching CortexaTerminalPanel exactly — a real terminal
+    // window's corners aren't square, but this pass converges on cortexa.md's
+    // own radius rather than picking a new one.
     <div
-      className={`overflow-hidden rounded-md ${className}`}
+      className={`overflow-hidden rounded-xl ${className}`}
       style={{
         backgroundColor: PANEL_BG,
         border: `1px solid ${PANEL_BORDER}`,
@@ -62,25 +76,31 @@ export function ExperienceTerminalPanel({
       }}
     >
       <div
-        className="flex items-center justify-between gap-3 px-4 py-2.5"
-        style={{ borderBottom: `1px solid ${RULE}`, fontFamily: ROBOTO_MONO }}
+        className="flex items-center justify-between gap-3 px-5 py-3"
+        style={{ borderBottom: `1px solid ${PANEL_BORDER}` }}
       >
-        <span className="min-w-0 truncate text-[11.5px] text-[#6e7681]">{title}</span>
+        {isPrompt ? (
+          <span className="min-w-0 truncate font-mono text-[13px]">
+            <span style={{ color: PROMPT_ACCENT }}>$</span>
+            <span style={{ color: CORTEXA_TEXT }}>{title.slice(1)}</span>
+          </span>
+        ) : (
+          <span className="min-w-0 truncate font-mono text-[13px] text-[#6e7681]">{title}</span>
+        )}
         <div className="flex shrink-0 items-center gap-3">
           {headerExtra}
           <div className="flex items-center gap-[6px]">
             {DOT_COLORS.map((color) => (
-              <span key={color} className="h-[8px] w-[8px] rounded-full opacity-70" style={{ backgroundColor: color }} />
+              <span key={color} className="h-[9px] w-[9px] rounded-full" style={{ backgroundColor: color }} />
             ))}
           </div>
         </div>
       </div>
-      {/* px-7 rather than a max-width: the pipeline inside is meant to
-          span the terminal, so the padding is the only thing holding it
-          off the edges — which lands the flow at roughly 90% of the
-          panel's width on a wide editor pane, per the brief, without
-          capping it into a narrow centred column on an even wider one. */}
-      <div className="px-7 py-5 text-[13px] leading-[1.7]" style={{ fontFamily: ROBOTO_MONO }}>
+      {/* p-6 / text-[14px] / leading-[1.9], matching CortexaTerminalPanel's
+          own body treatment exactly (not a max-width — the pipeline inside
+          is meant to span the terminal, so padding stays the only thing
+          holding content off the edges). */}
+      <div className="p-6 font-mono text-[14px] leading-[1.9]" style={{ color: CORTEXA_TEXT }}>
         {children}
       </div>
     </div>

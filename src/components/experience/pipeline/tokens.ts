@@ -6,7 +6,20 @@
  * Nothing new is invented here, which is most of why the pipeline reads as
  * part of the workspace rather than as a visualization dropped into it.
  */
-export const SURFACE = '#1e1e1e';
+/**
+ * The workspace background behind Terminal 1/2 (PipelineVisualization's own
+ * root, not the app-wide editor background elsewhere) —
+ * `ProjectDocumentationViewer.tsx`'s own `CORTEXA_BACKGROUND` verbatim,
+ * replacing the generic editor `#1e1e1e` every other doc in this workspace
+ * still uses. Copied alongside `PANEL_BG` so the whole page, not just the
+ * terminal shells, converges on cortexa.md — which means the panel-vs-page
+ * contrast direction flips from the previous pass: `#0F1117` is *darker*
+ * than `PANEL_BG` (`#161B22`), so the terminals now read as sitting
+ * slightly *forward* of the page rather than as near-black cutouts sunk
+ * into a lighter workspace. That inversion is real, not an oversight — it's
+ * exactly how cortexa.md itself relates its own two backgrounds.
+ */
+export const SURFACE = '#0F1117';
 export const RULE = '#333333';
 export const STRONG = '#e7e7e7';
 export const TEXT = '#cccccc';
@@ -37,21 +50,27 @@ export const DIFF_ADDED = '#6a9955';
 export const ACTIVE_BG = 'rgba(255,255,255,0.04)';
 
 /**
- * Terminal-shell panel colours (Terminal 1/2/3 — see pipeline/terminal/).
- * Not new values: #111318/#2d2d30 are whoami.md's own TerminalInfoCard
- * panel background and border verbatim — reused so American Chase's
- * terminals read as the same terminal system already established
- * elsewhere in the workspace, one shade darker than SURFACE the same way
- * TerminalInfoCard sits one shade darker than whoami.md's page background.
+ * Terminal-shell panel colours for Terminal 1 and 2 (see pipeline/terminal/
+ * ExperienceTerminalPanel.tsx) — `documentation/CortexaTerminalPanel.tsx`'s
+ * own `PANEL_BG`/`BORDER` verbatim, not a lookalike. Two prior passes tuned
+ * these independently (whoami.md's TerminalInfoCard values, then a
+ * user-supplied reference render's pixel-sampled near-black); this pass
+ * supersedes both because the brief now asks for cortexa.md's *exact*
+ * terminal style rather than something inspired by it. The border is
+ * translucent white rather than an opaque grey — Cortexa uses the same
+ * value for both the panel's outer frame and its header divider, which
+ * this feature's shell now does too. SURFACE (below) was copied alongside
+ * these in a follow-up pass — see its own comment.
  */
-export const PANEL_BG = '#111318';
-export const PANEL_BORDER = '#2d2d30';
+export const PANEL_BG = '#161B22';
+export const PANEL_BORDER = 'rgba(255,255,255,0.08)';
 
 /**
- * The status green for a stage that executed successfully (`200 OK`) —
- * the exact value IdentityTerminals.tsx already uses for whoami.md's
- * "Available ●" dot, reused rather than invented. Deliberately not
- * DIFF_ADDED (#6a9955): that one means "this line was added" in the
- * evidence diff, and a stage's execution status is a different statement.
+ * Shell "success" green for the boot sequence's `200 OK` —
+ * `documentation/ExecutionReplayTerminal.tsx`'s own `SUCCESS` (`#6EE7B7`),
+ * the closest real analogue in cortexa.md to a status line reporting a
+ * process outcome. Supersedes an earlier choice of the traffic-light dot's
+ * own green (`#27c93f`): a reasonable reuse on its own, but not what
+ * cortexa.md itself uses for this role.
  */
-export const SUCCESS = '#3fb950';
+export const SUCCESS = '#6EE7B7';

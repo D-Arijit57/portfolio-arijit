@@ -5,7 +5,8 @@ import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typin
 import type { FeatureListItem } from '../../documentation/featureList';
 
 const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-const SESSION_KEY = 'cortexa-feature-manifest';
+const DEFAULT_SESSION_KEY = 'cortexa-feature-manifest';
+const DEFAULT_COMMAND_LABEL = './core-features.sh';
 const SUCCESS_GREEN = '#4ec9b0';
 const PROMPT_BLUE = '#569cd6';
 const DESCRIPTION_HOLD_MS = 260;
@@ -55,10 +56,15 @@ function FeatureLine({ item, instant, onDone }: { item: FeatureListItem; instant
 
 /**
  * Cortexa Workspace Refinement (Core Features & Connectors pass) — Core
- * Features rendered as an output terminal, `$ ./core-features.sh`, the
- * generated stdout of running `./cortexa.sh` — not "Feature Manifest," a
- * label the brief explicitly rejected as too documentation-flavored. Still
- * a real terminal window (border, rounded corners, a title-bar row) unlike
+ * Features rendered as an output terminal, `$ ./core-features.sh` by
+ * default, the generated stdout of running `./cortexa.sh` — not "Feature
+ * Manifest," a label the brief explicitly rejected as too documentation-
+ * flavored. Generalized in Rakshachakra Grammar Extraction (Phase 2) to
+ * take its own command label and session key (see their own doc note
+ * below) — already fully data-driven otherwise (`items: FeatureListItem[]`),
+ * so no other change was needed to reuse it for a second project's own real
+ * feature list. Still a real terminal window (border, rounded corners, a
+ * title-bar row) unlike
  * this component's own previous iteration (which dropped the box
  * entirely) — the brief now wants "another terminal window," just a
  * visually distinct *kind* of one from problem.sh/cortexa.sh's own
@@ -82,9 +88,29 @@ function FeatureLine({ item, instant, onDone }: { item: FeatureListItem; instant
  * to Continue Exploring, so that wire only starts pulsing once the manifest
  * has genuinely finished printing, matching every other "wait for real
  * completion, not just arrival" beat in this pipeline.
+ *
+ * `commandLabel`/`sessionKey` (Rakshachakra Grammar Extraction, Phase 2):
+ * both default to Cortexa's exact original values, so its own call site
+ * (which passes neither) is byte-identical to before. A second caller with
+ * a real feature list but no "./core-features.sh" of its own — Rakshachakra
+ * has no such file — needs its own label, and critically its own
+ * `sessionKey`: `hasAnimated`/`markAnimated` key off this string in
+ * `sessionStorage`, so two documents sharing the default key would mean
+ * having already seen Cortexa's Core Features this session silently skips
+ * Rakshachakra's own first-time reveal (and vice versa).
  */
-export function FeatureOutputTerminal({ items, onComplete }: { items: FeatureListItem[]; onComplete?: () => void }) {
-  const instant = useRef(hasAnimated(SESSION_KEY) || prefersReducedMotion()).current;
+export function FeatureOutputTerminal({
+  items,
+  commandLabel = DEFAULT_COMMAND_LABEL,
+  sessionKey = DEFAULT_SESSION_KEY,
+  onComplete,
+}: {
+  items: FeatureListItem[];
+  commandLabel?: string;
+  sessionKey?: string;
+  onComplete?: () => void;
+}) {
+  const instant = useRef(hasAnimated(sessionKey) || prefersReducedMotion()).current;
   const [index, setIndex] = useState(instant ? items.length : 0);
   const firedCompleteRef = useRef(false);
 
@@ -100,8 +126,8 @@ export function FeatureOutputTerminal({ items, onComplete }: { items: FeatureLis
   }, [instant]);
 
   useEffect(() => {
-    if (!instant && index >= items.length) markAnimated(SESSION_KEY);
-  }, [index, items.length, instant]);
+    if (!instant && index >= items.length) markAnimated(sessionKey);
+  }, [index, items.length, instant, sessionKey]);
 
   const advance = () => {
     setIndex((i) => {
@@ -120,7 +146,7 @@ export function FeatureOutputTerminal({ items, onComplete }: { items: FeatureLis
         className="flex items-center justify-between border-b border-[#2a2a2a] px-4 py-2"
       >
         <span className="text-[11px] text-[#858585]" style={{ fontFamily: ROBOTO_MONO }}>
-          <span style={{ color: PROMPT_BLUE }}>$ </span>./core-features.sh
+          <span style={{ color: PROMPT_BLUE }}>$ </span>{commandLabel}
         </span>
         <span className="text-[10px] text-[#4a4a4a]" style={{ fontFamily: ROBOTO_MONO }}>
           {items.length} modules

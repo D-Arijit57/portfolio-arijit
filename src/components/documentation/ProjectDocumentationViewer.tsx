@@ -11,12 +11,12 @@ import { MetadataRow } from './MetadataRow';
 import { DocumentationSidebar } from './DocumentationSidebar';
 import { DocumentationSection } from './DocumentationSection';
 import { CortexaExecutionFlow } from './CortexaExecutionFlow';
-import { CortexaIdentityLine } from './CortexaIdentityLine';
 import { CortexaExploreTerminal } from './CortexaExploreTerminal';
+import { ProjectIdentityLine } from './ProjectIdentityLine';
+import { RakshachakraDocFlow } from './RakshachakraDocFlow';
 import { createDocumentationComponents } from './documentationComponents';
 import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
-
-const CORTEXA_BACKGROUND = '#0F1117';
+import { PAGE_BACKGROUND } from './ProjectTerminalPanel';
 
 /**
  * The Project Documentation Viewer — a dedicated renderer for project
@@ -25,24 +25,45 @@ const CORTEXA_BACKGROUND = '#0F1117';
  * Canvas and Manifest Viewer. Renders entirely from the parsed
  * DocumentationModel; it never hardcodes a project name, section, or
  * technology, so any future project doc at /projects/<Name>/*.md gets the
- * same hero/sidebar/section treatment automatically.
+ * same hero/sidebar/section treatment automatically — *unless* it opts into
+ * the terminal grammar below.
  *
- * Cortexa is a real, narrow, explicitly-approved exception to that — not
- * "a project doc with slightly different styling" but a different main-
- * content renderer entirely: `CortexaIdentityLine` as the hero (`head -1`,
- * line one of the file only), then `CortexaExecutionFlow` (the three-
- * terminal chain: problem.sh derives a constraint → cortexa.sh justifies
- * decisions against it → run-cortexa replays a session as evidence, then
- * `cat`s the rest of the file — status, stack and capabilities all live
- * inside that terminal, not as separate page sections), then
- * `CortexaExploreTerminal` (the closing `$ tree .`). Cortexa never reads
- * `model.intro`, `sections`, or `sequence` — every other project doc
- * (Rakshachakra included) is completely unaffected, gated by
- * `isCortexaDoc` below.
+ * Two real, narrow, explicitly-approved exceptions to the generic path —
+ * not "a project doc with slightly different styling" but a different
+ * main-content renderer entirely, sharing one hero (`ProjectIdentityLine`,
+ * `head -1`) and one page background (`PAGE_BACKGROUND`) but otherwise
+ * independent:
+ *
+ *   - Cortexa (`isCortexaDoc`): `CortexaExecutionFlow` (the three-terminal
+ *     chain: problem.sh derives a constraint → cortexa.sh justifies
+ *     decisions against it → run-cortexa replays a session as evidence,
+ *     then `cat`s the rest of the file), then `CortexaExploreTerminal`
+ *     (`$ tree .`).
+ *   - Rakshachakra (`isRakshachakraDoc`, Phase 2 of the Rakshachakra Grammar
+ *     project): `RakshachakraDocFlow` — a linear chain (overview/problem →
+ *     features → architecture → tradeoff → explore) built from the same
+ *     shell/typography/reveal *primitives* Cortexa's own chain uses
+ *     (`ProjectTerminalPanel`, `useInViewOnce`, `useFileRevealSequence`,
+ *     `FeatureOutputTerminal`, `ProjectExploreTerminal`), reusing the
+ *     technique without reusing Cortexa's own content (no decision log, no
+ *     replay — Rakshachakra's canonical data has no equivalent of either,
+ *     and inventing one would mean asserting facts the source material
+ *     doesn't). See RakshachakraDocFlow's own comment for the full
+ *     reasoning.
+ *
+ * Both terminal-grammar docs never read `model.intro`, `sidebar`, or the
+ * shared reveal `sequence` — every other project doc is completely
+ * unaffected, gated by `isCortexaDoc`/`isRakshachakraDoc` below. A doc
+ * becomes a third terminal-grammar page the same way these two did: a real
+ * branch here, not a config flag, since each one's actual content shape so
+ * far has been different enough that a generic "terminal doc" abstraction
+ * would be guessing at a shape only two data points have ever shown.
  */
 export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
   const model = useMemo(() => parseDocumentationDocument(file.content), [file.content]);
   const isCortexaDoc = file.id === 'cortexa_readme';
+  const isRakshachakraDoc = file.id === 'rakshachakra_readme';
+  const isTerminalGrammarDoc = isCortexaDoc || isRakshachakraDoc;
 
   // The folder this doc lives in — link-card targets (documentation/linkCards.ts,
   // e.g. "Continue Exploring" cards) resolve relative to this, the same way a
@@ -65,7 +86,7 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
     return <MarkdownFileView file={file} />;
   }
 
-  const introContent = !isCortexaDoc && model.intro && (
+  const introContent = !isTerminalGrammarDoc && model.intro && (
     <motion.div
       initial="hidden"
       animate="visible"
@@ -85,6 +106,8 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
       <CortexaExecutionFlow frontmatter={model.frontmatter} fileName={fileName} />
       <CortexaExploreTerminal />
     </>
+  ) : isRakshachakraDoc ? (
+    <RakshachakraDocFlow model={model} basePath={basePath} />
   ) : (
     <>
       {model.sections.map((section, index) => (
@@ -103,17 +126,17 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
     <DocumentationLayout
       containerRef={sequence.containerRef as React.RefObject<HTMLDivElement>}
       hero={
-        isCortexaDoc ? (
-          <CortexaIdentityLine title={model.title} frontmatter={model.frontmatter} fileName={fileName} />
+        isTerminalGrammarDoc ? (
+          <ProjectIdentityLine title={model.title} frontmatter={model.frontmatter} fileName={fileName} />
         ) : (
           <DocumentationHero title={model.title} frontmatter={model.frontmatter} fileName={fileName} />
         )
       }
-      metadata={isCortexaDoc ? undefined : <MetadataRow frontmatter={model.frontmatter} />}
+      metadata={isTerminalGrammarDoc ? undefined : <MetadataRow frontmatter={model.frontmatter} />}
       intro={introContent}
       main={mainContent}
-      sidebar={isCortexaDoc ? undefined : <DocumentationSidebar highlights={highlights} sections={model.sections} />}
-      background={isCortexaDoc ? CORTEXA_BACKGROUND : undefined}
+      sidebar={isTerminalGrammarDoc ? undefined : <DocumentationSidebar highlights={highlights} sections={model.sections} />}
+      background={isTerminalGrammarDoc ? PAGE_BACKGROUND : undefined}
     />
   );
 }

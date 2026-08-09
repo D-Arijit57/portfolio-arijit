@@ -7,6 +7,7 @@ import { collectText, type HastLikeNode } from '../../documentation/hastLike';
 import { FeatureGrid } from './FeatureGrid';
 import { FeatureOutputTerminal } from './FeatureOutputTerminal';
 import { LinkFileList } from './LinkFileList';
+import { ProjectExploreTerminal } from './ProjectExploreTerminal';
 import { Callout } from './Callout';
 import { TransitionGlyph } from './TransitionGlyph';
 import { CodeBlock } from '../markdown/CodeBlock';
@@ -35,19 +36,27 @@ import { widgetForLanguage } from './documentationWidgets';
  * (each defaults to the original 0.04s on its own, so leaving this
  * `undefined` reproduces the exact previous behavior for every other doc).
  *
- * `options.featureTerminal` (Cortexa Workspace Refinement §6–9): also
- * Cortexa-only. When set, a detected feature list renders as
- * FeatureOutputTerminal (the big stdout-style Core Features terminal)
- * instead of FeatureGrid's card list — same detection
- * (tryExtractFeatureList), different output, so Core Features' markdown
- * source needs zero changes to support either renderer. `onComplete` lets
- * CortexaExecutionFlow know once the terminal's own typed reveal genuinely
- * finishes (not merely once it mounts) — see FeatureOutputTerminal's own
- * doc comment for why that distinction matters here.
+ * `options.featureTerminal` (Cortexa Workspace Refinement §6–9): when set, a
+ * detected feature list renders as FeatureOutputTerminal (the big
+ * stdout-style output terminal) instead of FeatureGrid's card list — same
+ * detection (tryExtractFeatureList), different output, so a doc's markdown
+ * source needs zero changes to support either renderer. `onComplete` lets a
+ * caller (CortexaExecutionFlow, RakshachakraDocFlow) know once the
+ * terminal's own typed reveal genuinely finishes (not merely once it
+ * mounts) — see FeatureOutputTerminal's own doc comment for why that
+ * distinction matters here.
+ *
+ * `options.exploreTerminal` (Rakshachakra Grammar Extraction, Phase 2): the
+ * same swap for a detected link-card list — ProjectExploreTerminal's typed
+ * `$ tree .` instead of LinkFileList's row list. Both options are Cortexa-
+ * shaped in origin but not Cortexa-only: any project doc opting into the
+ * terminal grammar passes them, every other doc leaves them unset and keeps
+ * the original card/list rendering exactly as before.
  */
 interface DocumentationComponentsOptions {
   itemStaggerSeconds?: number;
   featureTerminal?: { onComplete?: () => void };
+  exploreTerminal?: { onComplete?: () => void };
 }
 // Documentation Redesign: a subtle glyph (its own standalone paragraph, blank-
 // line-separated in the source markdown) between two sections — e.g. Problem
@@ -57,7 +66,7 @@ interface DocumentationComponentsOptions {
 const TRANSITION_GLYPHS = new Set(['→', '↓', '===>']);
 
 export function createDocumentationComponents(basePath: string, options: DocumentationComponentsOptions = {}): Components {
-  const { itemStaggerSeconds, featureTerminal } = options;
+  const { itemStaggerSeconds, featureTerminal, exploreTerminal } = options;
   return {
     // h1/h2 are rare in section body markdown (the document's title comes
     // from DocumentationHero, and each section's own H2 is rendered by
@@ -120,7 +129,13 @@ export function createDocumentationComponents(basePath: string, options: Documen
       }
 
       const linkItems = rawNode ? tryExtractLinkCards(rawNode) : undefined;
-      if (linkItems) return <LinkFileList items={linkItems} basePath={basePath} staggerSeconds={itemStaggerSeconds} />;
+      if (linkItems) {
+        return exploreTerminal ? (
+          <ProjectExploreTerminal items={linkItems} basePath={basePath} onComplete={exploreTerminal.onComplete} />
+        ) : (
+          <LinkFileList items={linkItems} basePath={basePath} staggerSeconds={itemStaggerSeconds} />
+        );
+      }
 
       return <ul className={PROSE_CLASSNAMES.ul}>{children}</ul>;
     },

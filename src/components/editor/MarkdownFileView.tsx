@@ -59,8 +59,12 @@ export function MarkdownFileView({ file }: { file: VirtualFile }) {
       {/* Portfolio Polish Sprint: typography now lives entirely on
           createRevealMarkdownComponents' own per-tag classNames (shared
           PROSE_CLASSNAMES), not on selectors here — this wrapper only owns
-          reading width and base font. */}
-      <div className={`${containerWidthClass} font-sans ${isWhoami ? 'whoami-doc' : ''}`}>
+          reading width and base font. Phase 4: `mx-auto` centers this
+          column when the pane is wider than its max-width (it was
+          previously flush-left, producing a large dead gutter on the
+          right at wide viewports — invisible below ~1440px since the pane
+          itself is already narrower than the max-width there). */}
+      <div className={`${containerWidthClass} mx-auto font-sans ${isWhoami ? 'whoami-doc' : ''}`}>
         <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {file.content}
         </Markdown>

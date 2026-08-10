@@ -58,5 +58,10 @@ export interface CommandDefinition {
   description: string;
   usage?: string;
   category: CommandCategory;
+  /** Excluded from `help`'s own listing (Visitor Count requirements
+   * iteration §Self-Exclusion) — the command still runs normally if typed;
+   * this only keeps it from being advertised. Every other command defaults
+   * to visible (`hidden` is opt-in, not opt-out). */
+  hidden?: boolean;
   execute: (ctx: CommandContext) => CommandResult | Promise<CommandResult>;
 }

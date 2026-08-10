@@ -4,6 +4,8 @@ import { VERDICT_LABEL, type FeedbackVerdict } from '../../contact/types';
 
 const SESSION_KEY = 'contact-review-submitted';
 const MAX_MESSAGE_LENGTH = 1000;
+const MAX_NAME_LENGTH = 100;
+const MAX_EMAIL_LENGTH = 254;
 const COUNTER_THRESHOLD = 800;
 const VERDICTS: FeedbackVerdict[] = ['positive', 'neutral', 'negative'];
 
@@ -35,6 +37,14 @@ function markSubmitted(): void {
  * DOM until a verdict is chosen (see `selected`), so an uninterested
  * visitor sees four short lines and nothing resembling a form.
  *
+ * Identity (name/email, Identity + Reply requirements iteration) reveals in
+ * that same step, not a second one — no checkbox gate, no extra screen.
+ * Both stay fully optional; anonymous feedback (verdict, or verdict +
+ * message) works exactly as it did before this existed. A visitor who adds
+ * an email gets a direct reply channel (feedback.routes.ts validates it,
+ * resendClient.ts uses it only as Resend's structured Reply-To, never as
+ * From) — see those files' own comments for the server-side half.
+ *
  * No optimistic success anywhere in this component: `success` is only
  * ever set inside the branch where feedbackClient.submitFeedback()
  * returned `{ status: 'success' }`, i.e. a real 2xx from the server.
@@ -43,11 +53,15 @@ export function WorkspaceReview() {
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [verdict, setVerdict] = useState<FeedbackVerdict | null>(null);
   const [message, setMessage] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const [sendState, setSendState] = useState<SendState>('idle');
   const [announcement, setAnnouncement] = useState('');
   const groupId = useId();
   const textareaId = useId();
+  const nameId = useId();
+  const emailId = useId();
 
   useEffect(() => {
     setAlreadySubmitted(alreadySubmittedThisSession());
@@ -72,6 +86,8 @@ export function WorkspaceReview() {
     const result = await submitFeedback({
       verdict,
       message: message.trim() || undefined,
+      name: name.trim() || undefined,
+      email: email.trim() || undefined,
       hp: honeypot,
     });
 
@@ -145,6 +161,45 @@ export function WorkspaceReview() {
             </div>
           )}
 
+          {/* Identity — both optional, same reveal step as message (not a
+              second gate): anonymous feedback stays exactly as easy as
+              before, this only lets a visitor identify themselves if they
+              choose to. Side by side at sm: so two short optional rows
+              don't add as much vertical weight as two full-width ones would
+              — the same sm:flex-row pattern ContactRow/ResumeRow already use. */}
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor={nameId} className="block text-[11px] text-[#858585]">
+                Name (optional)
+              </label>
+              <input
+                id={nameId}
+                type="text"
+                maxLength={MAX_NAME_LENGTH}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="mt-1.5 w-full rounded border border-[#3c3c3c] bg-[#141414] px-2.5 py-2 text-[13px] text-[#cccccc] focus:border-[#569cd6] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label htmlFor={emailId} className="block text-[11px] text-[#858585]">
+                Email (optional — if you'd like a reply)
+              </label>
+              {/* type="email" is a UX hint only (virtual keyboard, browser
+                  autofill) — there's no <form> here for the browser to
+                  gate submission on, and the server (feedback.routes.ts)
+                  never trusts this either way. */}
+              <input
+                id={emailId}
+                type="email"
+                maxLength={MAX_EMAIL_LENGTH}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="mt-1.5 w-full rounded border border-[#3c3c3c] bg-[#141414] px-2.5 py-2 text-[13px] text-[#cccccc] focus:border-[#569cd6] focus:outline-none"
+              />
+            </div>
+          </div>
+
           {/* Honeypot — real form control so a bot's generic autofill catches
               it, invisible and unreachable for a real visitor: off-screen
               rather than display:none (some bots skip hidden fields;
@@ -170,7 +225,7 @@ export function WorkspaceReview() {
             >
               {sendState === 'sending' ? 'Sending…' : 'Send review'}
             </button>
-            <p className="text-[11px] text-[#6e7681]">Sends your rating and message. Nothing else.</p>
+            <p className="text-[11px] text-[#6e7681]">Sends your rating and message — plus name/email if you added them. Nothing else.</p>
           </div>
 
           {sendState === 'error' && (

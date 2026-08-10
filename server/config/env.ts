@@ -9,6 +9,9 @@ export interface AppConfig {
   readonly leetcodeUsername?: string;
   readonly resendApiKey?: string;
   readonly feedbackToEmail?: string;
+  readonly upstashRedisRestUrl?: string;
+  readonly upstashRedisRestToken?: string;
+  readonly ownerToken?: string;
 }
 
 function readEnv(name: string, fallback?: string): string {
@@ -39,4 +42,13 @@ export const config: AppConfig = {
   // boot, when unconfigured — the Handoff stays fully functional either way.
   resendApiKey: readOptionalEnv('RESEND_API_KEY'),
   feedbackToEmail: readOptionalEnv('FEEDBACK_TO_EMAIL'),
+  // Same degrade-gracefully reasoning as resendApiKey above: startup.log's
+  // visitor line simply doesn't render (visitorService.ts's own
+  // 'unconfigured' status) rather than crashing backend boot when unset.
+  upstashRedisRestUrl: readOptionalEnv('UPSTASH_REDIS_REST_URL'),
+  upstashRedisRestToken: readOptionalEnv('UPSTASH_REDIS_REST_TOKEN'),
+  // The one-time secret that claims a browser as the owner's own (see
+  // visitor.routes.ts's /api/visitor/owner) — optional so the owner-claim
+  // endpoint simply 404s/rejects rather than crashing boot when unset.
+  ownerToken: readOptionalEnv('OWNER_TOKEN'),
 };

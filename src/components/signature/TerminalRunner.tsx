@@ -1,24 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TypingLine } from './TypingLine';
-import { AsciiRenderer } from './AsciiRenderer';
+import { WelcomeBanner } from './WelcomeBanner';
 import { EngineeringProfile } from './EngineeringProfile';
 import { TerminalPrompt } from './TerminalPrompt';
-import { WELCOME_BANNER } from './signatureBanner';
+import { CampfireScene } from './CampfireScene';
+import { VisitorLine } from './VisitorLine';
 import { CYAN } from './palette';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
-import { LINE_GAP_MS } from './timing';
+import { LINE_GAP_MS, ANALYSIS_CHAR_MS_RANGE, ANALYSIS_LINE_GAP_MS } from './timing';
+import { recordVisit } from '../../lib/api/visitorClient';
 
 const SESSION_KEY = 'signature-terminal-sequence';
 
-const ANALYSIS_LINES = [
-  'Initializing renderer...',
-  'Reading workspace...',
-  'Loading identity...',
-  'Analyzing repositories...',
-  'Extracting engineering profile...',
-  'Building developer signature...',
-  'Rendering signature...',
-];
+// Startup Timing Reduction: trimmed from 7 lines to the 3 that carry the
+// phase's whole arc (read → analyze → render) — the other 4 said nothing
+// the reader needed, and this entire block is discarded the instant the
+// phase advances (see the phase-machine's own comment below), so there was
+// no payoff for reading all 7 in the first place.
+const ANALYSIS_LINES = ['Reading workspace...', 'Analyzing repositories...', 'Rendering signature...'];
 
 type Phase = 'command' | 'analysis' | 'banner' | 'profile' | 'ready';
 const PHASE_ORDER: Phase[] = ['command', 'analysis', 'banner', 'profile', 'ready'];
@@ -38,12 +37,14 @@ function TypedLineSequence({
   lines,
   startDelayMs = 0,
   gapMs = LINE_GAP_MS,
+  charMsRange,
   instant,
   onComplete,
 }: {
   lines: string[];
   startDelayMs?: number;
   gapMs?: number;
+  charMsRange?: [number, number];
   instant?: boolean;
   onComplete?: () => void;
 }) {
@@ -94,7 +95,7 @@ function TypedLineSequence({
       {lines.slice(0, index).map((line) => (
         <div key={line}>{line}</div>
       ))}
-      <TypingLine key={index} text={lines[index]} onComplete={advance} />
+      <TypingLine key={index} text={lines[index]} charMsRange={charMsRange} onComplete={advance} />
     </div>
   );
 }
@@ -126,52 +127,73 @@ export function TerminalRunner() {
   const reduceMotion = prefersReducedMotion();
   const instant = useRef(reduceMotion || hasAnimated(SESSION_KEY)).current;
   const [phase, setPhase] = useState<Phase>(instant ? 'ready' : 'command');
+  const [visitorCount, setVisitorCount] = useState<number | null>(null);
 
   useEffect(() => {
     if (!instant) markAnimated(SESSION_KEY);
   }, [instant]);
 
+  // Started on mount, not gated on reaching 'ready' — the request has the
+  // whole ~2.5-3s boot sequence to resolve, so by the time the MOTD line
+  // would actually render (see the ready block below) a real number is
+  // already in hand almost every time, instead of the line popping in
+  // late after the rest of the prompt has settled.
+  useEffect(() => {
+    let cancelled = false;
+    recordVisit().then((result) => {
+      if (!cancelled && result.status === 'success') setVisitorCount(result.count);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const advanceFrom = (from: Phase, to: Phase) => setPhase((p) => (p === from ? to : p));
 
+  const ready = phaseAtLeast(phase, 'ready');
+
   return (
-    <div className="h-full overflow-y-auto bg-black p-4 font-mono text-[13px] text-[#cccccc]">
-      <div className="mb-3">
-        <span style={{ color: CYAN }}>$ </span>
-        <TypingLine
-          text="./signature.sh"
-          instant={instant}
-          showCursorWhileTyping={!instant}
-          onComplete={() => advanceFrom('command', 'analysis')}
-        />
-      </div>
+    <div className="relative h-full overflow-y-auto bg-black p-4 font-mono text-[13px] text-[#cccccc]">
+      <CampfireScene ignite={ready} instant={instant} />
 
-      {phase === 'analysis' && (
-        <TypedLineSequence
-          lines={ANALYSIS_LINES}
-          instant={instant}
-          onComplete={() => advanceFrom('analysis', 'banner')}
-        />
-      )}
-
-      {phaseAtLeast(phase, 'banner') && (
-        <div className="mt-3">
-          <AsciiRenderer
-            lines={WELCOME_BANNER}
+      <div className="relative z-10">
+        <div className="mb-3">
+          <span style={{ color: CYAN }}>$ </span>
+          <TypingLine
+            text="./signature.sh"
             instant={instant}
-            onComplete={() => advanceFrom('banner', 'profile')}
+            showCursorWhileTyping={!instant}
+            onComplete={() => advanceFrom('command', 'analysis')}
           />
         </div>
-      )}
 
-      {phaseAtLeast(phase, 'profile') && (
-        <EngineeringProfile instant={instant} onComplete={() => advanceFrom('profile', 'ready')} />
-      )}
+        {phase === 'analysis' && (
+          <TypedLineSequence
+            lines={ANALYSIS_LINES}
+            gapMs={ANALYSIS_LINE_GAP_MS}
+            charMsRange={ANALYSIS_CHAR_MS_RANGE}
+            instant={instant}
+            onComplete={() => advanceFrom('analysis', 'banner')}
+          />
+        )}
 
-      {phaseAtLeast(phase, 'ready') && (
-        <div className="mt-3">
-          <TerminalPrompt />
-        </div>
-      )}
+        {phaseAtLeast(phase, 'banner') && (
+          <div className="mt-3">
+            <WelcomeBanner instant={instant} onComplete={() => advanceFrom('banner', 'profile')} />
+          </div>
+        )}
+
+        {phaseAtLeast(phase, 'profile') && (
+          <EngineeringProfile instant={instant} onComplete={() => advanceFrom('profile', 'ready')} />
+        )}
+
+        {ready && (
+          <div className="mt-3">
+            {visitorCount !== null && <VisitorLine count={visitorCount} />}
+            <TerminalPrompt />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

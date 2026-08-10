@@ -15,6 +15,11 @@ export function isFeedbackVerdict(value: unknown): value is FeedbackVerdict {
 export interface FeedbackSubmission {
   verdict: FeedbackVerdict;
   message?: string;
+  /** Optional identity — validated in feedback.routes.ts, never trusted as-is. */
+  name?: string;
+  /** Optional — validated in feedback.routes.ts. Used only as Resend's
+   * structured Reply-To (resendClient.ts); never becomes From. */
+  email?: string;
   /** Server-generated ISO 8601 — never taken from the client (contact.sh spec §12). */
   submittedAt: string;
 }

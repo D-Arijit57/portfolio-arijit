@@ -6,7 +6,9 @@ export const helpCommand: CommandDefinition = {
   description: 'List available commands',
   category: 'information',
   execute: () => {
-    const commands = listCommands().sort((a, b) => a.name.localeCompare(b.name));
+    const commands = listCommands()
+      .filter((c) => !c.hidden)
+      .sort((a, b) => a.name.localeCompare(b.name));
     return {
       output: [
         {

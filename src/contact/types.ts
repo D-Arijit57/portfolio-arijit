@@ -21,6 +21,12 @@ export const VERDICT_LABEL: Record<FeedbackVerdict, string> = {
 export interface FeedbackSubmissionInput {
   verdict: FeedbackVerdict;
   message?: string;
+  /** Optional — anonymous feedback remains fully supported; this only lets a
+   * visitor identify themselves if they choose to. */
+  name?: string;
+  /** Optional — validated server-side and used only as Resend's structured
+   * Reply-To, never as From. Absent means no reply channel, not an error. */
+  email?: string;
   /** Honeypot — always sent empty by a real visitor; never read as legitimate data. */
   hp?: string;
 }

@@ -13,6 +13,7 @@ import { projectsCommand } from './projects';
 import { contactCommand } from './contact';
 import { themeCommand } from './theme';
 import { startupCommand } from './startup';
+import { ownerCommand } from './owner';
 
 /**
  * The one file touched to add a new command (TERMINAL_DESIGN.md §5, §15).
@@ -33,4 +34,5 @@ export function registerBuiltinCommands(): void {
   registerCommand(contactCommand);
   registerCommand(themeCommand);
   registerCommand(startupCommand);
+  registerCommand(ownerCommand);
 }

@@ -13,6 +13,10 @@ export interface TypingLineProps {
    * TerminalRunner on a repeat visit this session, independent of the
    * user's own prefers-reduced-motion setting. */
   instant?: boolean;
+  /** Overrides the default per-character speed (CHAR_MS_RANGE) — used by
+   * Phase 2's analysis lines (Startup Timing Reduction), which type much
+   * faster than `./signature.sh` since their own output is disposable. */
+  charMsRange?: [number, number];
   onComplete?: () => void;
 }
 
@@ -23,10 +27,11 @@ export interface TypingLineProps {
  * TerminalRunner's TypedLineSequence) never has to know how a single line
  * animates itself.
  */
-export function TypingLine({ text, className, showCursorWhileTyping, instant, onComplete }: TypingLineProps) {
+export function TypingLine({ text, className, showCursorWhileTyping, instant, charMsRange, onComplete }: TypingLineProps) {
   const skip = instant || prefersReducedMotion();
   const [revealed, setRevealed] = useState(skip ? text.length : 0);
   const firedRef = useRef(false);
+  const [minMs, maxMs] = charMsRange ?? CHAR_MS_RANGE;
 
   useEffect(() => {
     if (revealed >= text.length) {
@@ -38,10 +43,7 @@ export function TypingLine({ text, className, showCursorWhileTyping, instant, on
     }
     if (skip) return undefined;
 
-    const timer = window.setTimeout(
-      () => setRevealed((count) => count + 1),
-      randomBetween(CHAR_MS_RANGE[0], CHAR_MS_RANGE[1]),
-    );
+    const timer = window.setTimeout(() => setRevealed((count) => count + 1), randomBetween(minMs, maxMs));
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealed, skip]);

@@ -298,7 +298,13 @@ export const useStore = create<StoreState>((set, get) => ({
   architectureState: { hoveredNodeId: null, selectedNodeId: null },
   bootActive: true,
   editorSplit: true,
-  splitRatio: 0.5,
+  // 40/60 (welcome.md/startup.log) — startup.log's own content sets the
+  // floor here: a fixed 64-character WELCOME banner and (Pixel-Art
+  // Ignition sprint) a pixel-art scene both need more room than welcome.md
+  // itself does (its own prose caps at maxWidth: 70ch, so it doesn't
+  // benefit from the wider half). Still fully drag-resizable — this is
+  // only the default a fresh session boots into.
+  splitRatio: 0.4,
   // startup.log owns the split whether it got there via the README
   // onboarding pairing (boot, or openFile(README_FILE_ID) later) or via the
   // manual `startup` command (openToSide) — closeFile() collapses to a

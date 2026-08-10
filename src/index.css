@@ -83,6 +83,10 @@
   }
 }
 
+/* The campfire's idle flicker lives with the fire sprite (see
+   CampfireScene.tsx). The previous radial-gradient "breathing blob" keyframe
+   that sat here was removed with the glow layer it animated. */
+
 /* ContributionsTerminal's scroll-discovery indicator: the arrow (only —
    the "More output below" text stays fully static) floats gently while the
    indicator is on screen, the one deliberate exception to this feature's

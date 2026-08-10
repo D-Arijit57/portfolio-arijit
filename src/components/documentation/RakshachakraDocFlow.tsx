@@ -3,12 +3,9 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { createDocumentationComponents } from './documentationComponents';
 import { RakshachakraProblemTerminal } from './RakshachakraProblemTerminal';
-import { RakshachakraSignalsTerminal, RAKSHACHAKRA_SIGNALS_COUNT } from './RakshachakraSignalsTerminal';
-import { RakshachakraPipelineTerminal } from './RakshachakraPipelineTerminal';
+import { RakshachakraSignalsTerminal } from './RakshachakraSignalsTerminal';
+import { RakshachakraSessionTerminal } from './RakshachakraSessionTerminal';
 import { RakshachakraConnectors } from './RakshachakraConnectors';
-import { RakshachakraArchitectureSection } from './RakshachakraArchitectureSection';
-import { resolveLinkTarget } from '../../documentation/resolveLinkTarget';
-import { getFileById } from '../../content/fileSystem';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
 import type { DocumentationModel } from '../../documentation/types';
 
@@ -20,50 +17,47 @@ const PROBLEM_READ_MS = 600;
 /** The dormant → active brighten, run before a woken terminal produces
  * output — Cortexa's own BRIGHTEN_MS. */
 const BRIGHTEN_MS = 250;
-/** Cortexa's own DECISION_ROW_MS — how far apart each row of the top-right
- * terminal reveals. */
-const SIGNAL_ROW_MS = 70;
 
-type Stage = 'problem' | 'wire1' | 'signals-waking' | 'signals' | 'wire2' | 'pipeline-waking' | 'pipeline';
+type Stage = 'problem' | 'wire1' | 'signals-waking' | 'signals' | 'wire2' | 'session-waking' | 'session';
 
-const STAGE_ORDER: Stage[] = ['problem', 'wire1', 'signals-waking', 'signals', 'wire2', 'pipeline-waking', 'pipeline'];
+const STAGE_ORDER: Stage[] = ['problem', 'wire1', 'signals-waking', 'signals', 'wire2', 'session-waking', 'session'];
 
 /**
- * Rakshachakra's own execution flow — Option D (user-approved 2026-08-10):
- * a 2-up top row (`problem.sh` | `signals.sh`) wired into a full-width
- * `./pipeline.sh`, then Architecture and Explore below. Mirrors
- * `CortexaExecutionFlow`'s stage-machine *shape* exactly (one `Stage` enum,
- * `stageAtLeast`, each step released by a real completion signal — a wire's
- * own `onAnimationEnd`, a terminal's last row finishing — never a timer
- * running in parallel with something else), not its content: no decision
- * log, no session replay, because that data doesn't exist for this project
- * (Phase 1 audit).
+ * Rakshachakra's own execution flow — Connector Correction revision
+ * (user-directed 2026-08-10, corrected): the top row is `problem.sh |
+ * signals.sh`, wired left → right, into a full-width `./session.sh` below.
+ * `problem.sh` is not a dead end — a real, measured, animated connector
+ * carries its emitted constraint across into `signals.sh`, and `signals.sh`'s
+ * own completed reveal carries a second wire down into `session.sh`. Three
+ * terminals, two wires, one linear dependency chain: `problem.sh` →
+ * `signals.sh` → `session.sh`.
  *
- * Signal semantics, same rule as Cortexa's: `problem.sh` fades in and is
- * read (`PROBLEM_READ_MS`) → emits its constraint, which releases wire 1 →
- * wire 1 draws → `signals.sh` brightens (`BRIGHTEN_MS`) → its rows reveal
- * one at a time, the last one releasing wire 2 → wire 2 draws →
- * `pipeline.sh` brightens → its own internal 4-stage cascade begins **once
- * it's also been scrolled into view** (`RakshachakraPipelineTerminal`'s own
- * self-managed gate).
+ * Mirrors `CortexaExecutionFlow`'s stage-machine *shape* exactly (one
+ * `Stage` enum, `stageAtLeast`, each step released by a real completion
+ * signal — a wire's own `onAnimationEnd`, a terminal's last row finishing —
+ * never a timer running in parallel with something else): `problem.sh` fades
+ * in and is read (`PROBLEM_READ_MS`) → emits its constraint, which releases
+ * wire 1 → wire 1 draws → `signals.sh` brightens (`BRIGHTEN_MS`) → its own
+ * internal reveal begins once it's also been scrolled into view
+ * (`RakshachakraSignalsTerminal`'s own self-managed gate) → its last row
+ * finishing releases wire 2 → wire 2 draws → `./session.sh` brightens → its
+ * own internal reveal begins the same way.
  *
- * Architecture and Explore are deliberately **not** part of this chain —
- * each is independently `useInViewOnce`-gated on its own scroll visibility
- * (`RakshachakraArchitectureSection` self-manages this; `ProjectExploreTerminal`
- * does too). Phase 2 verification proved that chaining a section a reader
- * can scroll straight to onto an upstream animation's completion leaves a
- * blank box for exactly that reader.
+ * Architecture Canvas does not appear on this page at all — `architecture.mmd`
+ * is reachable only through `$ tree .` below, alongside the Technology
+ * Manifest and GitHub Repository (`ProjectExploreTerminal`, independently
+ * `useInViewOnce`-gated on its own scroll visibility, same as every other
+ * project doc's explore terminal).
  */
 export function RakshachakraDocFlow({ model, basePath }: { model: DocumentationModel; basePath: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const problemRef = useRef<HTMLDivElement>(null);
   const signalsRef = useRef<HTMLDivElement>(null);
-  const pipelineRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<HTMLDivElement>(null);
 
   const skip = useRef(prefersReducedMotion() || hasAnimated(SESSION_KEY)).current;
-  const [stage, setStage] = useState<Stage>(() => (skip ? 'pipeline' : 'problem'));
+  const [stage, setStage] = useState<Stage>(() => (skip ? 'session' : 'problem'));
   const [problemVisible, setProblemVisible] = useState(skip);
-  const [signalsRevealed, setSignalsRevealed] = useState(() => (skip ? RAKSHACHAKRA_SIGNALS_COUNT : 0));
 
   const stageAtLeast = useCallback((target: Stage) => STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(target), [stage]);
 
@@ -89,29 +83,19 @@ export function RakshachakraDocFlow({ model, basePath }: { model: DocumentationM
   }, [stage, skip]);
 
   useEffect(() => {
-    if (skip || stage !== 'pipeline-waking') return undefined;
-    const timer = window.setTimeout(() => setStage('pipeline'), BRIGHTEN_MS);
+    if (skip || stage !== 'session-waking') return undefined;
+    const timer = window.setTimeout(() => setStage('session'), BRIGHTEN_MS);
     return () => window.clearTimeout(timer);
   }, [stage, skip]);
 
-  // Signal rows reveal one at a time; the last one releases wire 2.
-  useEffect(() => {
-    if (skip || stage !== 'signals') return undefined;
-    const timers = Array.from({ length: RAKSHACHAKRA_SIGNALS_COUNT }, (_, index) =>
-      window.setTimeout(() => {
-        setSignalsRevealed(index + 1);
-        if (index === RAKSHACHAKRA_SIGNALS_COUNT - 1) setStage('wire2');
-      }, index * SIGNAL_ROW_MS),
-    );
-    return () => timers.forEach(window.clearTimeout);
-  }, [stage, skip]);
-
   const handleWire1Drawn = useCallback(() => setStage((s) => (s === 'wire1' ? 'signals-waking' : s)), []);
-  const handleWire2Drawn = useCallback(() => setStage((s) => (s === 'wire2' ? 'pipeline-waking' : s)), []);
+  const handleWire2Drawn = useCallback(() => setStage((s) => (s === 'wire2' ? 'session-waking' : s)), []);
+  const handleSignalsComplete = useCallback(() => setStage((s) => (s === 'signals' ? 'wire2' : s)), []);
 
   const wire1Visible = skip || stageAtLeast('wire1');
   const wire2Visible = skip || stageAtLeast('wire2');
-  const pipelineActive = skip || stageAtLeast('pipeline');
+  const signalsActive = skip || stageAtLeast('signals');
+  const sessionActive = skip || stageAtLeast('session');
 
   // Continue Exploring rendered through the same shared markdown pipeline
   // every doc uses, with `exploreTerminal` set so its detected link-card
@@ -120,13 +104,6 @@ export function RakshachakraDocFlow({ model, basePath }: { model: DocumentationM
   // Exploring" markdown, same mechanism Phase 2 already proved out.
   const components = useMemo(() => createDocumentationComponents(basePath, { exploreTerminal: {} }), [basePath]);
   const continueExploring = model.sections.find((section) => section.heading.toLowerCase() === 'continue exploring');
-
-  // architecture.mmd is never presented as a document in this narrative —
-  // only used, exactly like Continue Exploring's own link, as the handle
-  // ArchitectureCanvas resolves through. Same resolveLinkTarget every
-  // "Continue Exploring" target already goes through, not a second lookup.
-  const architectureTarget = resolveLinkTarget('architecture.mmd', basePath);
-  const architectureFile = architectureTarget.kind === 'internal' ? getFileById(architectureTarget.fileId) : undefined;
 
   return (
     <div ref={containerRef} className="relative flex flex-col">
@@ -139,26 +116,24 @@ export function RakshachakraDocFlow({ model, basePath }: { model: DocumentationM
         />
         <RakshachakraSignalsTerminal
           signalsRef={signalsRef}
-          revealedCount={signalsRevealed}
+          active={signalsActive}
           skip={skip}
-          dormant={!skip && !stageAtLeast('signals-waking')}
+          onComplete={handleSignalsComplete}
         />
       </div>
 
-      <RakshachakraPipelineTerminal pipelineRef={pipelineRef} active={pipelineActive} skip={skip} />
+      <RakshachakraSessionTerminal sessionRef={sessionRef} active={sessionActive} skip={skip} />
 
       <RakshachakraConnectors
         containerRef={containerRef}
         problemRef={problemRef}
         signalsRef={signalsRef}
-        pipelineRef={pipelineRef}
+        sessionRef={sessionRef}
         wire1Visible={wire1Visible}
         wire2Visible={wire2Visible}
         onWire1Drawn={handleWire1Drawn}
         onWire2Drawn={handleWire2Drawn}
       />
-
-      {architectureFile && <RakshachakraArchitectureSection file={architectureFile} />}
 
       {continueExploring && (
         <Markdown remarkPlugins={[remarkGfm]} components={components}>

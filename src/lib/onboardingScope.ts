@@ -14,7 +14,7 @@ export { hasBooted, prefersReducedMotion };
 /**
  * True only for the entry routes that resolve to README.md: the bare root
  * path (before useRouterSync's mount effect rewrites it to
- * /journey/readme) and /journey(/readme) itself. Every other deep link
+ * /journey/welcome) and /journey(/welcome) itself. Every other deep link
  * (/journey/about, /journey/projects/cortexa, ...) returns false.
  */
 export function isReadmeEntryRoute(): boolean {

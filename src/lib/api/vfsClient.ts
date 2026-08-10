@@ -43,14 +43,6 @@ export async function fetchWorkspaceTree(): Promise<VirtualFolder> {
   return res.json() as Promise<VirtualFolder>;
 }
 
-export async function fetchFile(id: string): Promise<VirtualFile> {
-  const res = await fetch(`${API_BASE_URL}/fs/file/${encodeURIComponent(id)}`);
-  if (!res.ok) {
-    throw new Error(await resolveErrorMessage(res));
-  }
-  return res.json() as Promise<VirtualFile>;
-}
-
 /**
  * Discriminates the three outcomes a save can have, since a save-pipeline
  * caller (Store.saveFile(), Sprint 4B) needs to tell "server rejected the

@@ -8,7 +8,6 @@ import { CommandPalette } from '../command-palette/CommandPalette';
 import { Notifications } from '../notifications/Notifications';
 import { useStore } from '../../store/useStore';
 import { useRouterSync } from '../../hooks/useRouterSync';
-import { cn } from '../../lib/utils';
 
 export function VSCodeShell() {
   const { setCommandPaletteOpen } = useStore();

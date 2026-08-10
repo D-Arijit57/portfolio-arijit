@@ -232,10 +232,8 @@ export const DITHER_AMOUNT = 1.5 / 255;
  * as the corners and stopped reading as contact at all.
  */
 export const CONTACT_SHADOW_OPACITY = 0.74;
-export const CONTACT_SHADOW_FALLOFF = 0.03 * PAGE_HEIGHT;
 /** Spec §4.2: the wide ambient term. */
 export const SOFT_SHADOW_OPACITY = 0.15;
-export const SOFT_SHADOW_BLUR = 0.25 * PAGE_HEIGHT;
 /** Spec §6.2: never pure black — tint toward the backdrop hue at 85-90% darkness. */
 /**
  * Linear, like everything else the standard materials consume, and tinted
@@ -258,9 +256,6 @@ export const DPR_REST = 2;
 export const DPR_MOTION = 1.25;
 /** Spec §10.1 point 8: an IDE split drag must not re-rasterize per frame. */
 export const RESIZE_DEBOUNCE_MS = 100;
-/** Spec §5.5: texels per screen pixel at the largest on-screen size. */
-export const TEXEL_DENSITY = 3;
-
 // ------------------------------------------------------------- helpers ---
 
 export const deg = THREE.MathUtils.degToRad;

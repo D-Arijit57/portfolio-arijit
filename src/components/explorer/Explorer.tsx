@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronRight, ChevronDown, FileText, FileJson, FileCode2, Terminal as TerminalIcon, File as FileIcon } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { fileSystem, getFileById } from '../../content/fileSystem';
+import { fileSystem } from '../../content/fileSystem';
 import { ExplorerNode, VirtualFile, VirtualFolder } from '../../types';
 import { cn } from '../../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';

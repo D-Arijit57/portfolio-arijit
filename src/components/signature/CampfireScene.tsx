@@ -8,11 +8,8 @@ const ART_W = 902;
 const ART_H = 1022;
 
 /* ------------------------------------------------------------------ *
- * TEMPORARY — evaluation build of the 3-frame fire prototype.
- * Everything in this block is behind the STEP 6 gate and exists only so
- * the animation can be judged at its real rendered size inside
- * startup.log. Revert the whole block (and its use below) if the
- * prototype is rejected.
+ * The 3-frame fire sprite that lights the campfire pit — approved and
+ * shipped as part of startup.log's campfire scene.
  * ------------------------------------------------------------------ */
 
 const FIRE_SRC = '/startup/campfire-fire.webp';
@@ -40,8 +37,7 @@ const FIRE_ORIGIN_Y = 614;
 
 /**
  * 140ms/frame ≈ 7fps. Slow enough that three frames read as a cycling flame
- * rather than a strobe, fast enough not to read as a slideshow. Provisional —
- * cadence is one of the two things this evaluation pass exists to settle.
+ * rather than a strobe, fast enough not to read as a slideshow.
  */
 const FIRE_FRAME_MS = 140;
 
@@ -97,7 +93,7 @@ function useFireFrame(ignite: boolean): number {
 
   return frame;
 }
-/* ------------------------- end temporary block ------------------------- */
+/* ------------------------- end fire sprite block ------------------------ */
 
 /**
  * Where the crop is anchored when the pane's aspect ratio doesn't match the
@@ -158,7 +154,7 @@ function coverRect(containerW: number, containerH: number): SceneRect {
  * blob rather than combustion. Illumination now comes from the art, and (once
  * the sprite lands) from the flame itself.
  *
- * `ignite` now drives the fire sprite (TEMPORARY — see the prototype block at
+ * `ignite` now drives the fire sprite (see the fire sprite block at
  * the top of this file). `instant` is still inert here on purpose: it is true
  * for a repeat visit as well as for reduced motion, and only the latter should
  * stop the flame.
@@ -213,7 +209,7 @@ export function CampfireScene({ ignite, instant }: { ignite: boolean; instant?: 
             className="absolute max-w-none"
             style={{ width: rect.width, height: rect.height, left: rect.left, top: rect.top }}
           />
-          {/* TEMPORARY prototype overlay — see the block at the top of this file.
+          {/* Fire sprite overlay — see the block at the top of this file.
               A window onto the sheet rather than a background-image, so the
               frames go through the same <img> scaling path as the scene
               underneath them; a background-image resamples on a different

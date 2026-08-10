@@ -84,10 +84,6 @@ export function isContributed(stage: PipelineStage): boolean {
   return Boolean(stage.contribution);
 }
 
-export function hasDiff(stage: PipelineStage): boolean {
-  return Boolean(stage.before || stage.after);
-}
-
 /** The first stage worth opening — never a context-only one. */
 export function defaultStageId(visualization: PipelineVisualizationModel): string | undefined {
   return visualization.stages.find(isContributed)?.id ?? visualization.stages[0]?.id;

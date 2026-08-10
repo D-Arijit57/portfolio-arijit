@@ -40,5 +40,3 @@ export const PROSE_CLASSNAMES = {
   td: 'px-4 py-2.5 align-top text-[#b0b0b0]',
   inlineCode: 'rounded border border-[#30363d] bg-[#2a2d2e] px-1.5 py-0.5 font-mono text-[13px] text-[#d19a66]',
 } as const;
-
-export type ProseTag = keyof typeof PROSE_CLASSNAMES;

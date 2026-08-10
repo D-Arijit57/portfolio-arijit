@@ -82,10 +82,6 @@ const CHAIN_ORDER: ChainStage[] = ['terminal-one', 'settling', 'wire', 'transfer
  * removes the transition, so collapse/expand becomes an instant snap with
  * every bit of information already in the DOM either way.
  *
- * PipelineTrack.tsx, PipelineStageMarker.tsx, PipelineHeader.tsx and
- * SpanningContributions.tsx are unused by this file as of Phase 2 and
- * remain so — left in place rather than deleted; this is that deferred
- * cleanup pass's natural home once the redesign itself is confirmed.
  * StageDetail.tsx and WorkHistoryYamlBlock.tsx needed zero changes across
  * all three phases: both are reused completely unmodified.
  */

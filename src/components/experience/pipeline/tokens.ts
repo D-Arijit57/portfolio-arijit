@@ -47,8 +47,6 @@ export const METRIC = '#d7ba7d';
 export const DIFF_REMOVED = '#c9736b';
 export const DIFF_ADDED = '#6a9955';
 
-export const ACTIVE_BG = 'rgba(255,255,255,0.04)';
-
 /**
  * Terminal-shell panel colours for Terminal 1 and 2 (see pipeline/terminal/
  * ExperienceTerminalPanel.tsx) — `documentation/CortexaTerminalPanel.tsx`'s

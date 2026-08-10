@@ -41,8 +41,7 @@ function TerminalDashRule() {
  * field but changes how much vertical space each one is allowed to claim.
  *
  * The identity block, logo, and website link are a restoration, not new
- * work: `PipelineHeader.tsx` (unused since the Phase 2 registry migration,
- * see PipelineVisualization.tsx's own doc comment) already solved this
+ * work: the now-removed `PipelineHeader.tsx` already solved this
  * exact "who/where/when in minimal height" problem, including sourcing the
  * real logo via `resolveCompanyLogo` and the real URL via
  * `experience.companyUrl` — both reused verbatim here rather than

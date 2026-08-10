@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { EditorTab, VirtualFile, VirtualFolder } from '../types';
 import { workspaceSeed, getAllFiles } from '../content/workspaceSeed';
-import { fetchWorkspaceTree, updateFile } from '../lib/api/vfsClient';
+import { fetchWorkspaceTree, updateFile, VfsFetchError, type VfsFailureKind } from '../lib/api/vfsClient';
 import type { CommandContext, ExecutionStatus, HistoryEntry } from '../terminal/types';
 import { parseCommand } from '../terminal/parser';
 import { executeCommand } from '../terminal/executor';
@@ -198,6 +198,12 @@ interface StoreState {
   vfsLoaded: boolean;
   vfsLoading: boolean;
   vfsError: string | null;
+  // Non-null exactly when the workspace is running on the static seed because
+  // hydration failed. Distinct from vfsError, which still means "hard-block
+  // the app": this is the *degraded but usable* state, so it stays out of
+  // App.tsx's boot gate and is only surfaced as the status bar's own warning
+  // count. Null on a healthy backend hydration.
+  vfsDegraded: { kind: VfsFailureKind; message: string } | null;
 
   // Save pipeline (Sprint 4B). Keyed by file id rather than a single global
   // value — the editor already supports multiple open tabs across two split
@@ -316,6 +322,7 @@ export const useStore = create<StoreState>((set, get) => ({
   vfsLoaded: false,
   vfsLoading: false,
   vfsError: null,
+  vfsDegraded: null,
 
   draftContent: {},
   savingState: {},
@@ -758,6 +765,7 @@ export const useStore = create<StoreState>((set, get) => ({
         vfsLoaded: true,
         vfsLoading: false,
         vfsError: null,
+        vfsDegraded: null,
       });
 
       // Notification Service integration (ARCHITECTURE.md "Notification
@@ -792,12 +800,31 @@ export const useStore = create<StoreState>((set, get) => ({
       // backend hiccup. The failure is still recorded for diagnosis; it
       // just no longer gates the UI (vfsError stays null, which is what
       // App.tsx's gate already checks).
+      // Classified rather than lumped together: a `not-json` failure means
+      // /api/* was answered by the SPA fallback (a routing misconfiguration
+      // with a healthy backend), which is a completely different thing to go
+      // fix than an actual outage. Logging them identically as "backend
+      // unavailable" sent diagnosis in the wrong direction.
+      const kind: VfsFailureKind = err instanceof VfsFetchError ? err.kind : 'unreachable';
       const message = err instanceof Error ? err.message : 'Failed to load workspace';
-      console.error('[hydrateVFS] backend unavailable, continuing with static seed:', message);
+      const label =
+        kind === 'not-json'
+          ? 'API route did not return JSON (SPA fallback answered?)'
+          : kind === 'http-error'
+            ? 'API returned an error status'
+            : kind === 'malformed-json'
+              ? 'API returned unparseable JSON'
+              : 'backend unreachable';
+      console.error(
+        `[hydrateVFS] ${label} — continuing with static seed (live GitHub data, ` +
+          `visitor count and feedback are unavailable):`,
+        message,
+      );
       set({
         vfsLoaded: true,
         vfsLoading: false,
         vfsError: null,
+        vfsDegraded: { kind, message },
       });
     }
   },

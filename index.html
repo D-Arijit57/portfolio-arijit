@@ -9,6 +9,48 @@
       content="Arijit Das is a Software Engineer focused on backend systems, AI engineering, LLM applications, and scalable software systems."
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!--
+      Social sharing card. Title/description are the same strings as <title>
+      and the description above rather than a separate marketing voice.
+
+      og:image is deliberately root-relative and og:url is deliberately
+      absent: no canonical production domain is declared anywhere in this
+      repository (vercel.json sets no alias, and .env.example's CORS_ORIGIN
+      defaults to localhost), so an absolute URL here could only be invented.
+      Crawlers resolve a root-relative og:image against the page's own
+      origin, and treat the fetched URL as canonical when og:url is omitted,
+      so this is correct on whatever domain the site is served from. If a
+      canonical domain is ever fixed, adding absolute og:url/og:image is the
+      only change needed.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Arijit Das" />
+    <meta property="og:title" content="Arijit Das — Software Engineer" />
+    <meta
+      property="og:description"
+      content="Arijit Das is a Software Engineer focused on backend systems, AI engineering, LLM applications, and scalable software systems."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Terminal-style card reading: Arijit Das, Software Engineer — Backend Systems, AI Engineering, LLM Applications."
+    />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Arijit Das — Software Engineer" />
+    <meta
+      name="twitter:description"
+      content="Arijit Das is a Software Engineer focused on backend systems, AI engineering, LLM applications, and scalable software systems."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Terminal-style card reading: Arijit Das, Software Engineer — Backend Systems, AI Engineering, LLM Applications."
+    />
   </head>
   <body>
     <div id="root"></div>

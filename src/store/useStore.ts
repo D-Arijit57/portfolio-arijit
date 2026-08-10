@@ -352,6 +352,19 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
+    // Leaving the README+startup.log onboarding pairing for any other file
+    // quietly closes startup.log and returns to a single editor. Derived
+    // from the current tabs rather than a stored flag, so it only fires for
+    // this specific pairing and never collapses a split the `startup`
+    // command created around some other file (openToSide()'s own
+    // splitTrigger ownership is untouched by this branch). Computed once,
+    // up front — both the mermaid branch below and the generic exit branch
+    // further down read this same value, rather than each deriving it
+    // independently and risking drift between the two.
+    const isReadmeOnboarding = state.editorSplit &&
+      state.openedTabs.some(t => t.fileId === README_FILE_ID) &&
+      state.openedTabs.some(t => t.fileId === STARTUP_LOG_FILE_ID);
+
     // Manifest Viewer v2 (ARCHITECTURE_PLATFORM_DESIGN.md §9): manifest.json
     // is a single-file presentation — it never shows its own raw JSON
     // (EditorRenderer renders it as the Tech Stack Constellation in every
@@ -430,7 +443,15 @@ export const useStore = create<StoreState>((set, get) => ({
       }
 
       const ts = Date.now();
-      if (state.openedTabs.length === 0) {
+      // The README+startup.log onboarding pairing is never "another file
+      // already open" for this branch's purposes — it's the same case as
+      // nothing being open at all, matching the generic isReadmeOnboarding
+      // exit further down: leaving that pairing for any other file
+      // dismisses it rather than grafting the new file into half of it.
+      // Without this, architecture.mmd would silently replace startup.log
+      // in the right pane while leaving splitTrigger pointing at a tab
+      // that's no longer open.
+      if (state.openedTabs.length === 0 || isReadmeOnboarding) {
         return {
           editorSplit: false,
           splitTrigger: null,
@@ -453,16 +474,9 @@ export const useStore = create<StoreState>((set, get) => ({
       };
     }
 
-    // Leaving the README+startup.log onboarding pairing for any other file
-    // quietly closes startup.log and returns to a single editor. Derived
-    // from the current tabs rather than a stored flag, so it only fires for
-    // this specific pairing and never collapses a split the `startup`
-    // command created around some other file (openToSide()'s own
-    // splitTrigger ownership is untouched by this branch).
-    const isReadmeOnboarding = state.editorSplit &&
-      state.openedTabs.some(t => t.fileId === README_FILE_ID) &&
-      state.openedTabs.some(t => t.fileId === STARTUP_LOG_FILE_ID);
-
+    // isReadmeOnboarding is computed above, before the manifest/work-history/
+    // contact/mermaid branches, so this check and the mermaid branch's own
+    // use of it can never drift apart.
     if (isReadmeOnboarding) {
       return {
         editorSplit: false,

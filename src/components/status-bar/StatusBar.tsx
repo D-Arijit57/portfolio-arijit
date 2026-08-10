@@ -10,14 +10,14 @@ export function StatusBar() {
   return (
     <div className="h-[22px] bg-[#007acc] text-white flex items-center justify-between px-3 text-[11px] select-none z-50">
       <div className="flex items-center gap-4 h-full">
-        <div className="flex items-center gap-1 hover:bg-[#1f8ad1] px-1 h-full cursor-pointer transition-colors">
+        <div className="flex items-center gap-1 px-1 h-full">
           <GitBranch size={14} />
           <span>main*</span>
         </div>
-        <div className="flex items-center gap-1 hover:bg-[#1f8ad1] px-1 h-full cursor-pointer transition-colors">
+        <div className="flex items-center gap-1 px-1 h-full">
           <RefreshCcw size={12} />
         </div>
-        <div className="flex items-center gap-2 hover:bg-[#1f8ad1] px-1 h-full cursor-pointer transition-colors">
+        <div className="flex items-center gap-2 px-1 h-full">
           <div className="flex items-center gap-1">
             <XCircle size={14} />
             <span>0</span>
@@ -27,7 +27,7 @@ export function StatusBar() {
             <span>0</span>
           </div>
         </div>
-        <div className="flex items-center gap-1 hover:bg-[#1f8ad1] px-1 h-full cursor-pointer transition-colors">
+        <div className="flex items-center gap-1 px-1 h-full">
           <span>Journey Workspace</span>
         </div>
       </div>
@@ -35,25 +35,22 @@ export function StatusBar() {
       <div className="flex items-center gap-4 h-full">
         {file && (
           <>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
-              Ln {Math.max(1, Math.floor(Math.random() * 50))}, Col {Math.max(1, Math.floor(Math.random() * 80))}
-            </div>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
+            <div className="px-1 h-full flex items-center">
               Spaces: 4
             </div>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
+            <div className="px-1 h-full flex items-center">
               UTF-8
             </div>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer capitalize">
+            <div className="px-1 h-full flex items-center capitalize">
               {file.type}
             </div>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
+            <div className="px-1 h-full flex items-center">
               <Info size={12} className="mr-1" />
               Stable
             </div>
           </>
         )}
-        <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
+        <div className="px-1 h-full flex items-center">
           <Bell size={14} />
         </div>
       </div>

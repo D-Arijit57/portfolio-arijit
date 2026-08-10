@@ -60,10 +60,10 @@ export function Terminal() {
         className="absolute left-0 right-0 top-0 -mt-0.5"
       />
       <div className="flex px-4 pt-2 space-x-6 text-[11px] font-bold uppercase text-[#858585]">
-        <span className="text-white border-b-2 border-white pb-1 cursor-pointer">Terminal</span>
-        <span className="hover:text-white cursor-pointer pb-1 border-b-2 border-transparent">Output</span>
-        <span className="hover:text-white cursor-pointer pb-1 border-b-2 border-transparent">Debug Console</span>
-        <span className="hover:text-white cursor-pointer pb-1 border-b-2 border-transparent">Problems</span>
+        <span className="text-white border-b-2 border-white pb-1">Terminal</span>
+        <span className="pb-1 border-b-2 border-transparent">Output</span>
+        <span className="pb-1 border-b-2 border-transparent">Debug Console</span>
+        <span className="pb-1 border-b-2 border-transparent">Problems</span>
       </div>
       <div className="flex-1 overflow-y-auto p-4 text-[#cccccc]" onClick={() => inputRef.current?.focus()}>
         {terminalState.history.map((entry) => (

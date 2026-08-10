@@ -6,6 +6,53 @@ import { workHistoryToYaml } from '../experience/renderers/yamlRenderer';
 import { workHistory } from './workHistory';
 import { contactChannelsToShellScript } from '../contact/renderers/shellRenderer';
 import { CONTACT_CHANNELS } from './contact';
+import { WELCOME_PARAGRAPHS } from './welcome';
+import { WELCOME_BANNER } from '../components/signature/signatureBanner';
+import {
+  ENGINEERING_PROFILE_FIELDS,
+  ENGINEERING_PROFILE_FIELD_COLUMN_WIDTH,
+  ENGINEERING_PROFILE_STATUS,
+} from './engineeringProfile';
+
+// welcome.md's fence body: the widget renderer (documentationWidgets.tsx's
+// `welcome-intro` entry) ignores this text entirely — WelcomeIntro.tsx
+// renders its own typewriter reveal from the same WELCOME_PARAGRAPHS
+// import, independent of whatever sits inside the fence. This exists only
+// so `cat welcome.md` and search see the real approved copy instead of an
+// empty directive — same duplication caveat as every other generated field
+// below: server/repositories/seed/workspaceSeed.ts can't import from src/,
+// so its copy is a literal string kept in sync by hand.
+const WELCOME_INTRO_CONTENT = `\`\`\`welcome-intro\n${WELCOME_PARAGRAPHS.join('\n\n')}\n\`\`\`\n`;
+
+// startup.log's raw VFS content: a truthful static snapshot of what
+// StartupLogViewer's real renderer (TerminalRunner, via signature.sh) shows
+// once its sequence settles, built from the exact same WELCOME_BANNER and
+// engineering-profile data TerminalRunner itself renders from — not a
+// duplicate of its phase machine, just the same source formatted the same
+// way EngineeringProfile.tsx pads its own field labels. Deliberately omits
+// the visitor count: that's live, per-visitor state fetched at render time
+// (visitorClient.recordVisit()), and there's no honest static number to
+// print here — see VisitorLine.tsx's own "no fabricated placeholder"
+// precedent. Same duplication caveat as WELCOME_INTRO_CONTENT above.
+function formatStartupLogContent(): string {
+  const fieldLines = ENGINEERING_PROFILE_FIELDS
+    .map((f) => `${f.label.padEnd(ENGINEERING_PROFILE_FIELD_COLUMN_WIDTH)}${f.value}`)
+    .join('\n');
+  const statusLine = `${'Status'.padEnd(ENGINEERING_PROFILE_FIELD_COLUMN_WIDTH)}● ${ENGINEERING_PROFILE_STATUS}`;
+
+  return [
+    '$ ./signature.sh',
+    '',
+    WELCOME_BANNER.join('\n'),
+    '',
+    fieldLines,
+    statusLine,
+    '',
+    'arijit@portfolio:~$',
+  ].join('\n') + '\n';
+}
+
+const STARTUP_LOG_CONTENT = formatStartupLogContent();
 
 // hire_me.md: the left panel's content is a hand-authored artifact styled
 // like generated CLI output — "why hire this engineer" — rather than
@@ -833,23 +880,14 @@ export const workspaceSeed: VirtualFolder = {
       name: 'welcome.md',
       type: 'markdown',
       path: '/welcome.md',
-      content: `\`\`\`welcome-intro
-\`\`\`
-`,
+      content: WELCOME_INTRO_CONTENT,
     } as VirtualFile,
     {
       id: 'startup-log',
       name: 'startup.log',
       type: 'log',
       path: '/startup.log',
-      content: `Initializing workspace...
-Loading explorer...
-Loading projects...
-Loading experience...
-Loading animations...
-Git repository detected...
-Workspace ready.
-`,
+      content: STARTUP_LOG_CONTENT,
     } as VirtualFile,
     {
       id: 'about',

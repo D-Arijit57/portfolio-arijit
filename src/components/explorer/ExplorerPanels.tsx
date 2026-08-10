@@ -76,17 +76,17 @@ export function ExplorerPanels() {
             </div>
           ))
         ) : (
-          <div className="py-1 pl-8 pr-3 text-[12px] text-[#6e7681]">No symbols found</div>
+          <div className="py-1 pl-8 pr-3 text-[12px] text-[#858585]">No symbols found</div>
         )}
       </DisclosureRow>
 
       <DisclosureRow label="Timeline" open={timelineOpen} onToggle={() => setTimelineOpen((o) => !o)}>
         {activeFile ? (
-          <div className="py-1 pl-8 pr-3 text-[12px] text-[#6e7681]">
+          <div className="py-1 pl-8 pr-3 text-[12px] text-[#858585]">
             <span className="text-[#cccccc]">{activeFile.name}</span> — file saved
           </div>
         ) : (
-          <div className="py-1 pl-8 pr-3 text-[12px] text-[#6e7681]">No file open</div>
+          <div className="py-1 pl-8 pr-3 text-[12px] text-[#858585]">No file open</div>
         )}
       </DisclosureRow>
     </div>

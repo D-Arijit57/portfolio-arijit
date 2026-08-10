@@ -5,6 +5,7 @@ import { notificationService } from '../../notifications/notificationService';
 import type { Notification, NotificationSeverity } from '../../notifications/types';
 import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { prefersReducedMotion } from '../../lib/typingReveal';
 
 /**
  * Pure renderer (ARCHITECTURE.md "Notification Service" §6). Subscribes to
@@ -37,7 +38,11 @@ export function Notifications() {
   if (bootActive) return null;
 
   return (
-    <div className="fixed bottom-[30px] right-4 z-50 flex flex-col gap-2 max-w-[320px] pointer-events-none">
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-[30px] right-4 z-50 flex flex-col gap-2 max-w-[320px] pointer-events-none"
+    >
       <AnimatePresence mode="popLayout">
         {notificationState.visible.map((notification) => (
           <NotificationToast key={notification.id} notification={notification} />
@@ -87,13 +92,15 @@ function NotificationToast({ notification }: { notification: Notification }) {
     return () => cancelAnimationFrame(raf);
   };
 
+  const reduceMotion = prefersReducedMotion();
+
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, x: 50 }}
+      layout={!reduceMotion}
+      initial={reduceMotion ? false : { opacity: 0, x: 50 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
+      exit={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+      transition={{ duration: reduceMotion ? 0 : 0.2 }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className="bg-[#252526] border border-[#454545] shadow-xl rounded pointer-events-auto overflow-hidden"
@@ -110,6 +117,7 @@ function NotificationToast({ notification }: { notification: Notification }) {
         {notification.dismissible && (
           <button
             onClick={() => notificationService.dismiss(notification.id)}
+            aria-label={`Dismiss: ${notification.title}`}
             className="ml-auto opacity-50 hover:opacity-100 p-0.5 rounded transition-colors text-[#cccccc] shrink-0"
           >
             <X size={14} />

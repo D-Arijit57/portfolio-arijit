@@ -23,8 +23,18 @@ export function Terminal() {
   // WA-03: the input is disabled while a command executes (below), and a
   // native <input> does not automatically regain focus when re-enabled —
   // it drops to <body>. Re-focus explicitly once execution finishes so the
-  // terminal stays keyboard-ready without requiring a re-click.
+  // terminal stays keyboard-ready without requiring a re-click. Phase 5:
+  // skips its own first run — this effect firing on initial mount is what
+  // the removed `autoFocus` prop used to do, dropping a fresh page load's
+  // focus straight into the terminal before a screen-reader/keyboard user
+  // has seen anything else. Every *later* transition away from
+  // 'executing' still re-focuses, exactly as before.
+  const isFirstStatusEffect = useRef(true);
   useEffect(() => {
+    if (isFirstStatusEffect.current) {
+      isFirstStatusEffect.current = false;
+      return;
+    }
     if (terminalState.status !== 'executing') {
       inputRef.current?.focus();
     }
@@ -88,8 +98,8 @@ export function Terminal() {
             onChange={(e) => setTerminalInput(e.target.value)}
             onKeyDown={onKeyDown}
             disabled={isExecuting}
+            aria-label="Terminal command input"
             className="flex-1 bg-transparent outline-none border-none text-[#cccccc] disabled:opacity-50"
-            autoFocus
           />
         </form>
         <div ref={bottomRef} />

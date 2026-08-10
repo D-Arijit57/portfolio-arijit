@@ -115,6 +115,14 @@ export function WelcomeIntro() {
   const skipAnimation = useRef(reduceMotion || hasAnimated(REVEAL_SESSION_KEY)).current;
   const [revealed, setRevealed] = useState(() => (skipAnimation ? FULL_TEXT.length : 0));
   const [activePhrase, setActivePhrase] = useState<string | null>(null);
+  // Phase 5: one concise completion cue, not a narration of the typing
+  // itself — a screen reader hearing this knows the welcome text has
+  // finished (and is now fully present in the DOM to navigate to), same
+  // aria-live="polite" + sr-only pattern contact.sh's own status regions
+  // already use. Fires exactly once, whether typing actually ran or was
+  // skipped (reduced motion / repeat visit) — either way this is the
+  // first moment the full text genuinely exists to read.
+  const [announcement, setAnnouncement] = useState('');
 
   useEffect(() => {
     if (skipAnimation) return;
@@ -125,6 +133,12 @@ export function WelcomeIntro() {
     const timer = setTimeout(() => setRevealed((count) => count + 1), delay);
     return () => clearTimeout(timer);
   }, [revealed, skipAnimation]);
+
+  useEffect(() => {
+    if (revealed >= FULL_TEXT.length && !announcement) {
+      setAnnouncement('Welcome message loaded.');
+    }
+  }, [revealed, announcement]);
 
   // Touch devices open a tooltip by tapping its phrase (GlossaryHoverSpan's
   // own onClick) — dismiss it on a tap anywhere else, or on scroll, since
@@ -165,6 +179,7 @@ export function WelcomeIntro() {
         {renderRevealedSegments(revealed, activePhrase, setActivePhrase)}
         <span className="typing-reveal-cursor ml-0.5">█</span>
       </div>
+      <div aria-live="polite" className="sr-only">{announcement}</div>
     </div>
   );
 }

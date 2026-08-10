@@ -2,6 +2,9 @@ import React from 'react';
 import { Files, Search, GitBranch, Play, Settings, User } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { cn } from '../../lib/utils';
+import { rescueFocusBeforeExplorerClose } from '../../lib/explorerFocusSafety';
+
+const FOCUS_RING = 'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#4fc1ff]';
 
 export function ActivityBar() {
   const { explorerState, toggleExplorer, setExplorerView } = useStore();
@@ -13,9 +16,15 @@ export function ActivityBar() {
     <div className="w-[50px] bg-[#333333] flex flex-col justify-between items-center py-2 shrink-0 border-r border-[#1e1e1e]">
       <div className="flex flex-col gap-4 w-full items-center">
         <button
-          onClick={() => (isFilesActive ? toggleExplorer() : setExplorerView('files'))}
-          className={cn("p-2 relative group flex justify-center w-full", isFilesActive ? "text-white" : "text-[#858585] hover:text-white")}
+          id="activity-bar-explorer-toggle"
+          onClick={() => {
+            rescueFocusBeforeExplorerClose(isFilesActive);
+            if (isFilesActive) toggleExplorer();
+            else setExplorerView('files');
+          }}
+          className={cn("p-2 relative group flex justify-center w-full", FOCUS_RING, isFilesActive ? "text-white" : "text-[#858585] hover:text-white")}
           title="Explorer"
+          aria-pressed={isFilesActive}
         >
           <Files size={24} strokeWidth={1.5} />
           {isFilesActive && (
@@ -23,9 +32,14 @@ export function ActivityBar() {
           )}
         </button>
         <button
-          onClick={() => (isSearchActive ? toggleExplorer() : setExplorerView('search'))}
-          className={cn("p-2 relative group flex justify-center w-full", isSearchActive ? "text-white" : "text-[#858585] hover:text-white")}
+          onClick={() => {
+            rescueFocusBeforeExplorerClose(isSearchActive);
+            if (isSearchActive) toggleExplorer();
+            else setExplorerView('search');
+          }}
+          className={cn("p-2 relative group flex justify-center w-full", FOCUS_RING, isSearchActive ? "text-white" : "text-[#858585] hover:text-white")}
           title="Search"
+          aria-pressed={isSearchActive}
         >
           <Search size={24} strokeWidth={1.5} />
           {isSearchActive && (

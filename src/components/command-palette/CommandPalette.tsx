@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Command } from 'cmdk';
 import { useStore } from '../../store/useStore';
 import { allFiles } from '../../content/fileSystem';
 import { FileText, FileCode2, Terminal as TerminalIcon, Layout } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { namespaceOf } from '../../search/types';
+import { restoreFocusAfterCommandPaletteClose } from '../../lib/commandPaletteFocusMemory';
+import { prefersReducedMotion } from '../../lib/typingReveal';
 
 // Sprint 10G: GitHub's generated files stay fully fetchable by id (see
 // useStore.ts's HIDDEN_BROWSE_NAMESPACES note — ContributionsTerminal's widgets
@@ -15,27 +17,64 @@ const paletteFiles = () => allFiles.filter((file) => namespaceOf(file) !== 'gith
 export function CommandPalette() {
   const { commandPalette, setCommandPaletteOpen, openFile, toggleTerminal, toggleExplorer, toggleEditorSplit } = useStore();
   const [value, setValue] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  const closePalette = () => {
+    setCommandPaletteOpen(false);
+    restoreFocusAfterCommandPaletteClose();
+  };
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setCommandPaletteOpen(false);
+        closePalette();
       }
     };
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCommandPaletteOpen]);
 
+  // Phase 5: a real focus trap — cmdk keeps DOM focus on Command.Input the
+  // whole time (arrow keys move a visual aria-selected state, not actual
+  // focus, per its own `tabindex="-1"` on items), so in practice this
+  // usually just keeps Tab from leaving that one input. Written generically
+  // rather than hard-coded to "the input", so it stays correct if the
+  // dialog ever gains a second real focus target.
+  const handleDialogKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab' || !dialogRef.current) return;
+    const focusables = Array.from(
+      dialogRef.current.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+    ).filter((el) => !el.hasAttribute('disabled'));
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   if (!commandPalette.isOpen) return null;
+
+  const reduceMotion = prefersReducedMotion();
 
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] bg-black/50 backdrop-blur-sm">
         <motion.div
-          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command Palette"
+          onKeyDown={handleDialogKeyDown}
+          initial={reduceMotion ? false : { opacity: 0, y: -20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.1 }}
+          exit={reduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
+          transition={{ duration: reduceMotion ? 0 : 0.1 }}
           className="w-full max-w-[600px] bg-[#252526] rounded-md shadow-2xl border border-[#454545] overflow-hidden"
         >
           <Command
@@ -61,7 +100,7 @@ export function CommandPalette() {
                     value={file.name}
                     onSelect={() => {
                       openFile(file.id);
-                      setCommandPaletteOpen(false);
+                      closePalette();
                     }}
                     className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-sm aria-selected:bg-[#0060c0] aria-selected:text-white"
                   >
@@ -77,7 +116,7 @@ export function CommandPalette() {
                   value="Toggle Terminal"
                   onSelect={() => {
                     toggleTerminal();
-                    setCommandPaletteOpen(false);
+                    closePalette();
                   }}
                   className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-sm aria-selected:bg-[#0060c0] aria-selected:text-white"
                 >
@@ -89,7 +128,7 @@ export function CommandPalette() {
                   value="Toggle Explorer"
                   onSelect={() => {
                     toggleExplorer();
-                    setCommandPaletteOpen(false);
+                    closePalette();
                   }}
                   className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-sm aria-selected:bg-[#0060c0] aria-selected:text-white"
                 >
@@ -101,7 +140,7 @@ export function CommandPalette() {
                   value="Toggle Split Editor"
                   onSelect={() => {
                     toggleEditorSplit();
-                    setCommandPaletteOpen(false);
+                    closePalette();
                   }}
                   className="flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-sm aria-selected:bg-[#0060c0] aria-selected:text-white"
                 >

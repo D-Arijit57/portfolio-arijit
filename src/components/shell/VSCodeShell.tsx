@@ -10,6 +10,8 @@ import { useStore } from '../../store/useStore';
 import { useRouterSync } from '../../hooks/useRouterSync';
 import { useWindowWidth } from '../../hooks/useWindowWidth';
 import { EXPLORER_COLLAPSE_BREAKPOINT_PX } from '../../lib/workspaceBreakpoints';
+import { rescueFocusBeforeExplorerClose } from '../../lib/explorerFocusSafety';
+import { saveFocusBeforeCommandPaletteOpen } from '../../lib/commandPaletteFocusMemory';
 
 export function VSCodeShell() {
   const { setCommandPaletteOpen, explorerState, toggleExplorer } = useStore();
@@ -31,9 +33,15 @@ export function VSCodeShell() {
     const wasCompact = wasCompactRef.current;
     if (isCompact && !wasCompact) {
       desktopExplorerOpenRef.current = explorerState.isOpen;
-      if (explorerState.isOpen) toggleExplorer();
+      if (explorerState.isOpen) {
+        rescueFocusBeforeExplorerClose(true);
+        toggleExplorer();
+      }
     } else if (!isCompact && wasCompact) {
-      if (desktopExplorerOpenRef.current !== explorerState.isOpen) toggleExplorer();
+      if (desktopExplorerOpenRef.current !== explorerState.isOpen) {
+        rescueFocusBeforeExplorerClose(explorerState.isOpen && !desktopExplorerOpenRef.current);
+        toggleExplorer();
+      }
     }
     wasCompactRef.current = isCompact;
     // Deliberately keyed on `isCompact` alone — this must fire only on a
@@ -46,6 +54,7 @@ export function VSCodeShell() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
+        saveFocusBeforeCommandPaletteOpen();
         setCommandPaletteOpen(true);
       }
     };
@@ -55,13 +64,19 @@ export function VSCodeShell() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#1e1e1e] text-[#cccccc] overflow-hidden font-sans selection:bg-[#264f78]">
+      {/* Phase 5: a visually-hidden page heading — the app has no visible
+          <h1> anywhere in its own chrome (markdown files render their own),
+          so screen-reader users landing here had nothing to orient against. */}
+      <h1 className="sr-only">Arijit Das — Software Engineer, developer workspace</h1>
       <div className="flex flex-1 overflow-hidden">
-        <ActivityBar />
-        <Explorer />
-        <div className="flex flex-col flex-1 overflow-hidden bg-[#1e1e1e]">
+        <nav aria-label="Workspace" className="flex h-full">
+          <ActivityBar />
+          <Explorer />
+        </nav>
+        <main className="flex flex-col flex-1 overflow-hidden bg-[#1e1e1e]">
           <EditorArea />
           <Terminal />
-        </div>
+        </main>
       </div>
       <StatusBar />
       <CommandPalette />

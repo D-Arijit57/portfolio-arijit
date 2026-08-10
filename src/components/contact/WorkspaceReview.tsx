@@ -225,7 +225,7 @@ export function WorkspaceReview() {
             >
               {sendState === 'sending' ? 'Sending…' : 'Send review'}
             </button>
-            <p className="text-[11px] text-[#6e7681]">Sends your rating and message — plus name/email if you added them. Nothing else.</p>
+            <p className="text-[11px] text-[#858585]">Sends your rating and message — plus name/email if you added them. Nothing else.</p>
           </div>
 
           {sendState === 'error' && (

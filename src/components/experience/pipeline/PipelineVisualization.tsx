@@ -239,7 +239,7 @@ export function PipelineVisualization({
             onClick={handleToggle}
             aria-expanded={expanded}
             aria-controls={sourcePanelId}
-            className="flex items-center gap-1.5 font-mono text-[11px] text-[#6e7681] hover:text-[#cccccc] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
+            className="flex items-center gap-1.5 font-mono text-[11px] text-[#858585] hover:text-[#cccccc] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
           >
             <ChevronRight
               size={12}

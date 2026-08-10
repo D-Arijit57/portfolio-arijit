@@ -86,7 +86,7 @@ export function ExperienceTerminalPanel({
             <span style={{ color: CORTEXA_TEXT }}>{title.slice(1)}</span>
           </span>
         ) : (
-          <span className="min-w-0 truncate font-mono text-[13px] text-[#6e7681]">{title}</span>
+          <span className="min-w-0 truncate font-mono text-[13px] text-[#858585]">{title}</span>
         )}
         <div className="flex shrink-0 items-center gap-3">
           {headerExtra}

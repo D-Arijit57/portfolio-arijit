@@ -5,6 +5,16 @@ import { DECISIONS, TRADEOFF_NOTE, type DecisionId } from '../../content/cortexa
 const TEXT = '#E5E7EB';
 const MUTED = '#9CA3AF';
 const DIM = '#6B7280';
+/**
+ * Phase 5: DIM (3.58:1 on this panel's #161B22) fails WCAG AA for text a
+ * reader actually has to read — fine for the header hint/column labels
+ * above, which are chrome, but not for the rejected-alternative/reason
+ * cells or the tradeoff note below, which are real content. Same value as
+ * pipeline/tokens.ts's own `CONTENT_DIM` ("the quietest colour permitted
+ * to carry content... clears WCAG AA while staying visibly subordinate to
+ * MUTED") — 5.01:1 here, reused rather than inventing a new grey.
+ */
+const CONTENT_DIM = '#8a8a8a';
 
 // One shared template for the header, the rule and every row, so the four
 // columns align by construction rather than by hand-tuned padding. Widths
@@ -115,10 +125,10 @@ export function CortexaDecisionTerminal({
                 <span className="truncate" style={{ color: TEXT }}>
                   {decision.chosen}
                 </span>
-                <span className="truncate" style={{ color: DIM, textDecoration: 'line-through' }}>
+                <span className="truncate" style={{ color: CONTENT_DIM, textDecoration: 'line-through' }}>
                   {decision.rejected}
                 </span>
-                <span className="truncate" style={{ color: DIM }}>
+                <span className="truncate" style={{ color: CONTENT_DIM }}>
                   {decision.reason}
                 </span>
               </div>
@@ -134,7 +144,7 @@ export function CortexaDecisionTerminal({
           <div
             className="mt-3 text-[12px] leading-[1.4]"
             style={{
-              color: DIM,
+              color: CONTENT_DIM,
               opacity: allRevealed ? 1 : 0,
               transition: 'opacity 260ms ease-out 120ms',
             }}

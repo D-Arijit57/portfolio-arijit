@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
-import { EditorTabs } from './EditorTabs';
+import { EditorTabs, editorTabDomId } from './EditorTabs';
 import { Breadcrumbs } from './Breadcrumbs';
 import { EditorRenderer } from './EditorRenderer';
 import { SplitEditorArea } from './SplitEditorArea';
@@ -19,6 +19,38 @@ export function EditorArea() {
   // gates (see lib/onboardingScope.ts / lib/bootSequence.ts).
   const [booting, setBooting] = useState(() => shouldRunOnboarding());
   const isSinglePane = useWindowWidth() < SINGLE_PANE_BREAKPOINT_PX;
+  const activePane = editorSplit ? (openedTabs.find((t) => t.fileId === activeFileId)?.pane ?? 'left') : 'left';
+
+  // Phase 5: track which pane last held focus (a plain document-level
+  // listener, not a ref into either pane's own DOM — that subtree may
+  // already be gone by the time the collapse effect below runs) so that
+  // if the pane the single-pane collapse hides was the one holding focus,
+  // it can be rescued instead of falling through to document.body.
+  const lastFocusedPaneRef = useRef<'left' | 'right' | null>(null);
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const id = (e.target as HTMLElement | null)?.id ?? '';
+      if (id.startsWith('editor-tab-left-')) lastFocusedPaneRef.current = 'left';
+      else if (id.startsWith('editor-tab-right-')) lastFocusedPaneRef.current = 'right';
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
+  const wasSinglePaneRef = useRef(isSinglePane);
+  useEffect(() => {
+    if (isSinglePane && !wasSinglePaneRef.current) {
+      const losingPane = lastFocusedPaneRef.current;
+      if (losingPane && losingPane !== activePane && document.activeElement === document.body) {
+        // Synchronous: this effect already runs after the single-pane
+        // layout has committed, so the surviving pane's active tab is
+        // already in the DOM — no extra frame to wait for.
+        const fallback = activeFileId ? document.getElementById(editorTabDomId(activePane, activeFileId)) : null;
+        (fallback ?? document.getElementById('activity-bar-explorer-toggle'))?.focus();
+      }
+    }
+    wasSinglePaneRef.current = isSinglePane;
+  }, [isSinglePane, activePane, activeFileId]);
 
   // Sprint 10E.2: mirrors `booting` into the store's bootActive flag (see
   // useStore.ts) so Notifications can suppress toasts for the same window,
@@ -48,8 +80,6 @@ export function EditorArea() {
   // in the store are never touched here, so widening back past the
   // breakpoint restores SplitEditorArea exactly as the user left it — no
   // snapshot/restore bookkeeping needed, unlike Explorer's real toggle.
-  const activePane = editorSplit ? (openedTabs.find((t) => t.fileId === activeFileId)?.pane ?? 'left') : 'left';
-
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-[#1e1e1e]">
       <EditorTabs pane={activePane} />

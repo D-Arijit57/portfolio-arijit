@@ -1,6 +1,6 @@
-import type { FileNodeRepository } from '../repositories/fileNodeRepository';
-import { validateWorkspaceTree } from '../repositories/validation';
-import { BadRequestError, NotFoundError, type VirtualFile, type WorkspaceTree } from '../types';
+import type { FileNodeRepository } from '../repositories/fileNodeRepository.js';
+import { validateWorkspaceTree } from '../repositories/validation.js';
+import { BadRequestError, NotFoundError, type VirtualFile, type WorkspaceTree } from '../types/index.js';
 
 /**
  * Business logic layer between the route layer and FileNodeRepository

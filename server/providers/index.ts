@@ -1,13 +1,13 @@
-import { repository } from '../composition';
-import { config } from '../config/env';
-import { GitHubApiClient } from './github/githubApiClient';
-import { GitHubProvider } from './github/githubProvider';
-import { LeetCodeApiClient } from './leetcode/leetcodeApiClient';
-import { LeetCodeProvider } from './leetcode/leetcodeProvider';
-import { ProviderRegistry } from './providerRegistry';
+import { repository } from '../composition.js';
+import { config } from '../config/env.js';
+import { GitHubApiClient } from './github/githubApiClient.js';
+import { GitHubProvider } from './github/githubProvider.js';
+import { LeetCodeApiClient } from './leetcode/leetcodeApiClient.js';
+import { LeetCodeProvider } from './leetcode/leetcodeProvider.js';
+import { ProviderRegistry } from './providerRegistry.js';
 
-export * from './contentProvider';
-export { ProviderRegistry } from './providerRegistry';
+export * from './contentProvider.js';
+export { ProviderRegistry } from './providerRegistry.js';
 
 /**
  * Composition root for ContentProviders (VFS_DESIGN.md §11). Adding a future

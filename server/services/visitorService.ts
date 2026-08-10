@@ -1,7 +1,7 @@
-import { config } from '../config/env';
-import { logger } from '../utils/logger';
-import { recordUniqueVisit, readUniqueVisitorCount } from '../storage/redisClient';
-import type { VisitRequest } from '../types';
+import { config } from '../config/env.js';
+import { logger } from '../utils/logger.js';
+import { recordUniqueVisit, readUniqueVisitorCount } from '../storage/redisClient.js';
+import type { VisitRequest } from '../types/index.js';
 
 export type RecordVisitResult = { status: 'ok'; count: number } | { status: 'unconfigured' } | { status: 'error' };
 

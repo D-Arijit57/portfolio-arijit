@@ -1,7 +1,7 @@
-import { config } from '../config/env';
-import { logger } from '../utils/logger';
-import { sendFeedbackEmail } from '../email/resendClient';
-import type { FeedbackSubmission } from '../types';
+import { config } from '../config/env.js';
+import { logger } from '../utils/logger.js';
+import { sendFeedbackEmail } from '../email/resendClient.js';
+import type { FeedbackSubmission } from '../types/index.js';
 
 export type SubmitFeedbackResult =
   | { status: 'sent' }

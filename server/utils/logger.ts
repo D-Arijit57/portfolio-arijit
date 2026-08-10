@@ -1,4 +1,4 @@
-import type { Logger, LogMeta } from '../types/logger.types';
+import type { Logger, LogMeta } from '../types/logger.types.js';
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 

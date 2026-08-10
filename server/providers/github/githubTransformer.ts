@@ -10,7 +10,7 @@ import type {
   RawGitHubPinnedRepo,
   RawGitHubRepo,
   RawGitHubUser,
-} from './githubTypes';
+} from './githubTypes.js';
 
 const REPO_CAP = 20;
 const ACTIVITY_CAP = 20;

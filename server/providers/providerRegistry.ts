@@ -1,5 +1,5 @@
-import type { ContentProvider } from './contentProvider';
-import { logger } from '../utils/logger';
+import type { ContentProvider } from './contentProvider.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * The VFS's only awareness of generated-content sources: a set of registered

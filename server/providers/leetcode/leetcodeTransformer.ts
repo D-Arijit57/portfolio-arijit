@@ -10,7 +10,7 @@ import type {
   RawLeetCodeMatchedUser,
   RawLeetCodeRecentSubmission,
   RawLeetCodeSubmitStatEntry,
-} from './leetcodeTypes';
+} from './leetcodeTypes.js';
 
 const RECENT_CONTEST_CAP = 10;
 const ACTIVITY_WINDOW_DAYS = 90;

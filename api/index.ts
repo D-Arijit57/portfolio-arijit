@@ -1,5 +1,5 @@
-import { createApp } from '../server/app';
-import { providerRegistry } from '../server/providers';
+import { createApp } from '../server/app.js';
+import { providerRegistry } from '../server/providers/index.js';
 
 /**
  * Vercel serverless entrypoint. Thin wrapper around the existing Express

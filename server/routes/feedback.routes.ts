@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { submitFeedback } from '../services/feedbackService';
-import { isFeedbackVerdict, type FeedbackVerdict } from '../types/feedback.types';
-import { BadGatewayError, BadRequestError } from '../types';
+import { submitFeedback } from '../services/feedbackService.js';
+import { isFeedbackVerdict, type FeedbackVerdict } from '../types/feedback.types.js';
+import { BadGatewayError, BadRequestError } from '../types/index.js';
 
 export const feedbackRouter = Router();
 

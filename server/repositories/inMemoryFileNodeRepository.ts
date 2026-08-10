@@ -6,13 +6,13 @@ import {
   type VirtualFolder,
   type VirtualNode,
   type WorkspaceTree,
-} from '../types';
-import type { FileNodeRepository } from './fileNodeRepository';
+} from '../types/index.js';
+import type { FileNodeRepository } from './fileNodeRepository.js';
 import {
   assertGeneratedIdsNamespaced,
   assertNoColonInStaticIds,
   validateWorkspaceTree,
-} from './validation';
+} from './validation.js';
 
 /**
  * Phase 1 / Sprint 2A implementation of FileNodeRepository, backed by an

@@ -4,7 +4,7 @@ import type {
   GitHubPinnedRepoSummary,
   GitHubProfile,
   GitHubRepoSummary,
-} from './githubTypes';
+} from './githubTypes.js';
 
 /**
  * Markdown Generator stage (VFS_DESIGN.md §11.2): pure functions, one domain

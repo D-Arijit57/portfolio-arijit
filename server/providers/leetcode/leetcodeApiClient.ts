@@ -4,7 +4,7 @@ import type {
   RawLeetCodeContestRanking,
   RawLeetCodeMatchedUser,
   RawLeetCodeRecentSubmission,
-} from './leetcodeTypes';
+} from './leetcodeTypes.js';
 
 const LEETCODE_GRAPHQL_URL = 'https://leetcode.com/graphql';
 const REQUEST_TIMEOUT_MS = 8000;

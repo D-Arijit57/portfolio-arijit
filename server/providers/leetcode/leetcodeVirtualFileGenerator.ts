@@ -1,4 +1,4 @@
-import type { VirtualFile } from '../../types';
+import type { VirtualFile } from '../../types/index.js';
 
 export interface LeetCodeMarkdownBundle {
   readme: string;

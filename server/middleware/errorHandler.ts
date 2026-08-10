@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import { logger } from '../utils/logger';
-import { AppError } from '../types';
+import { logger } from '../utils/logger.js';
+import { AppError } from '../types/index.js';
 
 export function notFoundHandler(req: Request, res: Response): void {
   res.status(404).json({ error: `Not found: ${req.method} ${req.originalUrl}` });

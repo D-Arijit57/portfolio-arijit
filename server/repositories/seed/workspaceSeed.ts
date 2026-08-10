@@ -1,4 +1,4 @@
-import type { VirtualFile, VirtualFolder } from '../../types';
+import type { VirtualFile, VirtualFolder } from '../../types/index.js';
 
 // Migrated 1:1 from src/content/fileSystem.ts (BACKEND_BOOTSTRAP.md Milestone 2 scope).
 // Deliberately not imported from src/ — the repository owns its own data independent

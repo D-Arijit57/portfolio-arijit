@@ -1,6 +1,6 @@
-import type { ContentProvider, ProviderStatus } from '../contentProvider';
-import type { FileNodeRepository } from '../../repositories';
-import { GitHubApiClient } from './githubApiClient';
+import type { ContentProvider, ProviderStatus } from '../contentProvider.js';
+import type { FileNodeRepository } from '../../repositories/index.js';
+import { GitHubApiClient } from './githubApiClient.js';
 import {
   transformActivity,
   transformCommits,
@@ -8,7 +8,7 @@ import {
   transformPinned,
   transformProfile,
   transformRepos,
-} from './githubTransformer';
+} from './githubTransformer.js';
 import {
   generateActivityMarkdown,
   generateContributionsMarkdown,
@@ -19,9 +19,9 @@ import {
   generateReadmeMarkdown,
   generateRepositoriesMarkdown,
   generateUnavailableMarkdown,
-} from './githubMarkdownGenerator';
-import { generateGitHubVirtualFiles, type GitHubMarkdownBundle } from './githubVirtualFileGenerator';
-import { logger } from '../../utils/logger';
+} from './githubMarkdownGenerator.js';
+import { generateGitHubVirtualFiles, type GitHubMarkdownBundle } from './githubVirtualFileGenerator.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * First concrete ContentProvider implementation (VFS_DESIGN.md §11.5).

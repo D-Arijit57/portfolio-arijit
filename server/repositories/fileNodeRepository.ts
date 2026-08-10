@@ -1,4 +1,4 @@
-import type { VirtualFile, VirtualFolder, VirtualNode, WorkspaceTree } from '../types';
+import type { VirtualFile, VirtualFolder, VirtualNode, WorkspaceTree } from '../types/index.js';
 
 /**
  * Hides the storage mechanism (in-memory seed today, a database later) from

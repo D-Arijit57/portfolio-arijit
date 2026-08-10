@@ -4,7 +4,7 @@ import type {
   LeetCodeProfile,
   LeetCodeSolvedStats,
   LeetCodeSubmissionEntry,
-} from './leetcodeTypes';
+} from './leetcodeTypes.js';
 
 /**
  * Markdown Generator stage (VFS_DESIGN.md §11.2): pure functions, one domain

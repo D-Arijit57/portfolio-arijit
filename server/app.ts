@@ -1,8 +1,8 @@
 import express, { type Express } from 'express';
 import cors from 'cors';
-import { config } from './config/env';
-import { requestLogger, notFoundHandler, errorHandler } from './middleware';
-import { apiRouter } from './routes';
+import { config } from './config/env.js';
+import { requestLogger, notFoundHandler, errorHandler } from './middleware/index.js';
+import { apiRouter } from './routes/index.js';
 
 export function createApp(): Express {
   const app = express();

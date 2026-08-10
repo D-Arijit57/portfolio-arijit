@@ -5,7 +5,7 @@ import {
   type VirtualFolder,
   type VirtualNode,
   WorkspaceIntegrityError,
-} from '../types';
+} from '../types/index.js';
 
 /**
  * Enforces every WorkspaceTree invariant from VFS_DESIGN.md §1.3/§5: single root,

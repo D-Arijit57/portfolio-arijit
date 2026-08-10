@@ -6,7 +6,7 @@ import type {
   RawGitHubPinnedRepo,
   RawGitHubRepo,
   RawGitHubUser,
-} from './githubTypes';
+} from './githubTypes.js';
 
 const RECENT_COMMITS_LIMIT = 10;
 

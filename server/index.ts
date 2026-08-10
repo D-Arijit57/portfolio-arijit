@@ -1,8 +1,8 @@
 import type { Server } from 'http';
-import { createApp } from './app';
-import { config } from './config/env';
-import { providerRegistry } from './providers';
-import { logger } from './utils/logger';
+import { createApp } from './app.js';
+import { config } from './config/env.js';
+import { providerRegistry } from './providers/index.js';
+import { logger } from './utils/logger.js';
 
 // VFS_DESIGN.md §11.4's "recurring scheduled interval" — deferred at Sprint
 // 6B, now implemented (Sprint 10D.4) since generated content is expected to

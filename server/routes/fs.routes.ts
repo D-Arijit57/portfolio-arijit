@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { fileSystemService } from '../composition';
-import { BadRequestError } from '../types';
+import { fileSystemService } from '../composition.js';
+import { BadRequestError } from '../types/index.js';
 
 export const fsRouter = Router();
 

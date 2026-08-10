@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
-import { recordVisit } from '../services/visitorService';
-import { parseCookies, serializeCookie } from '../utils/cookies';
-import { config } from '../config/env';
-import { BadRequestError, UnauthorizedError } from '../types';
+import { recordVisit } from '../services/visitorService.js';
+import { parseCookies, serializeCookie } from '../utils/cookies.js';
+import { config } from '../config/env.js';
+import { BadRequestError, UnauthorizedError } from '../types/index.js';
 
 export const visitorRouter = Router();
 

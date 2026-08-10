@@ -1,6 +1,6 @@
-import { InMemoryFileNodeRepository, workspaceSeed } from './repositories';
-import type { FileNodeRepository } from './repositories';
-import { FileSystemService } from './services';
+import { InMemoryFileNodeRepository, workspaceSeed } from './repositories/index.js';
+import type { FileNodeRepository } from './repositories/index.js';
+import { FileSystemService } from './services/index.js';
 
 /**
  * Composition root for the VFS layer. The single place that wires a concrete

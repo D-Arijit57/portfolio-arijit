@@ -1,13 +1,13 @@
-import type { ContentProvider, ProviderStatus } from '../contentProvider';
-import type { FileNodeRepository } from '../../repositories';
-import { LeetCodeApiClient } from './leetcodeApiClient';
+import type { ContentProvider, ProviderStatus } from '../contentProvider.js';
+import type { FileNodeRepository } from '../../repositories/index.js';
+import { LeetCodeApiClient } from './leetcodeApiClient.js';
 import {
   transformActivity,
   transformContest,
   transformProfile,
   transformRecentSubmissions,
   transformSolvedStats,
-} from './leetcodeTransformer';
+} from './leetcodeTransformer.js';
 import {
   generateActivityMarkdown,
   generateContestsMarkdown,
@@ -16,9 +16,9 @@ import {
   generateRecentMarkdown,
   generateStatsMarkdown,
   generateUnavailableMarkdown,
-} from './leetcodeMarkdownGenerator';
-import { generateLeetCodeVirtualFiles, type LeetCodeMarkdownBundle } from './leetcodeVirtualFileGenerator';
-import { logger } from '../../utils/logger';
+} from './leetcodeMarkdownGenerator.js';
+import { generateLeetCodeVirtualFiles, type LeetCodeMarkdownBundle } from './leetcodeVirtualFileGenerator.js';
+import { logger } from '../../utils/logger.js';
 
 /**
  * Second concrete ContentProvider implementation, validating

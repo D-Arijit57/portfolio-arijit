@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import type { FeedbackSubmission } from '../types';
+import type { FeedbackSubmission } from '../types/index.js';
 
 const VERDICT_LABEL: Record<FeedbackSubmission['verdict'], string> = {
   positive: 'Loved it',

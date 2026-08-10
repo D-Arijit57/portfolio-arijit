@@ -32,18 +32,18 @@ export function ActivityBar() {
             <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-white" />
           )}
         </button>
-        <button className="p-2 text-[#858585] hover:text-white transition-colors" title="Source Control">
+        <button disabled className="p-2 text-[#858585] cursor-default" title="Source Control">
           <GitBranch size={24} strokeWidth={1.5} />
         </button>
-        <button className="p-2 text-[#858585] hover:text-white transition-colors" title="Run and Debug">
+        <button disabled className="p-2 text-[#858585] cursor-default" title="Run and Debug">
           <Play size={24} strokeWidth={1.5} />
         </button>
       </div>
       <div className="flex flex-col gap-4 w-full items-center">
-        <button className="p-2 text-[#858585] hover:text-white transition-colors" title="Accounts">
+        <button disabled className="p-2 text-[#858585] cursor-default" title="Accounts">
           <User size={24} strokeWidth={1.5} />
         </button>
-        <button className="p-2 text-[#858585] hover:text-white transition-colors" title="Manage">
+        <button disabled className="p-2 text-[#858585] cursor-default" title="Manage">
           <Settings size={24} strokeWidth={1.5} />
         </button>
       </div>

@@ -2,14 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { prefersReducedMotion } from '../../lib/typingReveal';
 import { WHITE, GREEN, GRAY } from './palette';
 import { STATUS_PAUSE_MS, PROFILE_HOLD_MS } from './timing';
-
-const FIELD_COLUMN_WIDTH = 12;
-
-const FIELDS: { label: string; value: string }[] = [
-  { label: 'Name', value: 'Arijit Das' },
-  { label: 'Role', value: 'Software Engineer' },
-  { label: 'Location', value: 'Indore, India' },
-];
+import {
+  ENGINEERING_PROFILE_FIELDS as FIELDS,
+  ENGINEERING_PROFILE_FIELD_COLUMN_WIDTH as FIELD_COLUMN_WIDTH,
+  ENGINEERING_PROFILE_STATUS,
+} from '../../content/engineeringProfile';
 
 export interface EngineeringProfileProps {
   instant?: boolean;
@@ -73,7 +70,7 @@ export function EngineeringProfile({ instant, onComplete }: EngineeringProfilePr
       ))}
       <div>
         <span style={{ color: GRAY }}>{'Status'.padEnd(FIELD_COLUMN_WIDTH)}</span>
-        <span style={{ color: GREEN }}>●</span> Available
+        <span style={{ color: GREEN }}>●</span> {ENGINEERING_PROFILE_STATUS}
       </div>
     </div>
   );

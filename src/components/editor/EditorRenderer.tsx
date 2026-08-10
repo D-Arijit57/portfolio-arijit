@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { useStore } from '../../store/useStore';
 import { getFileById } from '../../content/fileSystem';
 import { ArchitectureCanvas } from '../architecture/ArchitectureCanvas';
@@ -9,10 +9,19 @@ import { ProjectDocumentationViewer } from '../documentation/ProjectDocumentatio
 import { MarkdownFileView } from './MarkdownFileView';
 import { StartupLogViewer } from './StartupLogViewer';
 import { ShikiEditor } from './ShikiEditor';
-import { ResumeWorkspace } from '../resume/ResumeWorkspace';
+import { ResumeWorkspaceFallback } from '../resume/ResumeWorkspaceFallback';
 import { resolveVisualization } from '../../graph/registry/visualizationRegistry';
 import '../../graph/registerBuiltins';
 import type { VirtualFile } from '../../types';
+
+// Phase 6: Three.js + pdfjs-dist (ResumeWorkspace's own dependencies) only
+// download once hire_me.md is actually opened, not on initial page load.
+// ResumeWorkspaceFallback stands in for the brief gap between "chunk
+// requested" and "chunk mounted" — see its own doc comment for why it's a
+// separate lightweight component rather than the real TerminalWindowSvg.
+const ResumeWorkspace = lazy(() =>
+  import('../resume/ResumeWorkspace').then((m) => ({ default: m.ResumeWorkspace }))
+);
 
 export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   const { activeFileId, openedTabs } = useStore();
@@ -30,7 +39,11 @@ export function EditorRenderer({ pane }: { pane: 'left' | 'right' }) {
   // ResumeWorkspace.tsx) — untouched by the Workspace-Wide File Opening
   // Animation System sprint, which drives every other renderer below.
   if (file.id === 'resume') {
-    return <ResumeWorkspace file={file} />;
+    return (
+      <Suspense fallback={<ResumeWorkspaceFallback />}>
+        <ResumeWorkspace file={file} />
+      </Suspense>
+    );
   }
 
   // startup.log owns its own animated renderer — see StartupLogViewer.tsx

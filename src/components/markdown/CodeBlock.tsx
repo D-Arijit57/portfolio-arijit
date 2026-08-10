@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { codeToHtml } from 'shiki';
+import { codeToHtml } from '../../lib/shikiHighlighter';
 import { Check, Copy } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { reactNodeToText } from './reactNodeToText';

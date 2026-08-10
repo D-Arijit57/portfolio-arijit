@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { codeToHtml } from 'shiki';
+import { codeToHtml } from '../lib/shikiHighlighter';
 import { motion } from 'motion/react';
 import { useFileRevealSequence } from './useFileRevealSequence';
 import {

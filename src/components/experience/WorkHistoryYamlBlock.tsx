@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
-import { codeToHtml } from 'shiki';
+import { codeToHtml } from '../../lib/shikiHighlighter';
 import { useStore } from '../../store/useStore';
 import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence';
 import { parseLineToCharTokens, type CharToken } from '../../lib/shikiLineReveal';

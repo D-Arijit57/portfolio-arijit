@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { prefersReducedMotion } from '../../lib/typingReveal';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
 const BLUE = '#569cd6';
 
 export interface PromptToken {
@@ -41,7 +40,7 @@ export function TerminalPromptLine({ tokens, className = '' }: { tokens: PromptT
         animate={{ scaleY: 1, opacity: 1 }}
         transition={{ duration: reduceMotion ? 0 : 0.2, delay: reduceMotion ? 0 : textDuration, ease: 'easeOut' }}
       />
-      <div className="text-[12px] font-medium" style={{ fontFamily: ROBOTO_MONO }}>
+      <div className="font-mono text-[12px] font-medium">
         <span style={{ color: BLUE }}>$</span>{' '}
         {tokens.map((token, i) => (
           <span key={i} style={{ color: token.color ?? '#ffffff', opacity: token.opacity ?? 1 }}>

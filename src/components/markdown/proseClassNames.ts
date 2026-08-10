@@ -14,7 +14,7 @@
  * a third variant.
  */
 export const PROSE_CLASSNAMES = {
-  h1: 'mb-6 mt-0 border-b border-[#30363d] pb-4 text-[28px] font-semibold leading-tight text-[#e6e6e6]',
+  h1: 'mb-6 mt-0 border-b border-[#30363d] pb-4 text-[28px] font-semibold leading-snug text-[#e6e6e6]',
   h2: 'mb-4 mt-12 text-[20px] font-semibold leading-snug text-[#e6e6e6]',
   h3: 'mb-3 mt-9 text-[17px] font-semibold leading-snug text-[#e6e6e6]',
   h4: 'mb-2 mt-7 text-[15px] font-semibold text-[#e6e6e6]',

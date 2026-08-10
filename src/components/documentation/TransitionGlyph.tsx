@@ -1,7 +1,5 @@
 import React from 'react';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-
 /**
  * Documentation Redesign: a subtle glyph between two sections (e.g.
  * Problem Statement -> Solution) — detected by documentationComponents.tsx's
@@ -13,7 +11,7 @@ const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
 export function TransitionGlyph({ glyph }: { glyph: string }) {
   return (
     <div aria-hidden="true" className="my-2 flex justify-center text-[#6a6a6a]">
-      <span className="text-[16px]" style={{ fontFamily: ROBOTO_MONO }}>
+      <span className="font-mono text-[16px]">
         {glyph}
       </span>
     </div>

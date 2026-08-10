@@ -2,8 +2,6 @@ import React from 'react';
 import { parseMetadataEntries } from '../../documentation/metadata';
 import type { DocumentationFrontmatter } from '../../documentation/types';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-
 /**
  * Documentation Redesign: `Status` moved into DocumentationHero's own
  * terminal-output block (so it isn't shown twice) — this renders whatever
@@ -18,7 +16,7 @@ export function MetadataRow({ frontmatter }: { frontmatter: DocumentationFrontma
   if (items.length === 0) return null;
 
   return (
-    <div className="mb-8 flex flex-col gap-1 pl-[10px]" style={{ fontFamily: ROBOTO_MONO }}>
+    <div className="mb-8 flex flex-col gap-1 pl-[10px] font-mono">
       {items.map((item) => (
         <div key={item.label} className="text-[12px]">
           <span className="text-[#6a6a6a]">{item.label}: </span>

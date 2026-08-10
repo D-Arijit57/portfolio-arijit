@@ -4,7 +4,6 @@ import { TypingLine } from '../signature/TypingLine';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
 import type { FeatureListItem } from '../../documentation/featureList';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
 const DEFAULT_SESSION_KEY = 'cortexa-feature-manifest';
 const DEFAULT_COMMAND_LABEL = './core-features.sh';
 const SUCCESS_GREEN = '#4ec9b0';
@@ -25,7 +24,7 @@ function FeatureLine({ item, instant, onDone }: { item: FeatureListItem; instant
       <div className="flex items-baseline gap-2">
         <span style={{ color: SUCCESS_GREEN }}>✔</span>
         {instant ? (
-          <span className="text-[14px] font-medium text-white" style={{ fontFamily: ROBOTO_MONO }}>
+          <span className="font-mono text-[14px] font-medium text-white">
             {item.term}
           </span>
         ) : (
@@ -44,8 +43,7 @@ function FeatureLine({ item, instant, onDone }: { item: FeatureListItem; instant
           initial={instant ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="mt-1 pl-[22px] text-[12px] leading-relaxed text-[#6a6a6a]"
-          style={{ fontFamily: ROBOTO_MONO }}
+          className="mt-1 pl-[22px] font-mono text-[12px] leading-relaxed text-[#6a6a6a]"
         >
           {item.description}
         </motion.p>
@@ -69,7 +67,7 @@ function FeatureLine({ item, instant, onDone }: { item: FeatureListItem; instant
  * entirely) — the brief now wants "another terminal window," just a
  * visually distinct *kind* of one from problem.sh/cortexa.sh's own
  * TerminalPanel: lower-contrast chrome (no separate header fill, just a
- * hairline divider — `border-[#2a2a2a]` throughout, dimmer than the other
+ * hairline divider — `border-[#2d2d30]` throughout, dimmer than the other
  * two's `border-[#3c3c3c]`), `rounded-md` instead of their `rounded-lg`.
  * The distinction is real but subtle on purpose, exactly the brief's own
  * framing: "problem.sh and cortexa.sh represent command execution...
@@ -138,21 +136,21 @@ export function FeatureOutputTerminal({
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-md border border-[#2a2a2a] bg-[#1a1a1a]">
+    <div className="w-full overflow-hidden rounded-md border border-[#2d2d30] bg-[#111318]">
       <motion.div
         initial={instant ? false : { opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="flex items-center justify-between border-b border-[#2a2a2a] px-4 py-2"
+        className="flex items-center justify-between border-b border-[#2d2d30] px-4 py-2"
       >
-        <span className="text-[11px] text-[#858585]" style={{ fontFamily: ROBOTO_MONO }}>
+        <span className="font-mono text-[11px] text-[#858585]">
           <span style={{ color: PROMPT_BLUE }}>$ </span>{commandLabel}
         </span>
-        <span className="text-[10px] text-[#4a4a4a]" style={{ fontFamily: ROBOTO_MONO }}>
+        <span className="font-mono text-[10px] text-[#4a4a4a]">
           {items.length} modules
         </span>
       </motion.div>
-      <div className="flex flex-col divide-y divide-[#2a2a2a] px-4">
+      <div className="flex flex-col divide-y divide-[#2d2d30] px-4">
         {items.map((item, i) => {
           if (i > index) return null;
           const isActive = i === index && !instant;

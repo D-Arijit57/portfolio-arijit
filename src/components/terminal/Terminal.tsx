@@ -70,7 +70,7 @@ export function Terminal() {
           <div key={entry.id} className="mb-2">
             {entry.command && (
               <div className="flex">
-                <span className="text-[#3572A5] mr-2">{getPrompt(entry.cwd)}</span>
+                <span className="text-[#569cd6] mr-2">{getPrompt(entry.cwd)}</span>
                 <span>{entry.command}</span>
               </div>
             )}
@@ -80,7 +80,7 @@ export function Terminal() {
           </div>
         ))}
         <form onSubmit={onSubmit} className="flex">
-          <span className="text-[#3572A5] mr-2">{getPrompt(terminalState.cwd)}</span>
+          <span className="text-[#569cd6] mr-2">{getPrompt(terminalState.cwd)}</span>
           <input
             ref={inputRef}
             type="text"

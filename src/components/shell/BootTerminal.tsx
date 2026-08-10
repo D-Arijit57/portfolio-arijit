@@ -25,7 +25,7 @@ export function BootTerminal({ onComplete }: BootTerminalProps) {
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-black p-4 font-mono text-[13px] text-left overflow-hidden">
       {visibleLines.map((line, i) => (
-        <div key={i} className={line.success ? 'text-[#8ae234]' : 'text-[#cccccc]'}>
+        <div key={i} className={line.success ? 'text-[#3fb950]' : 'text-[#cccccc]'}>
           {line.text}
         </div>
       ))}

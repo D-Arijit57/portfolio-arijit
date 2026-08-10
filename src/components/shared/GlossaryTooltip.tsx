@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { prefersReducedMotion } from '../../lib/typingReveal';
 import type { HoverGlossaryEntry } from '../../lib/welcomeHoverGlossary';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
 const VIEWPORT_MARGIN = 8;
 const GAP = 6;
 
@@ -52,10 +51,10 @@ export function GlossaryTooltip({ entry, anchorRect }: { entry: HoverGlossaryEnt
     <motion.div
       ref={ref}
       role="tooltip"
+      className="font-mono"
       style={{
         ...style,
         zIndex: 100,
-        fontFamily: ROBOTO_MONO,
         background: '#1e1e1e',
         border: '1px solid #3c3c3c',
         borderRadius: 6,

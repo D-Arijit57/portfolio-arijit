@@ -5,8 +5,6 @@ export interface TerminalInfoRow {
   value: React.ReactNode;
 }
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-
 /**
  * One "shell pane" — shared shape for whoami.md's `$ whoami` and `$ env`
  * widgets (IdentityTerminals.tsx) so the pair can only ever drift apart in
@@ -27,8 +25,7 @@ export function TerminalInfoCard({
 }) {
   return (
     <div
-      className="min-w-0 flex-1 overflow-hidden rounded-md border border-[#2d2d30] bg-[#111318] text-[#cccccc]"
-      style={{ fontFamily: ROBOTO_MONO }}
+      className="min-w-0 flex-1 overflow-hidden rounded-md border border-[#2d2d30] bg-[#111318] font-mono text-[#cccccc]"
     >
       <div className="px-4 py-3 text-[12px] leading-relaxed">
         <div className="mb-2 whitespace-nowrap">

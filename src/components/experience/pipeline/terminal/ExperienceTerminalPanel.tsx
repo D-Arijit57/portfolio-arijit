@@ -1,15 +1,16 @@
 import React from 'react';
 import { PANEL_BG, PANEL_BORDER } from '../tokens';
+import { CHROME, PALETTE } from '../../../shared/terminalTokens';
 
 /**
  * cortexa.md's own accent, `documentation/CortexaTerminalPanel.tsx`'s
  * `ACCENT` verbatim — Terminal 1 and 2 now converge on cortexa.md's exact
  * terminal style (see below), not a nearby lookalike blue.
  */
-export const PROMPT_ACCENT = '#38BDF8';
+export const PROMPT_ACCENT = PALETTE.docPanel.accent;
 /** cortexa.md's own body text colour, `CortexaTerminalPanel.tsx`'s `TEXT`. */
-const CORTEXA_TEXT = '#E5E7EB';
-const DOT_COLORS = ['#ff5f56', '#ffbd2e', '#27c93f']; // Standard terminal traffic-light — same values CortexaTerminalPanel/TerminalWindowSvg already use.
+const CORTEXA_TEXT = PALETTE.docPanel.text;
+const DOT_COLORS = CHROME.dots.colors; // Standard terminal traffic-light — same values CortexaTerminalPanel/TerminalWindowSvg already use.
 export const TERMINAL_CWD = '~/journey/experience';
 
 /**

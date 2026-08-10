@@ -24,8 +24,6 @@ const INDICATOR_TRANSITION_MS = 350;
 
 const GITHUB_LINK_PATTERN = /GitHub: \[@[\w-]+\]\((https:\/\/[^)]+)\)/;
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-
 // Reused, not invented: green/cyan/amber already mean something elsewhere
 // on this page — #3fb950 is the "Available" status dot, #4fc1ff is
 // index.css's own --tok-metric ("numbers, deltas, throughput"), #d19a66 is
@@ -232,12 +230,12 @@ export function ContributionsTerminal() {
             transitionDuration: `${INDICATOR_TRANSITION_MS}ms`,
           }}
         >
-          <div className="text-[12px] font-normal" style={{ fontFamily: ROBOTO_MONO, color: MUTED }}>
+          <div className="font-mono text-[12px] font-normal" style={{ color: MUTED }}>
             More output below
           </div>
           <div
-            className={`mt-2 text-[13px] leading-none ${indicatorAppeared && !indicatorDismissed ? 'discovery-arrow-float' : ''}`}
-            style={{ fontFamily: ROBOTO_MONO, color: '#cccccc' }}
+            className={`mt-2 font-mono text-[13px] leading-none ${indicatorAppeared && !indicatorDismissed ? 'discovery-arrow-float' : ''}`}
+            style={{ color: '#cccccc' }}
           >
             ⌄
           </div>
@@ -245,8 +243,8 @@ export function ContributionsTerminal() {
       )}
 
       <div
-        className="mb-2 text-[12px] transition-opacity duration-200 ease-out"
-        style={{ fontFamily: ROBOTO_MONO, opacity: commandVisible ? 1 : 0 }}
+        className="mb-2 font-mono text-[12px] transition-opacity duration-200 ease-out"
+        style={{ opacity: commandVisible ? 1 : 0 }}
       >
         <span style={{ color: GREEN }}>arijit</span>
         <span style={{ color: MUTED }}>@</span>
@@ -255,9 +253,8 @@ export function ContributionsTerminal() {
       </div>
 
       <div
-        className="overflow-hidden rounded-md border border-[#2d2d30] bg-[#111318] p-4 text-[#cccccc]"
+        className="overflow-hidden rounded-md border border-[#2d2d30] bg-[#111318] p-4 font-mono text-[#cccccc]"
         style={{
-          fontFamily: ROBOTO_MONO,
           opacity: commandVisible ? 1 : 0,
           transition: alreadyPlayed ? 'none' : 'opacity 120ms ease-out',
         }}

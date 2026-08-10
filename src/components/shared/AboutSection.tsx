@@ -14,7 +14,6 @@ const PARAGRAPH_2 =
   'architecture, practical problem solving, and continuous refinement.';
 const FULL_TEXT = `${PARAGRAPH_1}\n\n${PARAGRAPH_2}`;
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
 const CHAR_MS = 20;
 const SENTENCE_PAUSE_MS = 250;
 const REVEAL_SESSION_KEY = 'about-section-typing';
@@ -69,9 +68,8 @@ export function AboutSection() {
         ]}
       />
       <div
-        className="text-[15px]"
+        className="font-mono text-[15px]"
         style={{
-          fontFamily: ROBOTO_MONO,
           lineHeight: 1.8,
           letterSpacing: '-0.01em',
           color: 'rgba(230, 230, 230, 0.82)',

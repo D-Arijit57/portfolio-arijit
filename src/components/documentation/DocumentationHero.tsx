@@ -3,8 +3,6 @@ import { TerminalPromptLine } from '../shared/TerminalPromptLine';
 import { parseMetadataEntries } from '../../documentation/metadata';
 import type { DocumentationFrontmatter } from '../../documentation/types';
 
-const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-
 /**
  * Documentation Redesign: replaces the old oversized `<h1>` hero with a
  * `$ cat <file>` command line (TerminalPromptLine — the same "whoami.md
@@ -32,7 +30,7 @@ export function DocumentationHero({
       <TerminalPromptLine tokens={[{ text: 'cat ', color: '#4ec9b0' }, { text: fileName, color: '#ffffff', opacity: 0.85 }]} />
       {/* pl-[10px] lines up with TerminalPromptLine's own 2px accent bar +
           gap-2, so this "output" reads as flush underneath the `$` prompt. */}
-      <div className="mt-1 flex flex-col gap-1.5 pl-[10px]" style={{ fontFamily: ROBOTO_MONO }}>
+      <div className="mt-1 flex flex-col gap-1.5 pl-[10px] font-mono">
         {(title || summary) && (
           <p className="text-[14px] leading-relaxed text-[#cccccc]">
             {title && <span className="font-semibold text-white">{title}</span>}

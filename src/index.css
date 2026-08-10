@@ -16,9 +16,12 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource/inter/700.css";
-/* hire_me.md's terminal-report view: Roboto Mono, scoped locally by that
-   component the same way Inter above is scoped to markdown prose — the
-   rest of the IDE chrome stays on Geist Mono. */
+/* Phase 3 (Terminal + Visual Consistency): Roboto Mono's footprint was
+   trimmed to hire_me.md's terminal-report view (TerminalWindowSvg.tsx)
+   only — the one surface deliberately posing as a printed document rather
+   than IDE chrome. Everywhere else that used to reach for Roboto Mono as
+   "terminal chrome" now uses Geist Mono, matching the terminal family
+   (Cortexa/Rakshachakra/American Chase) that already converged on it. */
 @import "@fontsource/roboto-mono/400.css";
 @import "@fontsource/roboto-mono/500.css";
 @import "@fontsource/roboto-mono/700.css";
@@ -383,26 +386,27 @@
    literal characters instead of being swallowed by the rendered tag.
    Scoped to `.whoami-doc` only (see MarkdownFileView.tsx) so README.md,
    RESUME.md and every project doc keep their existing, unmodified look. */
-/* The "# " prefix (::before) was already Roboto Mono; the "whoami" text
+/* The "# " prefix (::before) was already monospace; the "whoami" text
    itself was still inheriting Inter from MarkdownFileView's prose font
    override — this brings the actual heading text onto the same terminal
    font as everything else on the page (the two terminal cards, the
-   section prompt lines, the contributions terminal). */
+   section prompt lines, the contributions terminal). Phase 3: that shared
+   terminal font is Geist Mono (`var(--font-mono)`), not Roboto Mono. */
 .whoami-doc h1 {
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
 }
 
 .whoami-doc h1::before {
   content: '# ';
   color: #6e7681;
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-weight: 400;
 }
 
 .whoami-doc h2::before {
   content: '## ';
   color: #6e7681;
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-weight: 400;
 }
 
@@ -421,14 +425,14 @@
 .whoami-doc h3::before {
   content: '### ';
   color: #6e7681;
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-weight: 400;
 }
 
 .whoami-doc blockquote > p::before {
   content: '> ';
   color: #6e7681;
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
 }
 
 .whoami-doc hr {
@@ -444,7 +448,7 @@
   left: 0;
   top: 0;
   color: #6e7681;
-  font-family: 'Roboto Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 2px;
 }

@@ -6,6 +6,8 @@
  * Nothing new is invented here, which is most of why the pipeline reads as
  * part of the workspace rather than as a visualization dropped into it.
  */
+import { PALETTE } from '../../shared/terminalTokens';
+
 /**
  * The workspace background behind Terminal 1/2 (PipelineVisualization's own
  * root, not the app-wide editor background elsewhere) —
@@ -17,11 +19,19 @@
  * than `PANEL_BG` (`#161B22`), so the terminals now read as sitting
  * slightly *forward* of the page rather than as near-black cutouts sunk
  * into a lighter workspace. That inversion is real, not an oversight — it's
- * exactly how cortexa.md itself relates its own two backgrounds.
+ * exactly how cortexa.md itself relates its own two backgrounds. Now the
+ * shared `terminalTokens.ts`'s `PALETTE.docPanel.page`, this file's own
+ * copy of the same literal.
  */
-export const SURFACE = '#0F1117';
+export const SURFACE: string = PALETTE.docPanel.page;
 export const RULE = '#333333';
-export const STRONG = '#e7e7e7';
+/**
+ * Phase 3: was `#e7e7e7`, an undocumented one-off a shade off every other
+ * "strong text" value in the workspace (`#e5e7eb` markdown-prose headings,
+ * `#E5E7EB` Cortexa's own `TEXT`) — corrected onto `PALETTE.docPanel.text`,
+ * the value the rest of this pipeline's terminal shells already use.
+ */
+export const STRONG: string = PALETTE.docPanel.text;
 export const TEXT = '#cccccc';
 export const MUTED = '#9d9d9d';
 export const FAINT = '#858585';
@@ -57,11 +67,12 @@ export const DIFF_ADDED = '#6a9955';
  * terminal style rather than something inspired by it. The border is
  * translucent white rather than an opaque grey — Cortexa uses the same
  * value for both the panel's outer frame and its header divider, which
- * this feature's shell now does too. SURFACE (below) was copied alongside
- * these in a follow-up pass — see its own comment.
+ * this feature's shell now does too. SURFACE (above) was copied alongside
+ * these in a follow-up pass — see its own comment. Both now the shared
+ * `terminalTokens.ts`'s `PALETTE.docPanel` entries.
  */
-export const PANEL_BG = '#161B22';
-export const PANEL_BORDER = 'rgba(255,255,255,0.08)';
+export const PANEL_BG: string = PALETTE.docPanel.bg;
+export const PANEL_BORDER: string = PALETTE.docPanel.border;
 
 /**
  * Shell "success" green for the boot sequence's `200 OK` —
@@ -69,6 +80,6 @@ export const PANEL_BORDER = 'rgba(255,255,255,0.08)';
  * the closest real analogue in cortexa.md to a status line reporting a
  * process outcome. Supersedes an earlier choice of the traffic-light dot's
  * own green (`#27c93f`): a reasonable reuse on its own, but not what
- * cortexa.md itself uses for this role.
+ * cortexa.md itself uses for this role. Now `PALETTE.docPanel.success`.
  */
-export const SUCCESS = '#6EE7B7';
+export const SUCCESS: string = PALETTE.docPanel.success;

@@ -42,7 +42,7 @@ const TEXT_COLOR: Partial<Record<LineKind_, string>> = {
   heading: '#569cd6',
   muted: '#8b949e',
   separator: '#6e7681',
-  success: '#89d185',
+  success: '#3fb950',
   tradeoff: '#e2c08d',
   bullet: '#cccccc',
   // "Learn More" actions — same blue as commands/headings, deliberately:

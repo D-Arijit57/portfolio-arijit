@@ -1,13 +1,14 @@
 import React, { forwardRef } from 'react';
+import { CHROME, PALETTE } from '../shared/terminalTokens';
 
-export const ACCENT = '#38BDF8';
-export const TEXT = '#E5E7EB';
-export const MUTED = '#9CA3AF';
-export const SUCCESS = '#6EE7B7';
-export const BORDER = 'rgba(255,255,255,.08)';
-export const PANEL_BG = '#161B22';
-export const PAGE_BACKGROUND = '#0F1117';
-const DOT_COLORS = ['#ff5f56', '#ffbd2e', '#27c93f'];
+export const ACCENT = PALETTE.docPanel.accent;
+export const TEXT = PALETTE.docPanel.text;
+export const MUTED = PALETTE.docPanel.muted;
+export const SUCCESS = PALETTE.docPanel.success;
+export const BORDER = PALETTE.docPanel.border;
+export const PANEL_BG = PALETTE.docPanel.bg;
+export const PAGE_BACKGROUND = PALETTE.docPanel.page;
+const DOT_COLORS = CHROME.dots.colors;
 
 /**
  * The shared terminal shell for the project-page grammar established by

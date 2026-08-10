@@ -14,14 +14,14 @@ import { cn } from '../../lib/utils';
  */
 
 const SEVERITY_ICON: Record<NotificationSeverity, React.ReactNode> = {
-  success: <CheckCircle2 size={16} className="text-[#89d185]" />,
+  success: <CheckCircle2 size={16} className="text-[#3fb950]" />,
   info: <Info size={16} className="text-[#3794ff]" />,
   warning: <AlertTriangle size={16} className="text-[#cca700]" />,
   error: <XCircle size={16} className="text-[#f14c4c]" />,
 };
 
 const SEVERITY_BAR_COLOR: Record<NotificationSeverity, string> = {
-  success: 'bg-[#89d185]',
+  success: 'bg-[#3fb950]',
   info: 'bg-[#3794ff]',
   warning: 'bg-[#cca700]',
   error: 'bg-[#f14c4c]',

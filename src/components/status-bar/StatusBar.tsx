@@ -36,9 +36,6 @@ export function StatusBar() {
         {file && (
           <>
             <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
-              Ln {Math.max(1, Math.floor(Math.random() * 50))}, Col {Math.max(1, Math.floor(Math.random() * 80))}
-            </div>
-            <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">
               Spaces: 4
             </div>
             <div className="hover:bg-[#1f8ad1] px-1 h-full flex items-center cursor-pointer">

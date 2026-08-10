@@ -4,20 +4,11 @@ import { EditorTabs, editorTabDomId } from './EditorTabs';
 import { Breadcrumbs } from './Breadcrumbs';
 import { EditorRenderer } from './EditorRenderer';
 import { SplitEditorArea } from './SplitEditorArea';
-import { BootTerminal } from '../shell/BootTerminal';
-import { shouldRunOnboarding } from '../../lib/onboardingScope';
 import { useWindowWidth } from '../../hooks/useWindowWidth';
 import { SINGLE_PANE_BREAKPOINT_PX } from '../../lib/workspaceBreakpoints';
 
 export function EditorArea() {
   const { editorSplit, setBootActive, openedTabs, activeFileId } = useStore();
-  // Lazy-initialized once per EditorArea mount (i.e. once per page load) —
-  // switching tabs, reopening README, etc. never remount EditorArea, so the
-  // boot terminal never replays mid-session. Portfolio UX Sprint: also
-  // scoped to a README landing — shouldRunOnboarding() folds in the entry
-  // route check alongside the existing hasBooted()/prefersReducedMotion()
-  // gates (see lib/onboardingScope.ts / lib/bootSequence.ts).
-  const [booting, setBooting] = useState(() => shouldRunOnboarding());
   const isSinglePane = useWindowWidth() < SINGLE_PANE_BREAKPOINT_PX;
   const activePane = editorSplit ? (openedTabs.find((t) => t.fileId === activeFileId)?.pane ?? 'left') : 'left';
 
@@ -52,21 +43,17 @@ export function EditorArea() {
     wasSinglePaneRef.current = isSinglePane;
   }, [isSinglePane, activePane, activeFileId]);
 
-  // Sprint 10E.2: mirrors `booting` into the store's bootActive flag (see
-  // useStore.ts) so Notifications can suppress toasts for the same window,
-  // covering both the reduced-motion/already-booted skip (fires once, on
-  // mount) and the natural end of the sequence (fires when it completes).
+  // Sprint 10E.2 clears the store's bootActive flag (see useStore.ts), which
+  // Notifications checks to suppress hydration-time toasts while the boot
+  // illusion is still running. Phase 7C: the boot now finishes *before*
+  // VSCodeShell — and therefore before this component exists at all — so
+  // simply mounting is the signal that it is over. Left as an effect on the
+  // store setter rather than deleted outright: the flag starts true at store
+  // creation, so something still has to clear it or Notifications would stay
+  // suppressed for the whole session.
   useEffect(() => {
-    if (!booting) setBootActive(false);
-  }, [booting, setBootActive]);
-
-  // Sprint 10E.2: an instant swap, not a crossfade — the brief explicitly
-  // calls out "dissolve transitions" as something to avoid. Both surfaces
-  // sit on near-identical dark backgrounds, so the cut reads as the editor
-  // clearing straight into README rather than a visible jump.
-  if (booting) {
-    return <BootTerminal onComplete={() => setBooting(false)} />;
-  }
+    setBootActive(false);
+  }, [setBootActive]);
 
   if (editorSplit && !isSinglePane) {
     return <SplitEditorArea />;

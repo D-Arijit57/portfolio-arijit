@@ -24,11 +24,29 @@ export function isReadmeEntryRoute(): boolean {
 }
 
 /**
- * The single gate every onboarding-sequence piece (BootTerminal via
- * EditorArea, Explorer's stagger-open) checks once at its own mount, inside
- * a lazy `useState(() => ...)` initializer — cheap to call repeatedly since
- * none of these consumers re-check it reactively after their first render.
+ * Whether the pre-workspace boot cold-start should run at all (Phase 7C:
+ * WorkspaceColdStart, mounted by App.tsx before VSCodeShell exists). The
+ * `!hasBooted()` term belongs here and only here — it is what stops the
+ * sequence replaying, and useBootSequence re-checks it internally anyway.
+ */
+export function shouldRunWorkspaceBoot(): boolean {
+  return isReadmeEntryRoute() && !hasBooted() && !prefersReducedMotion();
+}
+
+/**
+ * Whether the workspace's own onboarding visuals — now just Explorer's
+ * stagger-open — should play. Deliberately NOT gated on hasBooted().
+ *
+ * Phase 7C moved the boot ahead of VSCodeShell, so markBooted() now fires
+ * *before* Explorer ever mounts. Keeping `!hasBooted()` here would have
+ * made this return false by the time Explorer read it, silently deleting
+ * the stagger with no error to notice. The term was never doing real work
+ * for Explorer in the first place: Explorer mounts exactly once per page
+ * load (it never remounts as the user navigates — see its own comment), and
+ * on a fresh load hasBooted() was always still false at that moment. So
+ * dropping it preserves today's behaviour exactly while making it immune to
+ * where the boot happens to run.
  */
 export function shouldRunOnboarding(): boolean {
-  return isReadmeEntryRoute() && !hasBooted() && !prefersReducedMotion();
+  return isReadmeEntryRoute() && !prefersReducedMotion();
 }

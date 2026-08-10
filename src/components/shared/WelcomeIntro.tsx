@@ -3,18 +3,8 @@ import { TerminalPromptLine } from './TerminalPromptLine';
 import { GlossaryHoverSpan } from './GlossaryHoverSpan';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
 import { WELCOME_HOVER_GLOSSARY } from '../../lib/welcomeHoverGlossary';
+import { WELCOME_PARAGRAPHS as PARAGRAPHS } from '../../content/welcome';
 
-// Short and engineer-like, not marketing copy — each line its own paragraph,
-// typed in like AboutSection.tsx's `$ cat about.txt` passage.
-const PARAGRAPHS = [
-  'Welcome.',
-  "There isn't a correct place to begin.",
-  "Some files explain what I've built.\nOthers explain why.",
-  "A few things only reveal themselves\nif you're curious enough to ask.",
-  'I spend most of my time taking apart\ncomplex systems, understanding how\nthey work, and rebuilding them into\nsimpler, more reliable software.',
-  'If something catches your attention,\nfollow it.',
-  "That's usually how I work too.",
-];
 const FULL_TEXT = PARAGRAPHS.join('\n\n');
 
 // Char offset right after each paragraph but the last (before its trailing

@@ -46,6 +46,63 @@ Learn More
 → View github.com/D-Arijit57
 `;
 
+// welcome.md's fence body: kept textually identical to
+// src/content/workspaceSeed.ts's WELCOME_INTRO_CONTENT
+// (WELCOME_PARAGRAPHS.join('\n\n'), src/content/welcome.ts) — same
+// duplication convention as HIRE_ME_REPORT above. The widget renderer
+// (documentationWidgets.tsx's `welcome-intro` entry) ignores this text
+// entirely — WelcomeIntro.tsx renders its own typewriter reveal from the
+// same WELCOME_PARAGRAPHS import — so this exists only so `cat welcome.md`
+// and search see the real approved copy instead of an empty directive.
+const WELCOME_INTRO_CONTENT = `\`\`\`welcome-intro
+Welcome.
+
+There isn't a correct place to begin.
+
+Some files explain what I've built.
+Others explain why.
+
+A few things only reveal themselves
+if you're curious enough to ask.
+
+I spend most of my time taking apart
+complex systems, understanding how
+they work, and rebuilding them into
+simpler, more reliable software.
+
+If something catches your attention,
+follow it.
+
+That's usually how I work too.
+\`\`\`
+`;
+
+// startup.log's content: kept textually identical to
+// src/content/workspaceSeed.ts's STARTUP_LOG_CONTENT (formatted from
+// WELCOME_BANNER and src/content/engineeringProfile.ts) — same duplication
+// convention as HIRE_ME_REPORT above. A truthful static snapshot of what
+// StartupLogViewer's real renderer (TerminalRunner, via signature.sh) shows
+// once its sequence settles, not a duplicate of its phase machine.
+// Deliberately omits the visitor count, which is live per-visitor state
+// with no honest static number to print here. Update this copy by hand if
+// signatureBanner.ts's WELCOME_BANNER or engineeringProfile.ts ever change.
+const STARTUP_LOG_CONTENT = `$ ./signature.sh
+
+██╗    ██╗███████╗██╗      ██████╗ ██████╗ ███╗   ███╗███████╗
+██║    ██║██╔════╝██║     ██╔════╝██╔═══██╗████╗ ████║██╔════╝
+██║ █╗ ██║█████╗  ██║     ██║     ██║   ██║██╔████╔██║█████╗
+██║███╗██║██╔══╝  ██║     ██║     ██║   ██║██║╚██╔╝██║██╔══╝
+╚███╔███╔╝███████╗███████╗╚██████╗╚██████╔╝██║ ╚═╝ ██║███████╗
+ ╚══╝╚══╝ ╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝
+
+Name        Arijit Das
+Role        Software Engineer
+Location    Indore, India
+Status      ● Available
+
+arijit@portfolio:~$
+`;
+
 // ARCHITECTURE_PLATFORM_DESIGN.md §6.1/§13 (Phase 1): kept textually
 // identical to src/content/workspaceSeed.ts's CORTEXA_ARCHITECTURE_MERMAID
 // (modelToMermaid(cortexaArchitecture), src/content/architecture/cortexa.ts)
@@ -833,23 +890,14 @@ export const workspaceSeed: VirtualFolder = {
       name: 'welcome.md',
       type: 'markdown',
       path: '/welcome.md',
-      content: `\`\`\`welcome-intro
-\`\`\`
-`,
+      content: WELCOME_INTRO_CONTENT,
     } as VirtualFile,
     {
       id: 'startup-log',
       name: 'startup.log',
       type: 'log',
       path: '/startup.log',
-      content: `Initializing workspace...
-Loading explorer...
-Loading projects...
-Loading experience...
-Loading animations...
-Git repository detected...
-Workspace ready.
-`,
+      content: STARTUP_LOG_CONTENT,
     } as VirtualFile,
     {
       id: 'about',

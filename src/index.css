@@ -109,6 +109,82 @@
    CampfireScene.tsx). The previous radial-gradient "breathing blob" keyframe
    that sat here was removed with the glow layer it animated. */
 
+/* Phase 9D: startup.log's fireflies (CampfireFireflies.tsx). Two keyframes and
+   one class for all eight — every per-firefly value (peak opacity, both
+   periods, and the four wander waypoints) arrives as a CSS custom property, so
+   adding or retuning a firefly is a table edit in the component and never a new
+   rule here.
+
+   Two independent cycles, not one, because that is what a firefly actually
+   does: it drifts continuously and glows on its own rhythm, and the two are
+   unrelated. Folding them into a single keyframe was the first attempt and it
+   read wrong — a point that only moves while it is lit looks like an effect
+   being played, not an insect being watched.
+
+   `campfire-firefly-drift` is a closed four-waypoint loop rather than a
+   straight there-and-back, so the path curves and never retraces itself
+   visibly; `ease-in-out` at every stop keeps it from arriving at a waypoint at
+   full speed, which is the other half of what separates "wandering" from
+   "tweened". 27–43s per lap over a ~20px art-space path: perceptible if you
+   watch one, invisible if you are reading the terminal text.
+
+   `campfire-firefly-pulse` never reaches zero. A firefly that blinks fully out
+   disappears, and a scene where things vanish reads as flicker; holding a floor
+   at a fraction of peak keeps it present in the dark and lets the glow breathe
+   over it. That floor was raised from 15% to 35% of peak when the layer was
+   brightened — with a low floor the fireflies spent most of each cycle nearly
+   invisible, so the count read as far lower than it was. No box-shadow: at this
+   size the opacity alone already reads as a point of light, and a halo would
+   turn a firefly into a blurred dot. */
+@keyframes campfire-firefly-drift {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(var(--firefly-x1), var(--firefly-y1)); }
+  40% { transform: translate(var(--firefly-x2), var(--firefly-y2)); }
+  60% { transform: translate(var(--firefly-x3), var(--firefly-y3)); }
+  80% { transform: translate(var(--firefly-x4), var(--firefly-y4)); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes campfire-firefly-pulse {
+  0% { opacity: calc(var(--firefly-peak) * 0.35); }
+  28% { opacity: var(--firefly-peak); }
+  52% { opacity: calc(var(--firefly-peak) * 0.5); }
+  74% { opacity: calc(var(--firefly-peak) * 0.88); }
+  100% { opacity: calc(var(--firefly-peak) * 0.35); }
+}
+
+/* `backwards` is load-bearing, not boilerplate. Each firefly's pulse starts on
+   its own delay (up to 5.2s), and during that delay an un-filled animation
+   leaves the element at opacity's initial value — 1 — so half the fireflies
+   flashed on at full brightness during the campfire reveal and then snapped
+   down once their pulse began. `backwards` makes them hold the pulse's 0%
+   stop (the dim floor) through the delay instead, which is the state they
+   should have been in all along. Caught in verification, not in review. */
+.campfire-firefly {
+  animation:
+    campfire-firefly-drift var(--firefly-drift-duration) ease-in-out infinite both,
+    campfire-firefly-pulse var(--firefly-pulse-duration) ease-in-out var(--firefly-pulse-delay) infinite backwards;
+}
+
+/* Static, not gone — the same resolution `.terminal-live-cursor` above uses,
+   for a different reason: the fireflies carry no information, but the scene
+   they belong to is still shown, and eight points of warm light in the grass
+   is part of what that scene *is*. Removing them entirely would quietly hand
+   a reduced-motion visitor a slightly emptier picture; freezing them keeps
+   the composition and drops only the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .campfire-firefly {
+    animation: none;
+    /* Tracks the animated layer's brightness rather than sitting at a fixed
+       value: raised alongside the peak-opacity increase so a reduced-motion
+       visitor gets the same scene at the same strength, minus the movement.
+       Sits near the pulse's own resting level, not its peak — the static state
+       should read as the fireflies at rest, not all twelve at full glow. */
+    opacity: 0.45;
+    transform: none;
+  }
+}
+
 /* ContributionsTerminal's scroll-discovery indicator: the arrow (only —
    the "More output below" text stays fully static) floats gently while the
    indicator is on screen, the one deliberate exception to this feature's

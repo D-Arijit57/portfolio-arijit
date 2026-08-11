@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { prefersReducedMotion } from '../../lib/typingReveal';
+import { CampfireFireflies } from './CampfireFireflies';
 
 const IMAGE_SRC = '/startup/campfire-scene.webp';
 
@@ -109,7 +110,11 @@ function useFireFrame(ignite: boolean): number {
 const FOCAL_X = 0.62;
 const FOCAL_Y = 1;
 
-interface SceneRect {
+/** Exported (Phase 9D) so the firefly layer can be positioned in the same
+ * art-space rect the fire sprite uses, instead of re-deriving the scene's
+ * geometry from a second, independently-drifting source. Export only — the
+ * shape is unchanged. */
+export interface SceneRect {
   width: number;
   height: number;
   left: number;
@@ -245,6 +250,11 @@ export function CampfireScene({ ignite, instant }: { ignite: boolean; instant?: 
               </div>
             );
           })()}
+          {/* Phase 9D: the firefly layer, positioned through this same rect
+              (see CampfireFireflies.tsx). Last in the block so it sits above
+              the artwork, but it never overlaps the fire sprite's rect — the
+              stacking order is incidental, the placement is deliberate. */}
+          <CampfireFireflies rect={rect} scale={rect.width / ART_W} />
         </>
       )}
     </div>

@@ -64,7 +64,13 @@
   --tok-metric: #4fc1ff; /* numbers, deltas, throughput  */
 
   /* chrome */
-  --resume-accent: #4f46e5;
+  /* Phase 9E: was #4f46e5 (indigo) — a hue that existed nowhere else in the
+     workspace and was the single strongest reason hire_me.md read as a
+     separate product embedded in the portfolio. Repointed to the app's own
+     prompt blue, already used by the Explorer, breadcrumbs, terminal prompt
+     and every link surface. Only the value changed; every consumer keeps
+     referring to the same token. */
+  --resume-accent: #569cd6;
   --resume-section-head: #7aa2f7;
 }
 
@@ -108,6 +114,21 @@
 /* The campfire's idle flicker lives with the fire sprite (see
    CampfireScene.tsx). The previous radial-gradient "breathing blob" keyframe
    that sat here was removed with the glow layer it animated. */
+
+/* Phase 9E: hire_me.md's claim→evidence connector (EvidenceConnector.tsx).
+   Opacity only, and short — the line's job is to confirm a relationship the
+   hover already implied, so it must arrive faster than the eye can treat it as
+   an event of its own. No draw/dash animation, no glow: this is one hairline
+   between two highlighted things, not a diagram building itself. */
+.evidence-connector-line {
+  transition: stroke-opacity 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evidence-connector-line {
+    transition: none;
+  }
+}
 
 /* Phase 9D: startup.log's fireflies (CampfireFireflies.tsx). Two keyframes and
    one class for all eight — every per-firefly value (peak opacity, both

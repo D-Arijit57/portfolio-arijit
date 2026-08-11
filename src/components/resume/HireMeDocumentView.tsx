@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import type { VirtualFile } from '../../types';
 import { hasAnimated, prefersReducedMotion } from '../../lib/typingReveal';
-import { TerminalWindowSvg } from './terminal/TerminalWindowSvg';
+import { TerminalWindowSvg, type ClaimTargetsConfig } from './terminal/TerminalWindowSvg';
 import { ENTRANCE_MS, useTerminalPlayback } from './terminal/useTerminalPlayback';
 
 /**
@@ -32,9 +32,14 @@ import { ENTRANCE_MS, useTerminalPlayback } from './terminal/useTerminalPlayback
 export function HireMeDocumentView({
   file,
   onRevealComplete,
+  claims,
 }: {
   file: VirtualFile;
   onRevealComplete?: () => void;
+  /** Phase 9E: passed straight through to TerminalWindowSvg, which owns the
+   * claim hit targets because it owns the layout they have to sit on. Omitted
+   * everywhere except hire_me.md's own workspace. */
+  claims?: ClaimTargetsConfig;
 }) {
   const playback = useTerminalPlayback(file.id, file.content);
 
@@ -52,20 +57,24 @@ export function HireMeDocumentView({
   }, [playback.phase, onRevealComplete]);
 
   return (
-    <div className="flex h-full items-start justify-center overflow-y-auto bg-[#1e1e1e] p-8">
-      {/* Spec: "roughly 85–90% of the editor width... center it... leave
-          comfortable margins." The SVG itself has no intrinsic pixel size —
-          its viewBox only fixes the aspect ratio — so this wrapper's
-          percentage width is what actually drives the rendered size, and
-          it stays crisp at any width since every glyph inside is real
-          vector text, not a rasterized image. */}
+    <div className="flex h-full items-start justify-center overflow-y-auto bg-[#1e1e1e] p-5">
+      {/* The SVG has no intrinsic pixel size — its viewBox only fixes the
+          aspect ratio — so this wrapper's width is what actually drives the
+          rendered size, and it stays crisp at any width since every glyph
+          inside is real vector text, not a rasterized image.
+          Phase 9E: widened from `w-[88%] max-w-2xl` with `p-8`. The original
+          margins were tuned when this pane held a document on its own; now
+          that its five bullets are anchors for lines running to the pane
+          beside it, the report needs to occupy its half rather than float in
+          the middle of it — and the claim rows need the width to stay one
+          line each at 1024px. */}
       <motion.div
-        className="w-[88%] max-w-2xl"
+        className="w-full max-w-3xl"
         initial={skipEntrance ? false : { opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: ENTRANCE_MS / 1000, ease: 'easeOut' }}
       >
-        <TerminalWindowSvg content={file.content} playback={playback} />
+        <TerminalWindowSvg content={file.content} playback={playback} claims={claims} />
       </motion.div>
     </div>
   );

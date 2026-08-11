@@ -37,6 +37,7 @@ const TITLE_COLOR = '#cccccc';
 const CURSOR_GLYPH = '█'; // full block — a classic hard-edged terminal caret
 const CURSOR_COLOR = '#ffffff';
 
+
 const TEXT_COLOR: Partial<Record<LineKind_, string>> = {
   command: '#569cd6',
   heading: '#569cd6',
@@ -60,6 +61,9 @@ interface LineLayout {
    * undefined for the command/loading rows, which have their own bespoke
    * playback instead. */
   contentIndex?: number;
+  /** Phase 9E: position among `kind === 'bullet'` lines — the claim identity
+   * shared with claims.ts. Undefined for every non-bullet line. */
+  bulletIndex?: number;
   isLast: boolean;
 }
 
@@ -88,18 +92,45 @@ const DEFAULT_PLAYBACK: TerminalPlaybackState = {
  * a fully-settled "done" state, which is what makes this component usable
  * standalone without wiring up the playback hook.
  */
+/**
+ * Phase 9E: the optional claim layer. Every field is optional and the component
+ * renders exactly as it always has when `claims` is omitted — the evidence
+ * feature is additive to this file, never a rewrite of it.
+ */
+export interface ClaimTargetsConfig {
+  /** Bullet indexes that are claims, in bullet order. */
+  bulletIndexes: number[];
+  activeBulletIndex: number | null;
+  onActiveChange: (bulletIndex: number | null) => void;
+  /** Accessible name for a claim's hit target. */
+  labelFor: (bulletIndex: number) => string;
+  /** The claim's identity colour — see claims.ts. */
+  colorFor: (bulletIndex: number) => string;
+  /** Connector anchor registration — the DOM button, not the SVG text. */
+  registerAnchor?: (bulletIndex: number, el: HTMLButtonElement | null) => void;
+}
+
+/** Resting outline opacity for a claim that is not the active one. Present at
+ * all times rather than on hover only: the outlines are what tell the reader
+ * these five lines are a different kind of thing from the rest of the report —
+ * that they lead somewhere — before any interaction has happened. */
+const CLAIM_IDLE_STROKE_OPACITY = 0.45;
+
 export function TerminalWindowSvg({
   content,
   playback = DEFAULT_PLAYBACK,
+  claims,
 }: {
   content: string;
   playback?: TerminalPlaybackState;
+  claims?: ClaimTargetsConfig;
 }) {
   const { lines, width, height, textX } = useMemo(() => {
     const parsedLines = parseTerminalContent(content);
 
     let cursorY = HEADER_H + PAD_TOP;
     let contentIndex = 0;
+    let bulletIndex = 0;
     let maxCols = Math.max(
       PROMPT_PREFIX.length + COMMAND_TEXT.length,
       ...LOADING_MESSAGES.map((m) => m.length),
@@ -118,6 +149,11 @@ export function TerminalWindowSvg({
         parsed,
         baseline,
         contentIndex: isCommandOrLoading ? undefined : contentIndex++,
+        // Counted for every bullet regardless of whether the claim layer is
+        // active, so this index means the same thing as claims.ts's own
+        // `bulletIndex` — position among `kind === 'bullet'` lines — without
+        // either side having to know the other's filtering rules.
+        bulletIndex: parsed.kind === 'bullet' ? bulletIndex++ : undefined,
         isLast: false,
       });
       cursorY += LINE_H;
@@ -142,7 +178,7 @@ export function TerminalWindowSvg({
 
   const showStartCursor = playback.phase === 'prompt' || playback.phase === 'typing';
 
-  return (
+  const svg = (
     <svg
       viewBox={`0 0 ${width} ${height}`}
       style={{ width: '100%', height: 'auto', display: 'block' }}
@@ -182,7 +218,7 @@ export function TerminalWindowSvg({
         {TITLE_TEXT}
       </text>
 
-      {lines.map(({ parsed, baseline, contentIndex, isLast }, i) => {
+      {lines.map(({ parsed, baseline, contentIndex, bulletIndex, isLast }, i) => {
         const textProps = {
           x: textX,
           y: baseline,
@@ -226,26 +262,112 @@ export function TerminalWindowSvg({
         // command + loading flourish above have finished.
         if ((contentIndex ?? 0) >= playback.revealedContentLines) return null;
 
+        const isClaim = claims != null && bulletIndex != null && claims.bulletIndexes.includes(bulletIndex);
+        const isActiveClaim = isClaim && bulletIndex === claims!.activeBulletIndex;
+        const claimColor = isClaim ? claims!.colorFor(bulletIndex!) : undefined;
+
         return (
-          <text key={i} {...textProps}>
-            {parsed.kind === 'field' ? (
-              <>
-                <tspan fill="#569cd6">{parsed.label}</tspan>
-                <tspan fill="#6e7681">{parsed.dots}</tspan>
-                <tspan fill="#ffffff"> {parsed.value}</tspan>
-              </>
-            ) : (
-              <tspan fill={TEXT_COLOR[parsed.kind]}>{parsed.text}</tspan>
+          <React.Fragment key={i}>
+            {/* Every claim carries its outline at rest and brightens when it is
+                the active one — the row is sized to the line rather than the
+                glyphs, so the highlight reads as "this line" instead of boxing
+                a ragged string. Stroke only: a fill would compete with the
+                terminal's own background. */}
+            {isClaim && (
+              <rect
+                x={textX - 8}
+                y={baseline - FONT_SIZE * 0.8 - 3}
+                width={parsed.text.length * CHAR_W + 16}
+                height={LINE_H + 2}
+                rx={4}
+                ry={4}
+                fill="none"
+                stroke={claimColor}
+                strokeWidth={1}
+                strokeOpacity={isActiveClaim ? 1 : CLAIM_IDLE_STROKE_OPACITY}
+              />
             )}
-            {isLast && playback.phase === 'done' && (
-              <tspan className="typing-reveal-cursor" fill={CURSOR_COLOR}>
-                {' '}
-                {CURSOR_GLYPH}
-              </tspan>
-            )}
-          </text>
+            <text {...textProps}>
+              {parsed.kind === 'field' ? (
+                <>
+                  <tspan fill="#569cd6">{parsed.label}</tspan>
+                  <tspan fill="#6e7681">{parsed.dots}</tspan>
+                  <tspan fill="#ffffff"> {parsed.value}</tspan>
+                </>
+              ) : isClaim ? (
+                // The leading "• " is split off and painted in the claim's own
+                // colour, which turns the bullet the report already contains
+                // into the colour key for its connector — no extra glyph, no
+                // change to HIRE_ME_REPORT.
+                <>
+                  <tspan fill={claimColor}>{parsed.text.slice(0, 2)}</tspan>
+                  <tspan fill={isActiveClaim ? claimColor : TEXT_COLOR[parsed.kind]}>
+                    {parsed.text.slice(2)}
+                  </tspan>
+                </>
+              ) : (
+                <tspan fill={TEXT_COLOR[parsed.kind]}>{parsed.text}</tspan>
+              )}
+              {isLast && playback.phase === 'done' && (
+                <tspan className="typing-reveal-cursor" fill={CURSOR_COLOR}>
+                  {' '}
+                  {CURSOR_GLYPH}
+                </tspan>
+              )}
+            </text>
+          </React.Fragment>
         );
       })}
     </svg>
+  );
+
+  if (!claims) return svg;
+
+  /**
+   * The claim hit targets are real DOM <button>s laid over the SVG, not
+   * focusable SVG rects, for two reasons that both matter:
+   *
+   *   - The <svg> carries `role="img"`, which makes it a leaf for assistive
+   *     technology — anything focusable *inside* it would be unreachable
+   *     without changing that existing accessibility contract.
+   *   - Their geometry comes straight from the same viewBox layout the text
+   *     uses, expressed as percentages, so they track the artwork at every
+   *     width with no measurement, no ResizeObserver, and no resize listener.
+   *
+   * They are also what the connector anchors to: measuring a DOM button is
+   * reliable in a way that measuring a scaled SVG tspan is not.
+   */
+  return (
+    <div className="relative">
+      {svg}
+      {lines.map(({ parsed, baseline, bulletIndex, contentIndex }) => {
+        if (bulletIndex == null || !claims.bulletIndexes.includes(bulletIndex)) return null;
+        // Don't expose a target for a line the playback hasn't printed yet.
+        if ((contentIndex ?? 0) >= playback.revealedContentLines) return null;
+
+        const top = ((baseline - FONT_SIZE * 0.8 - 3) / height) * 100;
+        const left = ((textX - 8) / width) * 100;
+        return (
+          <button
+            key={bulletIndex}
+            type="button"
+            ref={(el) => claims.registerAnchor?.(bulletIndex, el)}
+            aria-label={claims.labelFor(bulletIndex)}
+            onMouseEnter={() => claims.onActiveChange(bulletIndex)}
+            onMouseLeave={() => claims.onActiveChange(null)}
+            onFocus={() => claims.onActiveChange(bulletIndex)}
+            onBlur={() => claims.onActiveChange(null)}
+            className="absolute cursor-default rounded-sm outline-none focus-visible:ring-1 focus-visible:ring-[#4CD964]"
+            style={{
+              top: `${top}%`,
+              left: `${left}%`,
+              width: `${((parsed.text.length * CHAR_W + 16) / width) * 100}%`,
+              height: `${((LINE_H + 2) / height) * 100}%`,
+              background: 'transparent',
+            }}
+          />
+        );
+      })}
+    </div>
   );
 }

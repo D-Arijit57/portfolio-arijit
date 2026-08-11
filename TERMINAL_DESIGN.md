@@ -241,7 +241,7 @@ type OutputEntry =
   | { type: 'file-link'; fileId: string; label: string }
   | { type: 'list'; items: string[] }
   | { type: 'table'; headers: string[]; rows: string[][] };
-  // future: 'commit-list' (github), 'problem-list' (leetcode), 'markdown' (ai) — additive only
+  // future: 'commit-list' (github), 'markdown' (ai) — additive only
 ```
 
 A `HistoryEntry.output` is `OutputEntry[]`, not one blob — `help` producing ten lines is ten entries, each independently stylable, rather than one string joined with `\n`.
@@ -284,7 +284,7 @@ Format: `<identity>@<workspace>:<cwd>$` — e.g. `arijit@portfolio:~$`, matching
 | `projects` | Workspace | Sugar for `open` targeting the projects folder — no new mechanism. |
 | `contact` / `resume` | Workspace | Same shape as `projects` — named shortcuts to `open`, not separate logic. |
 | `theme` | UI navigation | Future — mutates a future `theme` store slice; prompt's presentation hook (§9) already anticipates this. |
-| `github` / `leetcode` | Future backend | Require live external data the client doesn't have — see §11. |
+| `github` | Future backend | Require live external data the client doesn't have — see §11. |
 
 No command category is ambiguous: **UI navigation** commands touch only ephemeral UI state; **workspace** commands touch only the already-hydrated VFS/store; **information** commands touch neither; **backend/AI** commands are the only ones that go over the network.
 
@@ -296,7 +296,7 @@ No command category is ambiguous: **UI navigation** commands touch only ephemera
 |---|---|---|
 | Pure frontend | `help`, `whoami` | No store domain data, no network — computed entirely from static config/registry. |
 | Store interaction | `clear`, `pwd`, `ls`, `cat`, `open`, `cd`, `projects`, `contact`, `resume` | VFS content is **already fully hydrated client-side** (`VFS_DESIGN.md` §9.1 — every file's `content` is inline in the one-shot tree fetch). These commands read/write the same store the Explorer and Editor already read/write; no new fetch is needed or justified. |
-| Backend request | `github`, `leetcode` | Genuinely require live, non-VFS data from `IntegrationService` (Phase 3, `BACKEND_BOOTSTRAP.md` §3) — data the client cannot have hydrated locally. |
+| Backend request | `github` | Genuinely require live, non-VFS data from `IntegrationService` (Phase 3, `BACKEND_BOOTSTRAP.md` §3) — data the client cannot have hydrated locally. |
 | Future AI request | e.g. `ask`/`explain` | Same shape as backend request — an LLM-backed endpoint the client has no local substitute for. The `execute()` contract already returns `Promise<CommandResult>` and the `executing` status already exists (§3–4), so adding this later requires zero lifecycle changes — only a new command module. |
 
 This categorization is also the justification for §13.1's revision: routing VFS-backed commands through a network round-trip would add latency for information the client already has, with no correctness benefit.
@@ -323,7 +323,7 @@ This categorization is also the justification for §13.1's revision: routing VFS
 |---|---|---|
 | Unknown command | `executor` returns a normal `CommandResult` with one `{type:'error', text:'command not found'}` entry. Not an exception. | `executor.ts`, before invoking anything |
 | Execution failure (handler throws) | `executor` wraps in `try/catch` at the registry-invocation boundary, converts to an error `CommandResult` — no exception ever reaches React. | `executor.ts` |
-| Backend unavailable | Backend-calling commands (`github`/`leetcode`) use the same discriminated-result pattern Sprint 4B froze for `vfsClient.updateFile` (`network-error` vs `http-error`, never a thrown `Error`) — the command maps that result to an error `OutputEntry` itself. | Inside the command module |
+| Backend unavailable | Backend-calling commands (`github`) use the same discriminated-result pattern Sprint 4B froze for `vfsClient.updateFile` (`network-error` vs `http-error`, never a thrown `Error`) — the command maps that result to an error `OutputEntry` itself. | Inside the command module |
 | Invalid arguments | The command's own `execute()` validates and returns a usage-style error entry (e.g. `Usage: open <filename>`) — the engine never inspects argument shape, only the command knows it. | Inside the command module, same self-containment precedent as `updateFileContent` in `VFS_DESIGN.md` §3.1 |
 | Cancelled execution | Only meaningful for async commands. `CommandContext.signal: AbortSignal` is already in the contract (§5) so this is additive later — not built in Sprint 5A, no synchronous built-in needs it. | Future — engine transitions `executing → idle` on abort, appends a `{type:'text', text:'^C'}`-style entry |
 
@@ -336,7 +336,6 @@ Every error path returns the state machine to `idle`. None of them is treated as
 | Future addition | Mechanism already in place | New work required |
 |---|---|---|
 | GitHub commands | Backend-request category (§11), `commitList`-style `OutputEntry` variant (§7) | New command module + one `OutputEntry` variant + `OutputRenderer` case |
-| LeetCode commands | Same as GitHub | Same shape |
 | AI assistant commands | `Promise<CommandResult>` + `executing` status already model "long-running, thinking" | New command module only |
 | Theme commands | UI-navigation category; prompt already isolates presentation from content (§9) | New command module + theme store slice (separate design) |
 | Workspace commands (`mkdir`, etc., hypothetical) | `cwd`-relative resolution already designed (§9–10) | New command module |
@@ -372,7 +371,7 @@ src/terminal/                    # domain layer — no React, no JSX
     projects.ts
     contact.ts
     resume.ts
-    # future: theme.ts, github.ts, leetcode.ts, ask.ts
+    # future: theme.ts, github.ts, ask.ts
 
 src/components/terminal/
   Terminal.tsx                     # UI shell — history/prompt/input, calls store actions only
@@ -514,7 +513,7 @@ navigateHistory(direction: 'up' | 'down'): void;
 
 That premise no longer holds: the VFS is now fully hydrated client-side (`VFS_DESIGN.md` §9.1), so `ls`/`cat`/`open`/`pwd`/`cd` have zero information gap to close over the network — a server round-trip for these would add latency for no correctness gain, and would just relocate the switch-statement problem server-side instead of eliminating it (§11).
 
-**Proposed revision**: keep `/api/terminal/execute` (or an equivalent) scoped narrowly to the commands in the "backend request" and "future AI request" buckets (§11) — `github`, `leetcode`, future AI — not as the universal dispatcher for every command. This is flagged here for explicit approval before Sprint 5B implementation, following the same "flag the gap, propose, get approval, then update the doc" process used for the `updateFileContent` gap found during Sprint 2C — not applied unilaterally.
+**Proposed revision**: keep `/api/terminal/execute` (or an equivalent) scoped narrowly to the commands in the "backend request" and "future AI request" buckets (§11) — `github`, future AI — not as the universal dispatcher for every command. This is flagged here for explicit approval before Sprint 5B implementation, following the same "flag the gap, propose, get approval, then update the doc" process used for the `updateFileContent` gap found during Sprint 2C — not applied unilaterally.
 
 ---
 

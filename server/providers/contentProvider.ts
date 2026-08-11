@@ -16,7 +16,7 @@ export interface ProviderStatus {
 }
 
 export interface ContentProvider {
-  /** 'github', 'leetcode', 'blog', ... — same namespace §2/§7.1 already require. */
+  /** 'github', 'blog', ... — same namespace §2/§7.1 already require. */
   readonly namespace: string;
 
   /** Fetch → transform → generate → reconcile (§11.2). Never throws — failures are captured in getStatus(). */

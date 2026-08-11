@@ -51,4 +51,4 @@ To build an interactive, highly realistic developer portfolio disguised as a Vis
 ## Long-Term Roadmap
 1. **Phase 1 (Complete)**: Static frontend mockup with virtual file system and Zustand state.
 2. **Phase 2 (Upcoming)**: Backend integration to serve the virtual file system, process terminal commands dynamically, and fetch live stats.
-3. **Phase 3**: Real-time integrations (GitHub, LeetCode) and dynamic content generation (e.g., an AI agent integrated into the terminal).
+3. **Phase 3**: Real-time integrations (GitHub) and dynamic content generation (e.g., an AI agent integrated into the terminal).

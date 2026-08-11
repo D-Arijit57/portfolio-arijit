@@ -278,7 +278,7 @@ No candidate above requires a change to `types.ts`, `categories.ts`, or `registr
 3. **Real split rendering** — make `EditorRenderer` pane-aware for `.mmd` (left: `ShikiEditor`, right: `ArchitectureCanvas`), replacing `MermaidViewer.tsx`.
 4. **Canvas interactivity** — pan/zoom/fit/reset, category-driven styling, hover-highlight/soften, click → contextual popover.
 5. **Sync + polish** — `sync.ts`'s line→id resolution wired to `architectureState`, subtle grid, calm settle-state animation.
-6. *(Later, separate sign-off)* — Sequence/Deployment/Runtime/Dependency renderers (§12); a second project (e.g. Atlas) as the real test of the registry generalizing past one instance, the same way `LeetCodeProvider` was the real test of the `ContentProvider` pattern generalizing past GitHub.
+6. *(Later, separate sign-off)* — Sequence/Deployment/Runtime/Dependency renderers (§12); a second project (e.g. Atlas) as the real test of the registry generalizing past one instance, the same way a second `ContentProvider` would be the real test of that pattern generalizing past GitHub.
 
 Each phase is reviewed before the next begins, per this project's existing working agreement.
 
@@ -286,7 +286,7 @@ Each phase is reviewed before the next begins, per this project's existing worki
 
 - No live bidirectional edit-to-model sync (§7) — structural edits to the raw Mermaid text do not regenerate `ArchitectureModel` data. Flagged, not silently implied as solved.
 - No schema validation beyond TypeScript types on hand-authored `ArchitectureModel` data — consistent with the rest of this codebase's hardcoded-content convention, not a gap unique to this platform.
-- The registry pattern (§5) is unproven past a single project (`cortexa`) until a second project is actually added — same posture `VFS_DESIGN.md` §11.6 and the LeetCode Provider section took toward `ContentProvider` before a second instance existed.
+- The registry pattern (§5) is unproven past a single project (`cortexa`) until a second project is actually added — same posture `VFS_DESIGN.md` §11.6 took toward `ContentProvider` before a second instance existed.
 - `modelToMermaid`'s output is generated once, by hand-running it during authoring, not by an automated build step — acceptable at current scale, worth revisiting if projects (and their `.mmd` files) start changing frequently.
 
 ## 15. Alternative Designs Considered — and Rejected

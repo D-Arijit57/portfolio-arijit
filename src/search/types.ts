@@ -49,7 +49,7 @@ export interface SearchOptions {
 // Derived structurally from VirtualFile.id (VFS_DESIGN.md §2's frozen id
 // format: static ids never contain ':', generated ids are '<namespace>:<key>').
 // No ProviderRegistry import, no hardcoded namespace list — a future
-// leetcode:/blog: id namespace produces a correct value automatically.
+// blog:/notes: id namespace produces a correct value automatically.
 export function namespaceOf(file: VirtualFile): string {
   const i = file.id.indexOf(':');
   return i === -1 ? 'workspace' : file.id.slice(0, i);

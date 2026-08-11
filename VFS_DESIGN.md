@@ -3,11 +3,11 @@
 ## Status
 **Frozen as of 2026-07-15** (revised same day, post stress-test). This document is the canonical domain-model specification for the Virtual File System. It does not replace `BACKEND_BOOTSTRAP.md` — that remains canonical for milestone sequencing and frontend integration mechanics. This document is the entities, invariants, and lifecycle ownership Sprint 2 (`BACKEND_BOOTSTRAP.md` Milestone 2) implements against.
 
-**Revision note (2026-07-15)**: a stress-test walkthrough (300 files + generated GitHub/LeetCode folders + search + playground history) surfaced two architectural contradictions and two missing lifecycle decisions in the first draft of this document. All four are resolved below. See §10 for the point-by-point consistency verification.
+**Revision note (2026-07-15)**: a stress-test walkthrough (300 files + generated GitHub folders + search + playground history) surfaced two architectural contradictions and two missing lifecycle decisions in the first draft of this document. All four are resolved below. See §10 for the point-by-point consistency verification.
 
 **Revision note (2026-07-16)**: Sprint 2C (`BACKEND_BOOTSTRAP.md` Milestone 2, Phase 2 endpoints) surfaced a gap: no repository method existed to persist an edit to an existing file's content — `reconcileGeneratedSubtree` is explicitly scoped away from static content. Added `FileNodeRepository.updateFileContent(id, content)` (§3, §3.1) and the corresponding `FileSystemService` write responsibilities (§4.1) to close the gap before `PUT /api/fs/file/:id` was implemented. §6 (Error Cases) and §7.2 (Ownership) were updated to reflect the new method; no other entity, invariant, or lifecycle decision in this document changed. Re-frozen as of 2026-07-16.
 
-**Revision note (2026-07-18, Sprint 6A — GitHub Workspace Architecture Review)**: §7.2 left the internal shape of the Phase 3 `IntegrationService` unspecified, reasonably, since Phase 3 wasn't in scope when this document was first frozen. Designing the GitHub workspace for real surfaced that GitHub is not a special case — it is the first of an open-ended family of generated-content sources (LeetCode, Blog, AI Notes, Resume, …) that all need an identical internal shape. **New §11 formalizes that shape as a generic `ContentProvider` pattern**, with GitHub as the first concrete implementation. This is purely additive: §1–§10's frozen entities, identifier strategy, repository/service contracts, validation/error taxonomy, and generated-content lifecycle table are unchanged — §11 only specifies the internal structure of the one component §7.2 always left unspecified. Design only; no code was written. Re-frozen as of 2026-07-18.
+**Revision note (2026-07-18, Sprint 6A — GitHub Workspace Architecture Review)**: §7.2 left the internal shape of the Phase 3 `IntegrationService` unspecified, reasonably, since Phase 3 wasn't in scope when this document was first frozen. Designing the GitHub workspace for real surfaced that GitHub is not a special case — it is the first of an open-ended family of generated-content sources (Blog, AI Notes, Resume, …) that all need an identical internal shape. **New §11 formalizes that shape as a generic `ContentProvider` pattern**, with GitHub as the first concrete implementation. This is purely additive: §1–§10's frozen entities, identifier strategy, repository/service contracts, validation/error taxonomy, and generated-content lifecycle table are unchanged — §11 only specifies the internal structure of the one component §7.2 always left unspecified. Design only; no code was written. Re-frozen as of 2026-07-18.
 
 **Revision note (2026-07-19, Sprint 7A — Global Search System Architecture Review, design only)**: §3's `searchFiles(query)` row and §10's Search row below were written assuming the Phase 3 "Search Engine" would be a backend-driven consumer of this method. `ARCHITECTURE.md`'s new "Global Search Subsystem" section now specifies Search concretely as a **client-side** subsystem operating on the already-hydrated VFS (`workspaceFiles`, populated by §9.1's hydration) — not a consumer of this repository method over HTTP. `searchFiles(query)` remains a valid repository method (harmless, already implemented) but is no longer described as backing "the Search Engine"; that name now refers to `src/search/searchEngine.ts`. Flagged here rather than silently left inconsistent; no other entity, contract, or invariant in this document changed.
 
@@ -63,9 +63,9 @@ This was left implicit in the first draft; the stress test showed that's not saf
 - Must not contain a `:` character — the colon is reserved as the namespace separator for generated ids (below). This is what makes static/generated collision structurally impossible, not just conventionally unlikely.
 - Uniqueness is enforced the same way as everything else: `FileSystemService`'s tree-wide validation (§5) is the actual backstop, regardless of how an id was produced.
 
-**Generated content ids** (Phase 3, GitHub/LeetCode):
+**Generated content ids** (Phase 3, GitHub):
 - Namespaced and deterministic: `<namespace>:<upstream-stable-key>`.
-  - Examples: `github:repo:<repo-full-name>`, `github:stats:<repo-full-name>`, `leetcode:problem:<slug>`, `leetcode:streak`.
+  - Examples: `github:repo:<repo-full-name>`, `github:stats:<repo-full-name>`, `blog:post:<slug>`, `blog:index`.
 - The upstream-stable-key **must** be something that does not change across sync cycles for the same logical entity — a repo's full name, a problem's slug, a commit SHA. **Never** a synthetic incrementing counter, an array index, or a timestamp — any of those would break id stability across reconciliation and orphan open tabs / deep links, which is exactly the failure mode the stress test flagged.
 - id stability is what allows `reconcileGeneratedSubtree` (§7) to tell "this is the same entity, updated" from "this is a new entity" from "this entity is gone" — the id *is* the identity key reconciliation diffs against.
 
@@ -90,7 +90,7 @@ Responsibility: hides the data source from everything above it, **and owns the r
 
 Rules that hold regardless of phase:
 - The repository never imports HTTP-framework types and never throws HTTP-flavored errors — only domain errors (§6).
-- The repository has **no knowledge of what GitHub or LeetCode are** — `reconcileGeneratedSubtree` accepts an already-shaped, already-namespaced set of `VirtualFile`/`VirtualFolder` nodes and a namespace label; it does not know or care where they came from.
+- The repository has **no knowledge of what GitHub is** — `reconcileGeneratedSubtree` accepts an already-shaped, already-namespaced set of `VirtualFile`/`VirtualFolder` nodes and a namespace label; it does not know or care where they came from.
 - Swapping the underlying source (flat seed file → database → anything else) never requires a change to `FileSystemService` or the route layer.
 - `updateFileContent` and `reconcileGeneratedSubtree` are the tree's only two mutators. Both follow the same atomic pattern: build a candidate tree, validate it wholesale via `validateWorkspaceTree`, and commit only on success — a failed candidate leaves `root`/`index` completely untouched.
 
@@ -190,12 +190,12 @@ Client-side hydration/save error handling is unchanged from `BACKEND_BOOTSTRAP.m
 **Governing principle, unchanged**: generated content is not a new domain type. It is an ordinary `VirtualFile`/`VirtualFolder`. What's revised is *where* it becomes part of the tree.
 
 ### 7.1 `reconcileGeneratedSubtree(namespace, nodes)`
-The single entry point for generated content, owned by `FileNodeRepository`. Given a namespace (`"github"`, `"leetcode"`) and the **complete current set** of nodes for that namespace:
+The single entry point for generated content, owned by `FileNodeRepository`. Given a namespace (`"github"`, `"blog"`) and the **complete current set** of nodes for that namespace:
 - **Insertion**: an id in the new set not previously present is added.
 - **Update**: an id present in both the old and new set, with changed fields, is replaced in place — the id itself never changes (§2).
 - **Deletion**: an id previously present under this namespace but absent from the new set is removed.
 
-This is a **full-replace-by-namespace** operation, not an incremental stream of add/remove events — because upstream systems (GitHub, LeetCode) generally hand you "here is everything that currently exists," not reliable deletion events. Diffing against the last-known set is what correctly handles a renamed or deleted repo without leaving an orphan, which the stress test identified as a real unbounded-growth risk.
+This is a **full-replace-by-namespace** operation, not an incremental stream of add/remove events — because upstream systems (GitHub, and any future provider) generally hand you "here is everything that currently exists," not reliable deletion events. Diffing against the last-known set is what correctly handles a renamed or deleted repo without leaving an orphan, which the stress test identified as a real unbounded-growth risk.
 
 Reconciliation for one namespace never touches another namespace's nodes, and never touches static content.
 
@@ -203,7 +203,7 @@ Reconciliation for one namespace never touches another namespace's nodes, and ne
 
 | Stage | Owner | Notes |
 |---|---|---|
-| Fetch from external API | `IntegrationService` (Phase 3) | Talks to GitHub/LeetCode, on its own schedule (cron/poll) |
+| Fetch from external API | `IntegrationService` (Phase 3) | Talks to GitHub, on its own schedule (cron/poll) |
 | Shape into `VirtualFile`/`VirtualFolder` | `IntegrationService` | Assigns namespaced id (§2), sets `isReadonly: true` by default, produces valid nodes |
 | Reconcile into the tree's source of truth | `FileNodeRepository` (§7.1) | The only writer of generated content. Doesn't know what GitHub is — just applies the diff. |
 | Validate the merged tree | `FileSystemService` | Identical validation whether a node is static or generated (§5) |
@@ -222,7 +222,7 @@ This table is the answer to "which component owns generated content at every sta
 
 **Playground execution history is not part of the Virtual File System.** It must never be represented as `VirtualFile` nodes in the `WorkspaceTree`, however tempting that seems structurally (it would technically fit the schema).
 
-Why: unlike generated GitHub/LeetCode content — which is bounded and reconciled on a schedule per §7 — execution/version history is user-driven and could grow within a single session, faster and less predictably than any scheduled integration. Modeling it as more tree nodes would directly compound the payload-size and tree-growth bottlenecks the stress test identified, and would do so on the one path (Editor interaction) with no reconciliation cycle to bound it.
+Why: unlike generated GitHub content — which is bounded and reconciled on a schedule per §7 — execution/version history is user-driven and could grow within a single session, faster and less predictably than any scheduled integration. Modeling it as more tree nodes would directly compound the payload-size and tree-growth bottlenecks the stress test identified, and would do so on the one path (Editor interaction) with no reconciliation cycle to bound it.
 
 Treat it as a **separate domain** with its own storage and lifecycle, owned by a future service that is not `FileNodeRepository` and not exposed through `/api/fs/*`. Designing that domain is out of scope here — this section only fixes the boundary so Sprint 2 (and whoever eventually builds playground history) doesn't accidentally reach for the VFS repository as a shortcut.
 
@@ -267,7 +267,7 @@ Verifying that every consumer — present and future — operates against the **
 | **Routing** (`useRouterSync`) | `vfsFileMap` / `vfsFileList`, keyed by `id`/`path` | Namespaced, stable generated ids (§2) mean a deep link to a generated node behaves identically to a static one — no new resolution logic needed, though the pre-existing suffix-matching fragility in `useRouterSync` itself is unchanged by this document (flagged previously as tech debt, not re-litigated here) |
 | **Hydration** | `GET /api/fs/tree` once per session | Still one atomic, all-or-nothing fetch (§9.1) for Sprint 2; §9.2 guarantees that whenever lazy loading is introduced, the hydration contract evolves at the envelope level only — the "atomic commit" semantics in `BACKEND_BOOTSTRAP.md`'s Store Hydration Flow are undisturbed |
 | **Future GitHub integration** | Writes via `reconcileGeneratedSubtree("github", nodes)` | Owns fetch + shaping (§7.2) only; has zero visibility into or dependency on Explorer/Editor/Terminal/Search — it only ever talks to the repository |
-| **Future LeetCode integration** | Writes via `reconcileGeneratedSubtree("leetcode", nodes)` | Identical pattern to GitHub, fully isolated by namespace (§7.1) — a bug in LeetCode reconciliation cannot corrupt GitHub's nodes or static content |
+| **Future Blog integration** | Writes via `reconcileGeneratedSubtree("blog", nodes)` | Identical pattern to GitHub, fully isolated by namespace (§7.1) — a bug in Blog reconciliation cannot corrupt GitHub's nodes or static content |
 
 **Result: one consistent model.** Every consumer, present and future, reads through `FileSystemService.getFullTree()` (or, from Phase 2 on, the equivalent single-node repository methods) over a `FileNodeRepository` whose reconciled source of truth already contains static and generated content merged, validated once, against one identifier strategy, with playground history explicitly excluded rather than left ambiguous.
 
@@ -277,7 +277,7 @@ Verifying that every consumer — present and future — operates against the **
 
 ### 11.0 Why this section exists
 
-§7.2 assigns "fetch from external API" and "shape into `VirtualFile`/`VirtualFolder`" to a component named `IntegrationService (Phase 3)`, without specifying its internal shape. Sprint 6A (GitHub Workspace Architecture Review) needed to design that component for real. Doing so surfaced that GitHub is not a special case: it is the first of an open-ended family of generated-content sources — LeetCode, Blog, AI Notes, Resume (§11.6) — that all need the identical internal shape. This section formalizes that shape once, as a `ContentProvider` pattern, instead of re-deriving it per source.
+§7.2 assigns "fetch from external API" and "shape into `VirtualFile`/`VirtualFolder`" to a component named `IntegrationService (Phase 3)`, without specifying its internal shape. Sprint 6A (GitHub Workspace Architecture Review) needed to design that component for real. Doing so surfaced that GitHub is not a special case: it is the first of an open-ended family of generated-content sources — Blog, AI Notes, Resume (§11.6) — that all need the identical internal shape. This section formalizes that shape once, as a `ContentProvider` pattern, instead of re-deriving it per source.
 
 **Nothing above the repository boundary changes.** `reconcileGeneratedSubtree` (§7.1) is still the only entry point for generated content, the namespaced-id strategy (§2) is unchanged, and every row in §7.2's ownership table still holds — this section only specifies what sits *behind* the "fetch"/"shape" rows of that table, which were previously a single unspecified box labeled `IntegrationService`.
 
@@ -285,13 +285,13 @@ Verifying that every consumer — present and future — operates against the **
 
 ```
 interface ContentProvider {
-  readonly namespace: string;      // 'github', 'leetcode', 'blog', ... — same namespace §2/§7.1 already require
+  readonly namespace: string;      // 'github', 'blog', ... — same namespace §2/§7.1 already require
   refresh(): Promise<void>;        // fetch → transform → generate → reconcile, see §11.2
   getStatus(): ProviderStatus;     // { state: 'idle' | 'syncing' | 'error', lastSyncedAt?, lastError? }, see §11.4
 }
 ```
 
-Every generated namespace `reconcileGeneratedSubtree` accepts is now produced by exactly one `ContentProvider` implementation, invoked by a generic scheduler (§11.4) — not per-request, not from any route handler. `FileNodeRepository`'s existing guarantee is unchanged: it "has no knowledge of what GitHub or LeetCode are" (§3) — `ContentProvider` sits entirely above the repository, exactly where §7.2 always placed `IntegrationService`.
+Every generated namespace `reconcileGeneratedSubtree` accepts is now produced by exactly one `ContentProvider` implementation, invoked by a generic scheduler (§11.4) — not per-request, not from any route handler. `FileNodeRepository`'s existing guarantee is unchanged: it "has no knowledge of what GitHub is" (§3) — `ContentProvider` sits entirely above the repository, exactly where §7.2 always placed `IntegrationService`.
 
 ### 11.2 Internal pipeline (common to every provider)
 
@@ -364,8 +364,7 @@ Any future generated-content source is a new `ContentProvider` implementation re
 
 | Future source | Namespace | New work required |
 |---|---|---|
-| LeetCode | `leetcode` | New provider implementation only (§11.1–§11.2 shape) |
-| Blog | `blog` | Same |
+| Blog | `blog` | New provider implementation only (§11.1–§11.2 shape) |
 | AI Notes | `ai-notes` | Same |
 | Resume | `resume` | Same |
 
@@ -385,7 +384,7 @@ None of these require touching `FileNodeRepository`, `FileSystemService`, hydrat
 
 | Alternative | Rejected because |
 |---|---|
-| GitHub as a standalone subsystem with its own design document (parallel to `VFS_DESIGN.md`/`TERMINAL_DESIGN.md`) | GitHub content is not an independent subsystem — it is generated content flowing through the VFS's existing, already-frozen reconciliation entry point (§7.1). Treating it as a standalone document would duplicate §2/§3/§7's already-frozen decisions instead of extending them, and would not, by itself, generalize to LeetCode/Blog/AI Notes/Resume — this section's `ContentProvider` pattern does. |
+| GitHub as a standalone subsystem with its own design document (parallel to `VFS_DESIGN.md`/`TERMINAL_DESIGN.md`) | GitHub content is not an independent subsystem — it is generated content flowing through the VFS's existing, already-frozen reconciliation entry point (§7.1). Treating it as a standalone document would duplicate §2/§3/§7's already-frozen decisions instead of extending them, and would not, by itself, generalize to Blog/AI Notes/Resume — this section's `ContentProvider` pattern does. |
 | GitHub as a frontend-rendered "widget" (live-fetching dashboard component) | Forks data ownership — the frontend would own presentation of live data rather than the backend owning generation — violating the requirement that generated content "appear exactly like normal workspace files." |
 | One markdown file per repository | Unbounded namespace growth proportional to account size; see §11.5. |
 | Merging generated content at the service layer instead of the repository | Already rejected in §3/§4 for the search-visibility contradiction the stress test surfaced; reaffirmed rather than re-litigated — every provider's output must enter through `reconcileGeneratedSubtree`, with no special-cased merge point. |

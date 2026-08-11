@@ -12,9 +12,9 @@ Not everything below is being built now. This spec covers all planned backend su
 |---|---|---|
 | **Phase 1** | VFS API (`GET /api/fs/tree` only), store hydration, bootstrap gate | Canonical, ready to implement |
 | **Phase 2** | Terminal Engine API, `GET /api/fs/file/:id`, `PUT /api/fs/file/:id` | Designed below, not yet approved |
-| **Phase 3** | Search Engine, GitHub/LeetCode Integrations, Notification Engine | Designed below, not yet approved |
+| **Phase 3** | Search Engine, GitHub Integration, Notification Engine | Designed below, not yet approved |
 
-**Revision note (2026-07-18, Sprint 6A — GitHub Workspace Architecture Review, design only)**: the GitHub/LeetCode integration sketch below (Integration Service, `GET /api/integrations/github`, Milestone 9) predates the VFS and was written before it was decided that generated content becomes ordinary VFS files rather than a separately-fetched widget payload. `VFS_DESIGN.md` §11 now specifies this concretely as a generic **Content Provider pattern** — GitHub content is produced by a `ContentProvider` implementation and enters the tree via the already-existing `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1), not via a client-facing stats endpoint. This narrows what "Integration Service"/"`GET /api/integrations/github`" mean below — see the inline notes at each affected section. Flagged here rather than silently applied; Phase 3 remains "not yet approved," so no implementation is authorized by this note.
+**Revision note (2026-07-18, Sprint 6A — GitHub Workspace Architecture Review, design only)**: the GitHub integration sketch below (Integration Service, `GET /api/integrations/github`, Milestone 9) predates the VFS and was written before it was decided that generated content becomes ordinary VFS files rather than a separately-fetched widget payload. `VFS_DESIGN.md` §11 now specifies this concretely as a generic **Content Provider pattern** — GitHub content is produced by a `ContentProvider` implementation and enters the tree via the already-existing `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1), not via a client-facing stats endpoint. This narrows what "Integration Service"/"`GET /api/integrations/github`" mean below — see the inline notes at each affected section. Flagged here rather than silently applied; Phase 3 remains "not yet approved," so no implementation is authorized by this note.
 
 ---
 
@@ -183,7 +183,7 @@ stateDiagram-v2
   - Purpose: Processes terminal commands dynamically instead of relying on frontend switch statements.
 
 ### 3. Integration APIs (Stats & Notifications) — Phase 3
-- **`GET /api/integrations/github` / `GET /api/integrations/leetcode`** — *narrowed by `VFS_DESIGN.md` §11*: GitHub/LeetCode profile, repo, and activity content is no longer proposed as a separately-fetched stats payload for a frontend widget. It is generated content — produced by a `ContentProvider` implementation and merged into the workspace tree via `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1, §11.1) — so the frontend reads it through the existing `GET /api/fs/tree` like any other file, not through a dedicated integrations endpoint. ~~Whether either endpoint is still needed for anything **other** than workspace content (e.g. a lightweight signal for the Notification Engine below, which is an explicitly separate domain per `VFS_DESIGN.md` §7.2's last row) is an open question for whoever designs the Notification Engine, not decided here.~~ **Answered (Sprint 9A)** — see `ARCHITECTURE.md`'s "Notification Service" §8: not built now. Provider-sync notifications are approximated from existing hydration data instead; true provider-status observability (which would need exactly this kind of endpoint) is flagged as a proposed, not-frozen future gap.
+- **`GET /api/integrations/github`** — *narrowed by `VFS_DESIGN.md` §11*: GitHub profile, repo, and activity content is no longer proposed as a separately-fetched stats payload for a frontend widget. It is generated content — produced by a `ContentProvider` implementation and merged into the workspace tree via `reconcileGeneratedSubtree` (`VFS_DESIGN.md` §7.1, §11.1) — so the frontend reads it through the existing `GET /api/fs/tree` like any other file, not through a dedicated integrations endpoint. ~~Whether the endpoint is still needed for anything **other** than workspace content (e.g. a lightweight signal for the Notification Engine below, which is an explicitly separate domain per `VFS_DESIGN.md` §7.2's last row) is an open question for whoever designs the Notification Engine, not decided here.~~ **Answered (Sprint 9A)** — see `ARCHITECTURE.md`'s "Notification Service" §8: not built now. Provider-sync notifications are approximated from existing hydration data instead; true provider-status observability (which would need exactly this kind of endpoint) is flagged as a proposed, not-frozen future gap.
 - ~~**`GET /api/notifications/poll`** (or WebSocket setup) — Pushes real-time alerts to the frontend notification engine.~~ **Superseded (Sprint 9A)** — no live push channel is built. `ARCHITECTURE.md`'s "Notification Service" section is the frontend notification architecture; a backend push channel remains an explicitly deferred, unsigned-off future decision, not this endpoint.
 
 ---
@@ -242,8 +242,8 @@ Any non-2xx response or network failure is treated identically by `vfsClient`: r
 - Needs a safe, sandboxed environment if allowing real execution, or a robust mock engine that simulates an OS environment (maintaining session state, environment variables, and CWD).
 
 ### 3. Integration Service — Phase 3
-- Background workers or cron jobs that periodically fetch data from GitHub and LeetCode APIs to prevent rate-limiting and ensure fast frontend responses.
-- Specified concretely by `VFS_DESIGN.md` §11 as the generic **Content Provider pattern**: each of GitHub/LeetCode is one `ContentProvider` implementation (fetch → transform → generate markdown → generate `VirtualFile`s → `reconcileGeneratedSubtree`), scheduled independently of any request, owning its own refresh/loading/error state. "Integration Service" is the umbrella scheduling composition that runs each registered provider on its cadence — not a single class that knows what GitHub or LeetCode are.
+- Background workers or cron jobs that periodically fetch data from the GitHub API to prevent rate-limiting and ensure fast frontend responses.
+- Specified concretely by `VFS_DESIGN.md` §11 as the generic **Content Provider pattern**: GitHub is one `ContentProvider` implementation (fetch → transform → generate markdown → generate `VirtualFile`s → `reconcileGeneratedSubtree`), scheduled independently of any request, owning its own refresh/loading/error state. "Integration Service" is the umbrella scheduling composition that runs each registered provider on its cadence — not a single class that knows what GitHub is.
 
 ---
 
@@ -284,7 +284,7 @@ Any non-2xx response or network failure is treated identically by `vfsClient`: r
   ```json
   {
     "id": "string",
-    "source": "GitHub" | "LeetCode" | "System",
+    "source": "GitHub" | "System",
     "message": "string",
     "timestamp": 1234567890
   }
@@ -349,7 +349,7 @@ Carried forward from `ARCHITECTURE.md`/`CURRENT_STATE.md`, plus items surfaced d
 ## Future Extension Points
 - **Terminal Engine API** (`/api/terminal/execute`) — once Phase 1 is stable and approved to proceed.
 - ~~**Search Engine API** for Command Palette, replacing the client-side `.filter()` over `allFiles`.~~ **Superseded (Sprint 7A)** — Search stays client-side; see `ARCHITECTURE.md`'s "Global Search Subsystem" section.
-- **GitHub/LeetCode Integration services** + **Notification Engine** (poll or WebSocket).
+- **GitHub Integration service** + **Notification Engine** (poll or WebSocket).
 - **`PUT /api/fs/file/:id` save flow**, wiring into `ShikiEditor`'s existing dirty-state indicator (`setFileDirty`) so saves actually clear it instead of it being purely local/simulated.
 - **Session/JWT-based Terminal statefulness** for real `cwd` tracking, replacing the current hardcoded `pwd`/`cd` output in `Terminal.tsx`.
 - **`type: 'file' | 'folder'` discriminator** on VFS nodes — likely needed before lazy loading ships (see Future Lazy-Loading Migration Strategy), would replace the current implicit `'content' in node'` discrimination contract.
@@ -442,12 +442,12 @@ The repo currently has `express`, `@types/express`, `dotenv`, and `esbuild` alre
 - **Acceptance criteria**: search results are correct and typed (`SearchResult[]`, not raw strings) across static and generated content with no provider-specific code in `src/search/*`; no perceptible latency in the `Cmd+K` UX (no network call).
 - **Review checkpoint**: confirm a generated `github/*.md` file is searchable with zero changes to `src/search/*` — the concrete test of "adding a provider requires no Search Engine changes."
 
-### Milestone 9 — GitHub/LeetCode Integrations + Notification Engine *(Phase 3)*
+### Milestone 9 — GitHub Integration + Notification Engine *(Phase 3)*
 - **Objective**: Replace hardcoded notifications and status data with live integration data.
 - **Scope, revised by `VFS_DESIGN.md` §11 (design only, not yet approved for implementation)**: this milestone now splits into two independent pieces that should not be conflated:
-  1. **Generated GitHub/LeetCode workspace content** — one `ContentProvider` implementation per source (`GitHubProvider`, future `LeetCodeProvider`), each with background/cron-based refresh (not per-request, to respect rate limits), reconciled into the VFS tree via `reconcileGeneratedSubtree`. No new frontend state, no new frontend components — Explorer/Editor/Terminal already consume this for free (`VFS_DESIGN.md` §10, §11.5).
+  1. **Generated GitHub workspace content** — one `ContentProvider` implementation per source (`GitHubProvider`, plus any future provider), each with background/cron-based refresh (not per-request, to respect rate limits), reconciled into the VFS tree via `reconcileGeneratedSubtree`. No new frontend state, no new frontend components — Explorer/Editor/Terminal already consume this for free (`VFS_DESIGN.md` §10, §11.5).
   2. **Notification delivery** — unchanged in shape from the original sketch (poll or WebSocket, wiring into `StatusBar`/`Notifications`), and explicitly a **separate domain** from (1) per `VFS_DESIGN.md` §7.2's last row: it may be triggered alongside a provider's reconciliation cycle but must never reference a generated node's id before that node's reconciliation has committed.
 - **Dependencies**: Milestone 1 only for (2); (1) additionally depends on Milestone 2 (the VFS repository/`reconcileGeneratedSubtree` already exist, per `VFS_DESIGN.md` §7.1).
 - **Files expected to change**: New `server/providers/GitHubProvider.ts` (+ its internal client/transformer/generator modules, `VFS_DESIGN.md` §11.2/§11.5) for (1); `server/routes/notifications.routes.ts`, `src/store/useStore.ts`, `src/components/notifications/Notifications.tsx` for (2). `server/services/IntegrationService.ts` as originally named is replaced by the provider-scheduling composition described in `VFS_DESIGN.md` §11.4.
-- **Acceptance criteria**: Generated `github/*.md` files appear in the workspace tree indistinguishably from static files, correctly marked readonly; real GitHub/LeetCode data replaces the hardcoded `notifications` array in `useStore.ts`; no external API rate-limit violations under a normal browsing session; external API outages degrade gracefully for both pieces (must not block app boot — stays independent of the `vfsLoaded` gate).
-- **Review checkpoint**: Verify graceful degradation specifically — simulate a GitHub/LeetCode API failure and confirm the rest of the IDE remains fully usable, and confirm the workspace tree simply lacks (or retains stale) `github/` content rather than erroring.
+- **Acceptance criteria**: Generated `github/*.md` files appear in the workspace tree indistinguishably from static files, correctly marked readonly; real GitHub data replaces the hardcoded `notifications` array in `useStore.ts`; no external API rate-limit violations under a normal browsing session; external API outages degrade gracefully for both pieces (must not block app boot — stays independent of the `vfsLoaded` gate).
+- **Review checkpoint**: Verify graceful degradation specifically — simulate a GitHub API failure and confirm the rest of the IDE remains fully usable, and confirm the workspace tree simply lacks (or retains stale) `github/` content rather than erroring.

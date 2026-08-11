@@ -27,7 +27,6 @@ export type SearchStatus = 'idle' | 'searching' | 'done';
 // wiring beyond this one map entry (optional).
 const GENERATED_NAMESPACE_SYNCED_TITLE: Record<string, string> = {
   github: 'GitHub synchronized',
-  leetcode: 'LeetCode refreshed',
 };
 
 // Sprint 10G: namespaces kept fully fetchable (workspaceFiles stays
@@ -857,7 +856,7 @@ export const useStore = create<StoreState>((set, get) => ({
       });
 
       // Notification Service integration (ARCHITECTURE.md "Notification
-      // Service" §8). GitHubProvider/LeetCodeProvider run in the backend
+      // Service" §8). GitHubProvider runs in the backend
       // process and cannot call notificationService directly — this is the
       // documented approximation: fire one "synchronized" notification per
       // generated namespace the first time it's observed present in a

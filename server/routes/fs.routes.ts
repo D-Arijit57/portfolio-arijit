@@ -9,7 +9,7 @@ export const fsRouter = Router();
 // the first ContentProvider refresh cycle to finish before serving the tree.
 // On a long-running process this resolves almost immediately after boot and
 // stays resolved forever, so it's a no-op here in steady state; on Vercel's
-// serverless runtime it's what actually keeps the GitHub/LeetCode fetches
+// serverless runtime it's what actually keeps the GitHub fetches
 // alive long enough to finish — see api/index.ts's comment on refreshAllOnce().
 fsRouter.get('/fs/tree', async (_req, res, next) => {
   try {

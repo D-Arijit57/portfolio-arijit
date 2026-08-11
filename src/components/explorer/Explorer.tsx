@@ -11,6 +11,21 @@ import { ExplorerPanels } from './ExplorerPanels';
 import { ResizeHandle } from '../shared/ResizeHandle';
 import { shouldRunOnboarding } from '../../lib/onboardingScope';
 
+/** Same geometry as lucide-react's Network icon, split into separately
+ * colored nodes (lucide's version is a single currentColor path/rect set,
+ * which can't tint each node on its own) — skills.graph's three connected
+ * nodes read as distinct technologies, reusing three hexes already present
+ * in FileIconMap rather than introducing new colors. */
+const GraphFileIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" className="text-[#4d5a5e]" stroke="currentColor" />
+    <path d="M12 12V8" className="text-[#4d5a5e]" stroke="currentColor" />
+    <rect x="16" y="16" width="6" height="6" rx="1" className="text-[#ff3670]" stroke="currentColor" />
+    <rect x="2" y="16" width="6" height="6" rx="1" className="text-[#3178c6]" stroke="currentColor" />
+    <rect x="9" y="2" width="6" height="6" rx="1" className="text-[#cbcb41]" stroke="currentColor" />
+  </svg>
+);
+
 const FileIconMap: Record<string, React.ReactNode> = {
   markdown: <FileText size={16} className="text-[#519aba]" />,
   python: <FileCode2 size={16} className="text-[#3572A5]" />,
@@ -20,6 +35,7 @@ const FileIconMap: Record<string, React.ReactNode> = {
   shell: <TerminalIcon size={16} className="text-[#4d5a5e]" />,
   log: <TerminalIcon size={16} className="text-[#4d5a5e]" />,
   mermaid: <FileText size={16} className="text-[#ff3670]" />,
+  graph: <GraphFileIcon />,
   default: <FileIcon size={16} className="text-[#cccccc]" />,
 };
 

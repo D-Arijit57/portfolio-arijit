@@ -86,6 +86,25 @@
   }
 }
 
+/* Phase 9C: the *interactive* terminal's idle caret. Deliberately a second
+   class rather than a reuse of `.typing-reveal-cursor` above, for exactly
+   one reason: that rule resolves reduced motion by hiding the caret
+   (`opacity: 0`), which is correct for a decorative cursor and wrong for a
+   real input — it would erase the only affordance telling a reduced-motion
+   visitor which surface accepts typing. Same keyframe, same 1s period, same
+   steps(1) hard on/off, no glow: the blink is identical, only the
+   reduced-motion resting state differs (visible and static, not gone). */
+.terminal-live-cursor {
+  animation: typing-reveal-blink 1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-live-cursor {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* The campfire's idle flicker lives with the fire sprite (see
    CampfireScene.tsx). The previous radial-gradient "breathing blob" keyframe
    that sat here was removed with the glow layer it animated. */

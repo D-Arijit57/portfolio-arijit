@@ -8,6 +8,7 @@ import { CommandPalette } from '../command-palette/CommandPalette';
 import { Notifications } from '../notifications/Notifications';
 import { useStore } from '../../store/useStore';
 import { useRouterSync } from '../../hooks/useRouterSync';
+import { useTerminalCwdSync } from '../../hooks/useTerminalCwdSync';
 import { useWindowWidth } from '../../hooks/useWindowWidth';
 import { EXPLORER_COLLAPSE_BREAKPOINT_PX } from '../../lib/workspaceBreakpoints';
 import { rescueFocusBeforeExplorerClose } from '../../lib/explorerFocusSafety';
@@ -16,6 +17,7 @@ import { saveFocusBeforeCommandPaletteOpen } from '../../lib/commandPaletteFocus
 export function VSCodeShell() {
   const { setCommandPaletteOpen, explorerState, toggleExplorer } = useStore();
   useRouterSync();
+  useTerminalCwdSync();
 
   const isCompact = useWindowWidth() < EXPLORER_COLLAPSE_BREAKPOINT_PX;
   // The desktop-width Explorer preference, snapshotted the moment the

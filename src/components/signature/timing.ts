@@ -32,3 +32,37 @@ export const PROFILE_HOLD_MS = 400;
 // ~5.6s it averaged before.
 export const ANALYSIS_CHAR_MS_RANGE: [number, number] = [8, 12];
 export const ANALYSIS_LINE_GAP_MS = 60;
+
+/**
+ * Phase 9C (cursor handoff): the quiet beat between the campfire finishing
+ * its reveal and the shell being handed from startup.log's idle prompt down
+ * to the real interactive Terminal.
+ *
+ * This is the *only* new timing constant the handoff needs, and it is
+ * deliberately measured from the campfire's own `REVEAL_MS` rather than from
+ * `ready` — igniting, revealing and handing off are three separate beats, and
+ * the campfire is the climax of the two that precede it. The handoff waits
+ * out the full reveal (CampfireScene's REVEAL_MS) and then this much longer,
+ * so it reads as an epilogue to a scene that has already landed rather than
+ * as a fourth thing competing inside it. Short on purpose: long enough to be
+ * a separate event, short enough that a visitor still connects the cursor
+ * leaving one pane with the cursor arriving in the other.
+ */
+export const HANDOFF_CODA_MS = 700;
+
+/**
+ * Phase 9C (visible handoff): the beat between HandoffHint.tsx appearing and
+ * this pane's cursor actually stopping.
+ *
+ * The two are deliberately not simultaneous. The hint has to arrive while
+ * the cursor is still blinking, so the reader sees *this* shell say one last
+ * thing and only then go quiet — cause, then effect. Fire them together and
+ * the line and the stopped cursor land as one undifferentiated state change,
+ * which reads as the sequence merely ending rather than as a handoff.
+ *
+ * Sized at just under one 1s blink period: long enough for the hint's
+ * 320ms fade-rise to finish and be read against a still-live cursor, short
+ * enough that the cursor stopping here and the cursor starting in the
+ * terminal below still register as the same event.
+ */
+export const HINT_SETTLE_MS = 900;

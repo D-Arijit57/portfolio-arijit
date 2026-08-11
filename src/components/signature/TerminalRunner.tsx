@@ -3,12 +3,21 @@ import { TypingLine } from './TypingLine';
 import { WelcomeBanner } from './WelcomeBanner';
 import { EngineeringProfile } from './EngineeringProfile';
 import { TerminalPrompt } from './TerminalPrompt';
+import { HandoffHint } from './HandoffHint';
 import { CampfireScene } from './CampfireScene';
 import { VisitorLine } from './VisitorLine';
 import { CYAN } from './palette';
+import { REVEAL_MS as CAMPFIRE_REVEAL_MS } from './CampfireScene';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
-import { LINE_GAP_MS, ANALYSIS_CHAR_MS_RANGE, ANALYSIS_LINE_GAP_MS } from './timing';
+import {
+  LINE_GAP_MS,
+  ANALYSIS_CHAR_MS_RANGE,
+  ANALYSIS_LINE_GAP_MS,
+  HANDOFF_CODA_MS,
+  HINT_SETTLE_MS,
+} from './timing';
 import { recordVisit } from '../../lib/api/visitorClient';
+import { useStore } from '../../store/useStore';
 
 const SESSION_KEY = 'signature-terminal-sequence';
 
@@ -152,6 +161,53 @@ export function TerminalRunner() {
 
   const ready = phaseAtLeast(phase, 'ready');
 
+  // ---- Phase 9C: the cursor handoff -------------------------------------
+  // Nothing about the sequence above changes. This only decides *when* this
+  // pane stops being the surface that looks like it takes input.
+  const setShellOwner = useStore((state) => state.setShellOwner);
+
+  // Seeded true when `instant`: a repeat visit renders the sequence's settled
+  // end state, and the hint is part of that end state — it is the log's last
+  // printed line, not a transition. Same rule every other phase follows here.
+  const [hintVisible, setHintVisible] = useState(instant);
+
+  // Claim the shell for as long as a real sequence is going to play. Skipped
+  // entirely when `instant` (repeat visit this session, or reduced motion):
+  // there is no sequence to watch, so there is nothing to hand off *from* —
+  // the store's 'terminal' default already has it right, and claiming here
+  // would only produce a pointless flicker of ownership on mount.
+  // The cleanup releases it, so closing startup.log mid-sequence can never
+  // strand the real Terminal without a cursor.
+  useEffect(() => {
+    if (instant) return undefined;
+    setShellOwner('signature');
+    return () => setShellOwner('terminal');
+  }, [instant, setShellOwner]);
+
+  // Hand it over once the campfire has actually landed — measured from the
+  // scene's own REVEAL_MS, not from `ready`. `ready` is the moment ignition
+  // *starts*; the reveal then runs for CAMPFIRE_REVEAL_MS, and only after
+  // that (plus a short coda) is there a quiet moment to hand off into. This
+  // is what keeps the handoff an epilogue to the climax instead of a fourth
+  // thing competing inside it.
+  //
+  // The handoff is two beats, not one: the hint line prints first, the cursor
+  // stops HINT_SETTLE_MS later. Both timers are set up together here so the
+  // ordering between them is readable in one place, and both are cleared
+  // together — leaving startup.log mid-coda can't leave a stray timer that
+  // flips ownership after this pane is gone.
+  useEffect(() => {
+    if (instant || !ready) return undefined;
+    const hintAt = CAMPFIRE_REVEAL_MS + HANDOFF_CODA_MS;
+    const showHint = window.setTimeout(() => setHintVisible(true), hintAt);
+    const handOff = window.setTimeout(() => setShellOwner('terminal'), hintAt + HINT_SETTLE_MS);
+    return () => {
+      window.clearTimeout(showHint);
+      window.clearTimeout(handOff);
+    };
+  }, [instant, ready, setShellOwner]);
+  // ---- end cursor handoff -----------------------------------------------
+
   return (
     <div className="relative h-full overflow-y-auto bg-black p-4 font-mono text-[13px] text-[#cccccc]">
       <CampfireScene ignite={ready} instant={instant} />
@@ -191,6 +247,7 @@ export function TerminalRunner() {
           <div className="mt-3">
             {visitorCount !== null && <VisitorLine count={visitorCount} />}
             <TerminalPrompt />
+            {hintVisible && <HandoffHint instant={instant} />}
           </div>
         )}
       </div>

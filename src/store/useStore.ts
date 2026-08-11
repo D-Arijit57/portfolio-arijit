@@ -80,6 +80,33 @@ function capHistory(entries: HistoryEntry[]): HistoryEntry[] {
 }
 
 /**
+ * Phase 9C (cursor handoff): which surface currently owns the blinking
+ * "type here" cursor. Deliberately a single owner rather than two independent
+ * booleans — "startup.log and the real Terminal must never both look live at
+ * once" then holds *structurally*, and cannot be broken by a future edit that
+ * forgets to clear the other flag.
+ *
+ * Defaults to 'terminal', which is the safe resting state: startup.log's
+ * signature sequence *claims* ownership while it plays and hands it back, so
+ * every path where that sequence never runs at all — a deep link that opens a
+ * different file, a repeat visit this session, reduced motion, the visitor
+ * closing startup.log — leaves the real Terminal live rather than stranding
+ * it cursor-less waiting for a handoff that will never come.
+ */
+export type ShellOwner = 'signature' | 'terminal';
+
+/**
+ * The directory the terminal sits in for a given file — its parent folder,
+ * which is what makes `ls`/`cat <sibling>` work against whatever the visitor
+ * is currently reading. Files at the root ('/welcome.md') resolve to '/', not
+ * to an empty string, so getPrompt() renders '~' exactly as it always has.
+ */
+function parentDirOf(path: string): string {
+  const lastSlash = path.lastIndexOf('/');
+  return lastSlash <= 0 ? '/' : path.slice(0, lastSlash);
+}
+
+/**
  * WA-01: the one place pane placement is decided for every openFile() call
  * that doesn't pass an explicit pane — Explorer, Search, Terminal commands,
  * Command Palette, and router deep-links all go through this. Previously a
@@ -131,7 +158,17 @@ interface StoreState {
     historyCursor: number | null;
     // WA-06: drag-resizable height (px), clamped in setTerminalHeight.
     height: number;
+    /**
+     * Phase 9C: whether `cwd` still tracks the file being viewed. True until
+     * the visitor issues their own `cd`, then false for the rest of the
+     * session — an explicit command is the visitor taking ownership of the
+     * shell, and nothing they do *elsewhere* (Explorer, Command Palette,
+     * router, deep link, a terminal `open`) may silently move them again.
+     */
+    cwdFollowsEditor: boolean;
   };
+  /** Phase 9C — see ShellOwner above. */
+  shellOwner: ShellOwner;
   commandPalette: {
     isOpen: boolean;
   };
@@ -235,6 +272,15 @@ interface StoreState {
   clearTerminal: () => void;
   setTerminalInput: (value: string) => void;
   submitTerminalCommand: () => Promise<void>;
+  /** Phase 9C: hand the blinking cursor between startup.log and the Terminal. */
+  setShellOwner: (owner: ShellOwner) => void;
+  /**
+   * Phase 9C: re-derive `cwd` from whatever file is currently active. Called
+   * from one effect keyed on activeFileId (hooks/useTerminalCwdSync.ts), so
+   * every navigation source inherits it without any of them knowing the
+   * terminal exists. No-op once the visitor has taken the shell with `cd`.
+   */
+  syncCwdToActiveFile: () => void;
   navigateHistory: (direction: 'up' | 'down') => void;
   setEditorTheme: (theme: string) => void;
   setBootActive: (active: boolean) => void;
@@ -280,6 +326,7 @@ export const useStore = create<StoreState>((set, get) => ({
     // the editor wants that room more than an idle terminal does. Still
     // drag-resizable, so anyone actually using the terminal can reclaim it.
     height: 140,
+    cwdFollowsEditor: true,
     history: [
       {
         id: 'hist-welcome-1',
@@ -298,6 +345,11 @@ export const useStore = create<StoreState>((set, get) => ({
     ],
     historyCursor: null,
   },
+  // Phase 9C: 'terminal' is the safe default — see ShellOwner's own comment.
+  // startup.log's sequence claims this on mount and hands it back after the
+  // campfire has landed; every path where that sequence never plays leaves
+  // the real Terminal live rather than permanently cursor-less.
+  shellOwner: 'terminal',
   commandPalette: { isOpen: false },
   searchState: { query: '', results: [], activeResultIndex: null, status: 'idle' },
   notificationState: { visible: [] },
@@ -655,7 +707,19 @@ export const useStore = create<StoreState>((set, get) => ({
       openFile: get().openFile,
       openToSide: get().openToSide,
       resolvePath: (path) => resolveVfsPath(get().workspaceTree, get().terminalState.cwd, path),
-      setCwd: (path) => set((state) => ({ terminalState: { ...state.terminalState, cwd: path } })),
+      // Phase 9C: this is the manual-ownership latch, and it lives here
+      // rather than inside cd.ts on purpose. `setCwd` is only reachable from
+      // a CommandContext, a CommandContext only exists inside this function,
+      // and this function only runs on a command the visitor actually typed —
+      // so "setCwd was called" is already an exact synonym for "the visitor
+      // explicitly moved the shell themselves." `cd` is its only caller today
+      // (src/terminal/commands/cd.ts) and needed no modification at all; any
+      // future command that legitimately moves the cwd inherits the same
+      // correct behaviour for free.
+      setCwd: (path) =>
+        set((state) => ({
+          terminalState: { ...state.terminalState, cwd: path, cwdFollowsEditor: false },
+        })),
       clearHistory: () => get().clearTerminal(),
       getEditorTheme: () => get().editorTheme,
       setEditorTheme: (theme) => set({ editorTheme: theme }),
@@ -706,6 +770,30 @@ export const useStore = create<StoreState>((set, get) => ({
       terminalState: { ...state.terminalState, historyCursor: nextIndex, input: commandLog[nextIndex] },
     };
   }),
+
+  setShellOwner: (owner) => set({ shellOwner: owner }),
+
+  syncCwdToActiveFile: () => {
+    const state = get();
+    // The visitor owns the shell once they've typed their own `cd` — never
+    // move them again, no matter what they open afterwards.
+    if (!state.terminalState.cwdFollowsEditor) return;
+
+    const activeFileId = state.activeFileId;
+    if (!activeFileId) return;
+
+    const file = state.workspaceFiles.find((f) => f.id === activeFileId);
+    // Generated-namespace files (github:*) carry namespaced ids and are
+    // deliberately unbrowsable (HIDDEN_BROWSE_NAMESPACES) — resolving a cwd
+    // into a folder the Explorer and `ls` both hide would strand the shell
+    // somewhere the visitor cannot navigate out of by clicking.
+    if (!file || !isBrowsable(file)) return;
+
+    const nextCwd = parentDirOf(file.path);
+    if (nextCwd === state.terminalState.cwd) return;
+
+    set((current) => ({ terminalState: { ...current.terminalState, cwd: nextCwd } }));
+  },
 
   setEditorTheme: (theme) => set({ editorTheme: theme }),
 

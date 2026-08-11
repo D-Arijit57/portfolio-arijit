@@ -50,7 +50,11 @@ const FIRE_FRAME_MS = 140;
  * hold. `ease-out` puts most of the change early, so the flame is legible
  * well before the far mountains finish arriving.
  */
-const REVEAL_MS = 2400;
+/* Exported (Phase 9C) so the cursor handoff can be scheduled off the
+ * campfire's *actual* reveal duration instead of a second hand-tuned copy of
+ * it that would silently drift if this value ever changed. Export only — the
+ * value, the reveal, and every other campfire behaviour are untouched. */
+export const REVEAL_MS = 2400;
 
 /**
  * The scene's state before the fire catches.

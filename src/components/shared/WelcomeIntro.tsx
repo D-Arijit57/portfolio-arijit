@@ -22,8 +22,8 @@ const PARAGRAPH_BREAKS = new Set<number>();
 }
 
 const ROBOTO_MONO = "'Roboto Mono', ui-monospace, SFMono-Regular, monospace";
-const CHAR_MS = 20;
-const SENTENCE_PAUSE_MS = 250;
+const CHAR_MS = 10;
+const SENTENCE_PAUSE_MS = 120;
 const REVEAL_SESSION_KEY = 'welcome-intro-typing';
 
 interface TextSegment {

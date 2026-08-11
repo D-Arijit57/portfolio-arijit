@@ -55,10 +55,6 @@ Learn More
 // same WELCOME_PARAGRAPHS import — so this exists only so `cat welcome.md`
 // and search see the real approved copy instead of an empty directive.
 const WELCOME_INTRO_CONTENT = `\`\`\`welcome-intro
-Welcome.
-
-There isn't a correct place to begin.
-
 Some files explain what I've built.
 Others explain why.
 

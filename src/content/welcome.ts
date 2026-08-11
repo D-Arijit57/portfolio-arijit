@@ -11,8 +11,6 @@
  * WelcomeIntro's rendering at all.
  */
 export const WELCOME_PARAGRAPHS: string[] = [
-  'Welcome.',
-  "There isn't a correct place to begin.",
   "Some files explain what I've built.\nOthers explain why.",
   "A few things only reveal themselves\nif you're curious enough to ask.",
   'I spend most of my time taking apart\ncomplex systems, understanding how\nthey work, and rebuilding them into\nsimpler, more reliable software.',

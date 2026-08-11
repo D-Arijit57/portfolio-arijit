@@ -36,7 +36,10 @@ async function bootstrap(): Promise<void> {
 
   // Startup refresh, deliberately async/non-blocking (VFS_DESIGN.md §11.4):
   // must never gate the server listening or the frontend's vfsLoaded boot gate.
-  void providerRegistry.refreshAll();
+  // refreshAllOnce() (not refreshAll()) so this shares the exact same
+  // in-flight promise fs.routes.ts's handlers await — otherwise the first
+  // request would trigger a second, redundant refresh cycle on top of this one.
+  void providerRegistry.refreshAllOnce();
 
   const refreshTimer = setInterval(() => {
     void providerRegistry.refreshAll();

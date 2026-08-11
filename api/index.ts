@@ -16,7 +16,17 @@ import { providerRegistry } from '../server/providers/index.js';
  * refresh below is this file's equivalent of server/index.ts's own startup
  * call — module-scope code runs once per cold start and is cached across
  * warm invocations, so this isn't a per-request cost.
+ *
+ * Kicked off here but deliberately not awaited by anything at module scope:
+ * Vercel is free to freeze this instance the moment a response is sent, and
+ * a fire-and-forget promise that no request is waiting on is not guaranteed
+ * to run to completion (this is exactly why generated content — GitHub's
+ * namespace in particular — was intermittently missing in production: the
+ * request would answer before this finished, then get frozen mid-fetch).
+ * fs.routes.ts's handlers await providerRegistry.refreshAllOnce() — the same
+ * memoized promise this call starts — before reading the tree, so the
+ * response that actually needs this data is what keeps it alive.
  */
 export default createApp();
 
-void providerRegistry.refreshAll();
+void providerRegistry.refreshAllOnce();

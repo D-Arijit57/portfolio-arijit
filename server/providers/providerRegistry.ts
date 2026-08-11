@@ -9,6 +9,7 @@ import { logger } from '../utils/logger.js';
  */
 export class ProviderRegistry {
   private readonly providers = new Map<string, ContentProvider>();
+  private initialRefresh: Promise<void> | undefined;
 
   register(provider: ContentProvider): void {
     if (this.providers.has(provider.namespace)) {
@@ -46,5 +47,26 @@ export class ProviderRegistry {
         }
       }),
     );
+  }
+
+  /**
+   * Memoized refreshAll(): the first caller triggers it, every caller
+   * (concurrent or later) awaits that same run. Exists so a serverless
+   * request handler can await "at least one refresh cycle has completed"
+   * without caring whether it's the one that kicked it off (module-scope
+   * startup call) or a later request piggybacking on the same in-flight
+   * promise — Vercel's Node runtime is free to freeze an instance the
+   * moment a response is sent, cancelling any promise that isn't part of
+   * what the response actually waited on, so a fire-and-forget refreshAll()
+   * that a request never awaits is not guaranteed to run to completion.
+   * Does not replace the interval-driven refreshAll() calls used to keep
+   * content current after the first cycle — those intentionally start a
+   * fresh run every time.
+   */
+  refreshAllOnce(): Promise<void> {
+    if (!this.initialRefresh) {
+      this.initialRefresh = this.refreshAll();
+    }
+    return this.initialRefresh;
   }
 }

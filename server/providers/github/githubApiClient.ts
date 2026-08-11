@@ -7,6 +7,7 @@ import type {
   RawGitHubRepo,
   RawGitHubUser,
 } from './githubTypes.js';
+import { logger } from '../../utils/logger.js';
 
 const RECENT_COMMITS_LIMIT = 10;
 
@@ -45,18 +46,22 @@ export class GitHubApiClient {
   ) {}
 
   async getUser(): Promise<RawGitHubUser> {
-    return this.request<RawGitHubUser>(`${GITHUB_API_BASE_URL}/users/${this.username}`);
+    return this.request<RawGitHubUser>(`${GITHUB_API_BASE_URL}/users/${this.username}`, {}, 'profile');
   }
 
   async listRepos(): Promise<RawGitHubRepo[]> {
     return this.request<RawGitHubRepo[]>(
       `${GITHUB_API_BASE_URL}/users/${this.username}/repos?per_page=100&sort=updated`,
+      {},
+      'repositories',
     );
   }
 
   async listPublicEvents(): Promise<RawGitHubEvent[]> {
     return this.request<RawGitHubEvent[]>(
       `${GITHUB_API_BASE_URL}/users/${this.username}/events/public?per_page=100`,
+      {},
+      'activity(events)',
     );
   }
 
@@ -82,6 +87,8 @@ export class GitHubApiClient {
     const query = encodeURIComponent(`author:${this.username} is:public`);
     const body = await this.request<RawGitHubCommitSearchResponse>(
       `${GITHUB_API_BASE_URL}/search/commits?q=${query}&sort=author-date&order=desc&per_page=${RECENT_COMMITS_LIMIT}`,
+      {},
+      'activity(commits)',
     );
     return body.items;
   }
@@ -116,10 +123,12 @@ export class GitHubApiClient {
     const body = await this.request<{
       data?: { user?: { pinnedItems?: { nodes?: RawGitHubPinnedRepo[] } } };
       errors?: unknown[];
-    }>(GITHUB_GRAPHQL_URL, {
-      method: 'POST',
-      body: JSON.stringify({ query, variables: { login: this.username } }),
-    });
+    }>(
+      GITHUB_GRAPHQL_URL,
+      { method: 'POST', body: JSON.stringify({ query, variables: { login: this.username } }) },
+      'pinned',
+    );
+    this.logGraphQLErrorsIfPresent('pinned', body.errors);
     return body.data?.user?.pinnedItems?.nodes ?? [];
   }
 
@@ -154,16 +163,41 @@ export class GitHubApiClient {
     const body = await this.request<{
       data?: { user?: { contributionsCollection?: { contributionCalendar?: RawGitHubContributionCalendar } } };
       errors?: unknown[];
-    }>(GITHUB_GRAPHQL_URL, {
-      method: 'POST',
-      body: JSON.stringify({ query, variables: { login: this.username } }),
-    });
+    }>(
+      GITHUB_GRAPHQL_URL,
+      { method: 'POST', body: JSON.stringify({ query, variables: { login: this.username } }) },
+      'contributions',
+    );
+    this.logGraphQLErrorsIfPresent('contributions', body.errors);
     return body.data?.user?.contributionsCollection?.contributionCalendar;
   }
 
-  private async request<T>(url: string, init: { method?: string; body?: string } = {}): Promise<T> {
+  /**
+   * Diagnostic-only: logs whether a GraphQL request's 200 response body
+   * carried an `errors` array (partial/permission/schema failures show up
+   * this way, not as a non-2xx status — see listPinnedRepos/getContributionCalendar).
+   * Logs error `message`/`type` only, never the query or variables.
+   */
+  private logGraphQLErrorsIfPresent(operation: string, errors: unknown[] | undefined): void {
+    if (!errors || errors.length === 0) {
+      return;
+    }
+    const sanitized = errors.map((e) =>
+      e && typeof e === 'object'
+        ? { message: (e as { message?: unknown }).message, type: (e as { type?: unknown }).type }
+        : { message: String(e) },
+    );
+    logger.warn(`[GitHubProvider] ${operation} → GraphQL 200 with errors`, { errors: sanitized });
+  }
+
+  private async request<T>(
+    url: string,
+    init: { method?: string; body?: string } = {},
+    label = 'request',
+  ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const path = url.replace(GITHUB_API_BASE_URL, '');
 
     try {
       const response = await fetch(url, {
@@ -179,6 +213,7 @@ export class GitHubApiClient {
       });
 
       if (response.status === 404) {
+        logger.warn(`[GitHubProvider] ${label} → 404`, { path });
         throw new GitHubApiClientError(`GitHub user "${this.username}" not found`, 404, undefined, 'not-found');
       }
 
@@ -186,6 +221,12 @@ export class GitHubApiClient {
         const retryAfterHeader = response.headers.get('retry-after');
         const remaining = response.headers.get('x-ratelimit-remaining');
         if (response.status === 429 || remaining === '0') {
+          logger.warn(`[GitHubProvider] ${label} → rate-limited`, {
+            path,
+            status: response.status,
+            remaining,
+            retryAfterHeader,
+          });
           throw new GitHubApiClientError(
             'GitHub API rate limit exceeded',
             response.status,
@@ -196,6 +237,7 @@ export class GitHubApiClient {
       }
 
       if (!response.ok) {
+        logger.warn(`[GitHubProvider] ${label} → http-error`, { path, status: response.status });
         throw new GitHubApiClientError(
           `GitHub API request failed with status ${response.status}`,
           response.status,
@@ -204,14 +246,20 @@ export class GitHubApiClient {
         );
       }
 
+      logger.info(`[GitHubProvider] ${label} → success`, { path, status: response.status });
       return (await response.json()) as T;
     } catch (err) {
       if (err instanceof GitHubApiClientError) {
         throw err;
       }
       if (err instanceof Error && err.name === 'AbortError') {
+        logger.warn(`[GitHubProvider] ${label} → timeout`, { path, timeoutMs: REQUEST_TIMEOUT_MS });
         throw new GitHubApiClientError(`GitHub API request timed out: ${url}`, undefined, undefined, 'timeout');
       }
+      logger.warn(`[GitHubProvider] ${label} → network-error`, {
+        path,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw new GitHubApiClientError(
         `GitHub API request failed: ${err instanceof Error ? err.message : String(err)}`,
         undefined,

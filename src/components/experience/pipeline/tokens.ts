@@ -1,10 +1,12 @@
 /**
- * The pipeline's palette, drawn entirely from values already in this
- * workspace — #4fc1ff is VS Code's own light-blue token colour (also in
- * index.css), #d7ba7d its warm string/number tone (architecture/categories,
- * manifest/colorHash), and the greys are the editor surfaces themselves.
- * Nothing new is invented here, which is most of why the pipeline reads as
- * part of the workspace rather than as a visualization dropped into it.
+ * The pipeline's palette. Phase 9B (third pass): DIFF_ADDED was `#6a9955`
+ * (VS Code's diff-added green) — replaced with the literal bright ANSI
+ * green Apple's Terminal.app "Pro" profile actually ships (decoded from its
+ * real .terminal color profile, not an approximation), same as
+ * `terminalTokens.ts`'s `PALETTE.docPanel.success`. ACCENT went through the
+ * same swap (was `#4fc1ff`, briefly Apple's ANSI blue `#2009DB`) but that
+ * one was reverted back to `#569cd6`, the app's dominant prompt blue.
+ * `#d7ba7d` (warm string/number tone) and the greys are untouched.
  */
 import { PALETTE } from '../../shared/terminalTokens';
 
@@ -50,12 +52,12 @@ export const DIM = '#6e6e6e';
  */
 export const CONTENT_DIM = '#8a8a8a';
 
-export const ACCENT = '#4fc1ff';
+export const ACCENT = '#569cd6';
 export const METRIC = '#d7ba7d';
 
 /** VS Code's own diff channels — the evidence language. */
 export const DIFF_REMOVED = '#c9736b';
-export const DIFF_ADDED = '#6a9955';
+export const DIFF_ADDED = '#4CD964';
 
 /**
  * Terminal-shell panel colours for Terminal 1 and 2 (see pipeline/terminal/

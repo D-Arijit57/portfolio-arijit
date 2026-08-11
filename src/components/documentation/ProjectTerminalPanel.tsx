@@ -5,10 +5,18 @@ export const ACCENT = PALETTE.docPanel.accent;
 export const TEXT = PALETTE.docPanel.text;
 export const MUTED = PALETTE.docPanel.muted;
 export const SUCCESS = PALETTE.docPanel.success;
+/** Content-level divider colour (RakshachakraSessionTerminal's internal
+ * rules) — unrelated to the panel's own chrome border below, which now
+ * matches whoami.md's git-log box exactly rather than this translucent value. */
 export const BORDER = PALETTE.docPanel.border;
 export const PANEL_BG = PALETTE.docPanel.bg;
 export const PAGE_BACKGROUND = PALETTE.docPanel.page;
 const DOT_COLORS = CHROME.dots.colors;
+/** whoami.md's `git log --oneline` box's own border/divider colour — the
+ * literal value this panel's chrome now matches exactly (Phase 9B, second
+ * pass), kept separate from the exported `BORDER` above so existing content
+ * dividers elsewhere don't inherit a change meant only for this shell. */
+const CHROME_BORDER = '#333333';
 
 /**
  * The shared terminal shell for the project-page grammar established by
@@ -56,30 +64,37 @@ export const ProjectTerminalPanel = forwardRef<
   { fileName, headerExtra, bodyClassName = '', className = '', dormant = false, bodyPadding = 'p-6', children },
   panelRef,
 ) {
+  // Phase 9B (second pass): the header row is now whoami.md's git-log box's
+  // own header, verbatim — dots first (not last), same 8px dot/gap sizing,
+  // same muted flat label colour (no more accent-blue `$`), same rounded-md
+  // / border-#333333 chrome. Body typography/padding/content colour (TEXT)
+  // are untouched — that's Cortexa's own established, WCAG-checked content
+  // system, not "chrome," and stays exactly as it was.
+  const label = fileName.startsWith('$') ? fileName.slice(1).trim() : fileName;
   return (
     <div
       ref={panelRef}
-      className={`overflow-hidden rounded-xl ${className}`}
+      className={`overflow-hidden rounded-md ${className}`}
       style={{
         backgroundColor: PANEL_BG,
-        border: `1px solid ${BORDER}`,
+        border: `1px solid ${CHROME_BORDER}`,
         opacity: dormant ? 0.3 : 1,
         transition: 'opacity 250ms ease-out',
       }}
     >
-      <div className="flex items-center justify-between gap-3 px-5 py-3" style={{ borderBottom: `1px solid ${BORDER}` }}>
-        <span className="font-mono text-[13px]">
-          <span style={{ color: ACCENT }}>$ </span>
-          <span style={{ color: TEXT }}>{fileName}</span>
-        </span>
-        <div className="flex items-center gap-3">
-          {headerExtra}
-          <div className="flex items-center gap-[6px]">
-            {DOT_COLORS.map((color) => (
-              <span key={color} className="h-[9px] w-[9px] rounded-full" style={{ backgroundColor: color }} />
-            ))}
-          </div>
+      <div
+        className="flex items-center justify-between gap-3 px-3 py-1"
+        style={{ borderBottom: `1px solid ${CHROME_BORDER}` }}
+      >
+        <div className="flex items-center gap-2">
+          {DOT_COLORS.map((color) => (
+            <span key={color} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          ))}
+          <span className="ml-2 font-mono text-[10px]" style={{ color: '#858585' }}>
+            {label}
+          </span>
         </div>
+        {headerExtra}
       </div>
       <div className={`${bodyPadding} font-mono text-[14px] leading-[1.9] ${bodyClassName}`} style={{ color: TEXT }}>
         {children}

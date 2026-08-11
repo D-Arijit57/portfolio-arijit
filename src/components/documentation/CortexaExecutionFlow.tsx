@@ -10,7 +10,7 @@ import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typin
 import { DECISIONS, type DecisionId } from '../../content/cortexaNarrative';
 import type { DocumentationFrontmatter } from '../../documentation/types';
 
-const ACCENT = '#38BDF8';
+const ACCENT = '#569cd6';
 const MUTED = '#9CA3AF';
 
 const SESSION_KEY = 'cortexa-shell-sequence';

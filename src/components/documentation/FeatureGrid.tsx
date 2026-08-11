@@ -31,7 +31,7 @@ export function FeatureGrid({ items, staggerSeconds = 0.04 }: { items: FeatureLi
           whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
           className="flex items-baseline gap-2.5 px-1 py-2.5"
         >
-          <CheckCircle2 size={13} className="relative top-[1px] shrink-0 text-[#4ec9b0]" />
+          <CheckCircle2 size={13} className="relative top-[1px] shrink-0 text-[#4CD964]" />
           <p className="min-w-0 text-[13px] leading-relaxed">
             <span className="font-semibold text-white">{item.term}</span>
             <span className="text-[#6a6a6a]"> — </span>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PANEL_BG, PANEL_BORDER } from '../tokens';
+import { PANEL_BG } from '../tokens';
 import { CHROME, PALETTE } from '../../../shared/terminalTokens';
 
 /**
@@ -12,32 +12,30 @@ export const PROMPT_ACCENT = PALETTE.docPanel.accent;
 const CORTEXA_TEXT = PALETTE.docPanel.text;
 const DOT_COLORS = CHROME.dots.colors; // Standard terminal traffic-light — same values CortexaTerminalPanel/TerminalWindowSvg already use.
 export const TERMINAL_CWD = '~/journey/experience';
+/** whoami.md's git-log box's own border/divider colour — Phase 9B (second
+ * pass) converges this shell's own chrome onto it exactly, same as
+ * `documentation/ProjectTerminalPanel.tsx`'s own `CHROME_BORDER`. */
+const CHROME_BORDER = '#333333';
 
 /**
- * The shared shell for Terminal 1 (americanchase.yaml) and Terminal 2
- * (pipeline.sh) — deliberately no longer a "sibling, not a shared import"
- * of `documentation/CortexaTerminalPanel.tsx`, but a match to its *exact*
- * terminal style: same panel background (`#161B22`), same translucent
- * `rgba(255,255,255,.08)` border used for both the outer frame and the
- * header divider, same `rounded-xl`, same header padding/type scale, same
- * full-opacity 9px dots, same `font-mono` (Geist Mono) body at
- * `text-[14px] leading-[1.9]`. An earlier pass deliberately kept this
- * feature's own palette (Roboto Mono, whoami.md's panel colours) on the
- * theory that copying the *shape* without importing the *page* kept the
- * two features independent — since superseded: the brief now asks for
- * cortexa.md's terminal style itself, not a lookalike inspired by it.
- * Terminal 3 (the source view) still uses this shell for its outer frame,
- * but keeps its own plain-label header (see `isPrompt` below) and its own
- * body typeface (`WorkHistoryYamlBlock`'s Geist Mono + Shiki, unrelated to
- * this change) — this pass was scoped to Terminal 1 and 2 specifically.
+ * The shared shell for Terminal 1 (americanchase.yaml), Terminal 2
+ * (pipeline.sh), and Terminal 3's outer frame (the source view). Phase 9B
+ * (second pass): the header now matches whoami.md's own `git log --oneline`
+ * box exactly — `rounded-md`, `#333333` border for both the outer frame and
+ * the header divider, dots *first* (not last) at 8px/`gap-2`, a single flat
+ * muted (`#858585`) `text-[10px]` label with no accent-coloured prompt
+ * symbol. `documentation/ProjectTerminalPanel.tsx` converged onto the exact
+ * same chrome in the same pass — see that file's own comment. Body
+ * typography/padding (`p-6`, `text-[14px] leading-[1.9]`, Geist Mono) is
+ * untouched: that's this pipeline's own established content system, not
+ * "chrome," and stays exactly as it was — Terminal 3 still keeps its own
+ * body typeface (`WorkHistoryYamlBlock`'s Geist Mono + Shiki) independent
+ * of this change.
  *
- * The header carries the command itself — `$ cat ./americanchase.yaml`,
- * `$ ./pipeline.sh` — the `$` in cortexa.md's accent, the rest in
- * cortexa.md's text colour, exactly `CortexaTerminalPanel`'s own
- * `<span>$ </span><span>{fileName}</span>` markup. A title that isn't a
- * command (Terminal 3's "americanchase.yaml — source") still renders as a
- * plain dim label — only strings that actually start with `$` get the
- * prompt treatment.
+ * `title` carries the command as plain text now — `cat ./americanchase.yaml`,
+ * `./pipeline.sh` — with any leading `$ ` stripped rather than coloured, same
+ * as a title that was never a command (Terminal 3's "americanchase.yaml —
+ * source"): both render as the identical flat label after the dots.
  */
 export function ExperienceTerminalPanel({
   title,
@@ -61,41 +59,39 @@ export function ExperienceTerminalPanel({
   dormant?: boolean;
   children: React.ReactNode;
 }) {
-  const isPrompt = title.startsWith('$');
+  // Phase 9B (second pass): title (whether it's `$ command` or a plain
+  // label) always renders as one flat muted string now — whoami.md's
+  // git-log box's own header has no accent-coloured prompt symbol, just a
+  // plain label after the dots, and this shell now matches that exactly.
+  const label = title.startsWith('$') ? title.slice(1).trim() : title;
 
   return (
-    // rounded-xl, matching CortexaTerminalPanel exactly — a real terminal
-    // window's corners aren't square, but this pass converges on cortexa.md's
-    // own radius rather than picking a new one.
+    // rounded-md / border-#333333, whoami.md's git-log box's own chrome,
+    // matching documentation/ProjectTerminalPanel.tsx's own second-pass
+    // convergence exactly rather than this shell's earlier rounded-xl copy
+    // of Cortexa's panel.
     <div
-      className={`overflow-hidden rounded-xl ${className}`}
+      className={`overflow-hidden rounded-md ${className}`}
       style={{
         backgroundColor: PANEL_BG,
-        border: `1px solid ${PANEL_BORDER}`,
+        border: `1px solid ${CHROME_BORDER}`,
         opacity: dormant ? 0.3 : 1,
         transition: 'opacity 250ms ease-out',
       }}
     >
       <div
-        className="flex items-center justify-between gap-3 px-5 py-3"
-        style={{ borderBottom: `1px solid ${PANEL_BORDER}` }}
+        className="flex items-center justify-between gap-3 px-3 py-1"
+        style={{ borderBottom: `1px solid ${CHROME_BORDER}` }}
       >
-        {isPrompt ? (
-          <span className="min-w-0 truncate font-mono text-[13px]">
-            <span style={{ color: PROMPT_ACCENT }}>$</span>
-            <span style={{ color: CORTEXA_TEXT }}>{title.slice(1)}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          {DOT_COLORS.map((color) => (
+            <span key={color} className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+          ))}
+          <span className="ml-2 truncate font-mono text-[10px]" style={{ color: '#858585' }}>
+            {label}
           </span>
-        ) : (
-          <span className="min-w-0 truncate font-mono text-[13px] text-[#858585]">{title}</span>
-        )}
-        <div className="flex shrink-0 items-center gap-3">
-          {headerExtra}
-          <div className="flex items-center gap-[6px]">
-            {DOT_COLORS.map((color) => (
-              <span key={color} className="h-[9px] w-[9px] rounded-full" style={{ backgroundColor: color }} />
-            ))}
-          </div>
         </div>
+        {headerExtra}
       </div>
       {/* p-6 / text-[14px] / leading-[1.9], matching CortexaTerminalPanel's
           own body treatment exactly (not a max-width — the pipeline inside

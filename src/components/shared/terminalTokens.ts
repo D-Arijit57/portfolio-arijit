@@ -57,14 +57,37 @@ export const PROMPT = {
 export const PALETTE = {
   /** `documentation/ProjectTerminalPanel.tsx`'s values verbatim — the Cortexa/Rakshachakra/American Chase terminal family. */
   docPanel: {
-    bg: '#161B22',
+    /** Phase 9B (second pass): the user asked for cortexa.md/rakshachakra.md/
+     * americanchase.yaml's terminal shells to match whoami.md's own
+     * `git log --oneline` box *exactly* — that box's background is the
+     * app's already-dominant `#1e1e1e` (Terminal.tsx, contact.sh, every
+     * other editor surface), not a bespoke docPanel tone. Was `#161B22`
+     * (blue-navy), briefly `#161616` (neutral near-black) in an earlier
+     * attempt at the same goal — both superseded by reusing the one value
+     * that's actually everywhere already. */
+    bg: '#1e1e1e',
     /** The page this family's panels sit on — `ProjectDocumentationViewer.tsx`'s `CORTEXA_BACKGROUND`, darker than `bg` on purpose (see that file's own comment on the panel-vs-page contrast direction). Was independently duplicated as pipeline/tokens.ts's `SURFACE`. */
-    page: '#0F1117',
+    page: '#0d0d0d',
     border: 'rgba(255,255,255,.08)',
     text: '#E5E7EB',
     muted: '#9CA3AF',
-    accent: '#38BDF8',
-    success: '#6EE7B7',
+    /** Phase 9B (third pass, then reverted): was `#38BDF8`, briefly Apple
+     * Terminal.app's literal ANSI blue (`#2009DB`, decoded from Apple's real
+     * .terminal profile) — reverted back to the app's dominant "prompt
+     * blue," now matching `flatCard.accent` below exactly rather than
+     * being its own distinct docPanel-family blue. Every green/teal/blue
+     * literal across cortexa.md/rakshachakra.md/americanchase.yaml's own
+     * terminal files that converged onto the Apple blue in this pass was
+     * reverted alongside it. */
+    accent: '#569cd6',
+    /** Phase 9B (third pass): was `#6EE7B7`, briefly Apple Terminal.app's
+     * literal "Pro" profile bright ANSI green (`#00D900`, decoded from
+     * Apple's real .terminal colour profile) — that read as too neon, so
+     * this settled on `#4CD964`, Apple's own macOS/iOS system green
+     * (toggles/success states): still genuinely "an Apple green," just
+     * warmer and less saturated than the raw ANSI value. Unlike accent
+     * above, a green change was kept here, just tuned rather than reverted. */
+    success: '#4CD964',
   },
   /** `TerminalInfoCard.tsx`/`ContributionsTerminal.tsx`'s values — the chromeless flat-card family. */
   flatCard: {

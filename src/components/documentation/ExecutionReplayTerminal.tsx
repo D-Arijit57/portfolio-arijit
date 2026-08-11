@@ -8,10 +8,10 @@ import {
 } from '../../content/cortexaNarrative';
 import type { DocumentationFrontmatter } from '../../documentation/types';
 
-const ACCENT = '#38BDF8';
+const ACCENT = '#569cd6';
 const MUTED = '#9CA3AF';
 const TEXT = '#E5E7EB';
-const SUCCESS = '#6EE7B7';
+const SUCCESS = '#4CD964';
 
 // The one moment on the page that should feel fast. Real logs print in
 // bursts, so events land quickly and unevenly rather than on a metronome —

@@ -5,6 +5,7 @@ import { extractFencedBlock } from '../../lib/extractFencedBlock';
 import { formatRelativeTime } from '../../lib/formatRelativeTime';
 import { useInViewOnce } from '../../hooks/useInViewOnce';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../lib/typingReveal';
+import { CHROME } from './terminalTokens';
 import type { GitHubActivityEntry } from '../../types/github';
 
 interface RecentActivityLogProps {
@@ -99,9 +100,12 @@ export function RecentActivityLog({ sourceFileId = 'github:activity' }: RecentAc
       ) : (
         <>
           <div className="flex items-center gap-2 border-b border-[#333333] px-3 py-1 text-[#858585]">
-            <span className="h-2 w-2 rounded-full bg-[#f14c4c]" />
-            <span className="h-2 w-2 rounded-full bg-[#e5e510]" />
-            <span className="h-2 w-2 rounded-full bg-[#3fb950]" />
+            {/* Phase 9B: standard macOS traffic-light dots (terminalTokens.ts's
+                CHROME.dots.colors) — this header was the one terminal chrome
+                surface in the app still using its own one-off red/yellow/green. */}
+            {CHROME.dots.colors.map((color) => (
+              <span key={color} className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+            ))}
             <span className="ml-2 text-[10px]">git log --oneline</span>
           </div>
           {/*
@@ -123,7 +127,7 @@ export function RecentActivityLog({ sourceFileId = 'github:activity' }: RecentAc
                 <div key={i} className="flex gap-2" title={entry.repoName}>
                   <div className="relative flex w-2 shrink-0 flex-col items-center">
                     <motion.span
-                      className="h-2 w-2 shrink-0 rounded-full bg-[#3fb950]"
+                      className="h-2 w-2 shrink-0 rounded-full bg-[#4CD964]"
                       initial={skip ? false : { opacity: 0, scale: 0.85 }}
                       animate={{ opacity: revealed ? 1 : 0, scale: revealed ? [0.85, 1.15, 1] : 0.85 }}
                       transition={{ duration: skip ? 0 : NODE_S, delay: nodeDelay, ease: 'easeOut' }}
@@ -150,7 +154,7 @@ export function RecentActivityLog({ sourceFileId = 'github:activity' }: RecentAc
                       animate={{ opacity: revealed ? 1 : 0 }}
                       transition={{ duration: skip ? 0 : TEXT_FADE_S, delay: nodeDelay + NODE_S * 0.5 }}
                     >
-                      {entry.sha && <span className="mr-2 text-[#4ec9b0]">{entry.sha}</span>}
+                      {entry.sha && <span className="mr-2 text-[#4CD964]">{entry.sha}</span>}
                       <span className="text-[#cccccc]">{entry.summary}</span>
                     </motion.span>
                     <motion.span

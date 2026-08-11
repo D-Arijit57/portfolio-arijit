@@ -3,7 +3,7 @@ import { CortexaTerminalPanel } from './CortexaTerminalPanel';
 import { CONSTRAINT } from '../../content/cortexaNarrative';
 
 const MUTED = '#9CA3AF';
-const ACCENT = '#38BDF8';
+const ACCENT = '#569cd6';
 
 const PROBLEM_BLOCKS: string[][] = [
   ['Why does every interview still feel stitched together?'],

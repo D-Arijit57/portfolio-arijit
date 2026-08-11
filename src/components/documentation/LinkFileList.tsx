@@ -24,7 +24,7 @@ const EXTENSION_ICON: Record<string, { Icon: LucideIcon; color: string }> = {
   mmd: { Icon: FileText, color: '#ff3670' },
   yaml: { Icon: FileJson, color: '#cb3837' },
   git: { Icon: GitBranch, color: '#f97316' },
-  live: { Icon: Globe, color: '#4ec9b0' },
+  live: { Icon: Globe, color: '#4CD964' },
 };
 
 function iconForTitle(title: string): { Icon: LucideIcon; color: string } {

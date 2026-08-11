@@ -151,7 +151,7 @@ export function ExperienceTerminalOne({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`Open ${experience.company}'s website`}
-                className="mt-1 inline-flex items-center gap-1 text-[11.5px] transition-colors hover:text-[#cccccc] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
+                className="mt-1 inline-flex items-center gap-1 text-[11.5px] transition-colors hover:text-[#cccccc] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#569cd6]"
                 style={{ color: CONTENT_DIM }}
               >
                 <ArrowUpRight size={11} aria-hidden="true" />

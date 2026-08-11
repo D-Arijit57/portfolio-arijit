@@ -6,7 +6,7 @@ import type { FeatureListItem } from '../../documentation/featureList';
 
 const DEFAULT_SESSION_KEY = 'cortexa-feature-manifest';
 const DEFAULT_COMMAND_LABEL = './core-features.sh';
-const SUCCESS_GREEN = '#4ec9b0';
+const SUCCESS_GREEN = '#4CD964';
 const PROMPT_BLUE = '#569cd6';
 const DESCRIPTION_HOLD_MS = 260;
 

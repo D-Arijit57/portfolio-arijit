@@ -27,7 +27,7 @@ export function DocumentationHero({
 
   return (
     <div className="mb-8">
-      <TerminalPromptLine tokens={[{ text: 'cat ', color: '#4ec9b0' }, { text: fileName, color: '#ffffff', opacity: 0.85 }]} />
+      <TerminalPromptLine tokens={[{ text: 'cat ', color: '#4CD964' }, { text: fileName, color: '#ffffff', opacity: 0.85 }]} />
       {/* pl-[10px] lines up with TerminalPromptLine's own 2px accent bar +
           gap-2, so this "output" reads as flush underneath the `$` prompt. */}
       <div className="mt-1 flex flex-col gap-1.5 pl-[10px] font-mono">
@@ -40,7 +40,7 @@ export function DocumentationHero({
         )}
         {status && (
           <p className="flex items-center gap-1.5 text-[13px] text-white">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3fb950]" />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#4CD964]" />
             {status}
           </p>
         )}

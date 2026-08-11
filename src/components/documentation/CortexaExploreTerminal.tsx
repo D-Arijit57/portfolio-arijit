@@ -10,7 +10,7 @@ const TEXT = '#E5E7EB';
 const SESSION_KEY = 'cortexa-explore-terminal';
 
 const INTERACTIVE_CLASS =
-  'bg-transparent border-0 p-0 m-0 font-mono text-[inherit] leading-[inherit] transition-colors hover:text-[#38BDF8] hover:underline underline-offset-4 cursor-pointer';
+  'bg-transparent border-0 p-0 m-0 font-mono text-[inherit] leading-[inherit] transition-colors hover:text-[#569cd6] hover:underline underline-offset-4 cursor-pointer';
 
 type TreeEntry =
   | { kind: 'root'; line: string }

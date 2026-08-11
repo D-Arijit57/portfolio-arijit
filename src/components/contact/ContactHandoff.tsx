@@ -6,6 +6,7 @@ import { toVCard } from '../../contact/vcard';
 import { ContactRow } from './ContactRow';
 import { ResumeRow, type ResumeStatus } from './ResumeRow';
 import { WorkspaceReview } from './WorkspaceReview';
+import { TerminalPromptLine } from '../shared/TerminalPromptLine';
 
 const RESUME_PATH = '/resume/Arijit_Das_Resume.pdf';
 const RESUME_FILENAME = 'Arijit_Das_Resume.pdf';
@@ -166,6 +167,19 @@ export function ContactHandoff({ file: _file }: { file: VirtualFile }) {
         <div aria-live="polite" className="sr-only">
           {announcement}
         </div>
+
+        {/* Phase 9B (Terminal Visual Consistency): the same `$ cat <file>`
+            prompt-line grammar whoami.md's AboutSection uses — ties this
+            page into the shared terminal language without touching the
+            "everything visible at once, no stagger" handoff behavior below
+            (see this component's own top comment): it's a single ~250ms
+            fade-in on the header only, never gating the contact rows. */}
+        <TerminalPromptLine
+          tokens={[
+            { text: 'cat ', color: '#4ec9b0' },
+            { text: 'contact.sh', color: '#ffffff', opacity: 0.85 },
+          ]}
+        />
 
         <p className="text-[13px] leading-relaxed text-[#cccccc]">
           You've been reading my files.

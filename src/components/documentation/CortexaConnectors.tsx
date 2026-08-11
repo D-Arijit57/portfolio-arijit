@@ -1,5 +1,10 @@
 import React, { useLayoutEffect, useState } from 'react';
 
+// Kept at cortexa.md's original wire colour, not the app-wide `#569cd6`
+// prompt-blue every other blue text on this page reverted to — this
+// component's own drop-shadow glow below is a hardcoded `rgba(56,189,248,…)`
+// (the decimal form of `#38BDF8`), so the wire's stroke has to stay that
+// same blue or the glow reads as a mismatched colour around the line.
 const ACCENT = '#38BDF8';
 
 // Where the wire meets run-cortexa: a fixed distance below that panel's top

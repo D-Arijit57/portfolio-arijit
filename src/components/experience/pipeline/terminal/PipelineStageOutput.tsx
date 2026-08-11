@@ -86,7 +86,7 @@ export function PipelineStageOutput({
       onFocus={onSelect}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
-      className="relative block min-w-0 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4fc1ff]"
+      className="relative block min-w-0 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[#569cd6]"
       style={{
         ...(horizontal ? { flexGrow: 1, flexBasis: 0 } : {}),
         opacity: dormant ? 0.32 : dimmed ? 0.55 : 1,

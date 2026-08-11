@@ -239,7 +239,7 @@ metadata: [Status: Deployed]
 ## Continue Exploring
 
 - [architecture.mmd](architecture.mmd) — Interactive system architecture diagram.
-- [manifest.yaml](manifest.yaml) — Categorized technology inventory.
+- [constellation.explore](constellation.explore) — Categorized technology inventory.
 - [repository.git](https://github.com/D-Arijit57) — Source code on GitHub.
 - [demo.live](https://cortexa-eight.vercel.app/) — Live, deployed instance of the app.
 `;
@@ -252,7 +252,7 @@ metadata: [Status: Deployed]
 // copy — update both by hand together (hydrateVFS() replaces the frontend
 // seed with this one, so this copy is what actually renders at runtime).
 //
-// The file is named/typed manifest.yaml (see the virtual file entry
+// The file is named constellation.explore (see the virtual file entry
 // below) but this text stays JSON-flow-style rather than YAML block
 // style — JSON is a valid subset of YAML 1.2, so parseManifest()'s
 // JSON.parse() keeps working unchanged. It's never shown raw either way
@@ -434,7 +434,7 @@ Most mobile banking apps authenticate a user once at login and then trust that s
 ## Continue Exploring
 
 - [Architecture Canvas](architecture.mmd) — Explore the interactive system architecture.
-- [Technology Manifest](manifest.yaml) — Browse the complete categorized technology inventory.
+- [Tech Stack Constellation](constellation.explore) — Browse the complete categorized technology inventory.
 - [GitHub Repository](https://github.com/D-Arijit57/Rakshachakra) — Explore the implementation and source code.
 `;
 
@@ -966,9 +966,9 @@ export const workspaceSeed: VirtualFolder = {
             } as VirtualFile,
             {
               id: 'cortexa_manifest',
-              name: 'manifest.yaml',
-              type: 'yaml',
-              path: '/projects/Cortexa/manifest.yaml',
+              name: 'constellation.explore',
+              type: 'explore',
+              path: '/projects/Cortexa/constellation.explore',
               content: CORTEXA_MANIFEST_YAML,
             } as VirtualFile,
           ],
@@ -994,9 +994,9 @@ export const workspaceSeed: VirtualFolder = {
             } as VirtualFile,
             {
               id: 'rakshachakra_manifest',
-              name: 'manifest.yaml',
-              type: 'yaml',
-              path: '/projects/Rakshachakra/manifest.yaml',
+              name: 'constellation.explore',
+              type: 'explore',
+              path: '/projects/Rakshachakra/constellation.explore',
               content: RAKSHACHAKRA_MANIFEST_YAML,
             } as VirtualFile,
           ],

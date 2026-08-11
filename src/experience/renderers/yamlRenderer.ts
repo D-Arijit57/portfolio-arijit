@@ -43,7 +43,7 @@ function formatExperience(exp: WorkExperience): string {
  * Work History Renderer — pure function: WorkExperience[] in, YAML source
  * text out. The same "model in, source text out" relationship
  * modelToMermaid() has with architecture.mmd and buildCategoryYaml() has
- * with manifest.yaml: this text is only ever shown, in the editor's left
+ * with constellation.explore: this text is only ever shown, in the editor's left
  * pane — the Career Roadmap panel never parses it back, it imports the
  * same `workHistory` array directly (src/content/workHistory.ts), so there
  * is exactly one place the actual data lives.

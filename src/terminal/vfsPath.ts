@@ -12,7 +12,7 @@ import type { VirtualFile, VirtualFolder } from '../types';
  * Extension-suffix fallback mirrors the same bounded set useRouterSync.ts
  * already uses for URL resolution, rather than inventing a new convention.
  */
-const KNOWN_EXTENSIONS = ['md', 'ts', 'tsx', 'py', 'json', 'yaml', 'yml', 'sh', 'mmd'];
+const KNOWN_EXTENSIONS = ['md', 'ts', 'tsx', 'py', 'json', 'yaml', 'yml', 'sh', 'mmd', 'explore'];
 
 function segments(path: string): string[] {
   return path.split('/').filter(Boolean);

@@ -9,7 +9,8 @@ export type FileType =
   | 'mermaid'
   | 'tsx'
   | 'graph'
-  | 'log';
+  | 'log'
+  | 'explore';
 
 export const FILE_TYPES: readonly FileType[] = [
   'markdown',
@@ -23,6 +24,7 @@ export const FILE_TYPES: readonly FileType[] = [
   'tsx',
   'graph',
   'log',
+  'explore',
 ];
 
 export function isValidFileType(value: string): value is FileType {

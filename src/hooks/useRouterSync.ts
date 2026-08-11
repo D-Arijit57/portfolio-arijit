@@ -20,6 +20,7 @@ export function resolveUrlPathToFile(pathname: string) {
            fPath === normalizedPath + '.yml' ||
            fPath === normalizedPath + '.mmd' ||
            fPath === normalizedPath + '.sh' ||
+           fPath === normalizedPath + '.explore' ||
            fPath === normalizedPath + '/readme.md' ||
            fPath === normalizedPath + '/whoami.md' ||
            fPath === normalizedPath + '/americanchase.yaml' ||
@@ -64,7 +65,7 @@ export function useRouterSync() {
       const file = getFileById(activeFileId);
       if (file) {
         let newPath = '/journey' + file.path.toLowerCase();
-        newPath = newPath.replace(/\.(md|ts|py|json|yaml|yml|sh|mmd)$/, '');
+        newPath = newPath.replace(/\.(md|ts|py|json|yaml|yml|sh|mmd|explore)$/, '');
         
         // Custom cleanups based on user request
         if (newPath === '/journey/about/whoami') newPath = '/journey/about';

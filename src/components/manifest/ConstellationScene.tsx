@@ -10,6 +10,7 @@ import { ConstellationBackdrop } from './ConstellationBackdrop';
 import { ConstellationStar } from './ConstellationStar';
 import { ConstellationEdge } from './ConstellationEdge';
 import type { ConstellationVisualState } from './constellationVisualState';
+import { ProjectTerminalPanel, TEXT as PANEL_TEXT, MUTED as PANEL_MUTED, BORDER as PANEL_DIVIDER } from '../documentation/ProjectTerminalPanel';
 
 /**
  * The Tech Stack Constellation's scene — everything downstream of "a
@@ -369,25 +370,38 @@ function ConstellationInfoCard({
     );
   }
 
+  // The legend as a terminal, reusing documentation/ProjectTerminalPanel.tsx
+  // — the same dots-and-hairline shell cortexa.md/rakshachakra.md's own
+  // ./problem.sh, ./signals.sh, tree . panels use — rather than the rounded/
+  // blurred floating-card treatment every other constellation.explore chrome
+  // (this card's own selected-node variant, the fit/reset toolbar) still
+  // uses. `cardRef` goes straight onto the panel (it forwards its own ref)
+  // so the viewport's fit math keeps measuring one element, exactly as
+  // before — no extra wrapper div changing the box it reserves. `bodyPadding
+  //="p-0"` opts out of the panel's own content padding so the legend can
+  // keep its original two-region layout (category list, then a hairline-
+  // divided technology-count footer) instead of one undifferentiated block.
   return (
-    <div ref={cardRef} className="absolute right-3 top-3 z-10 w-52 rounded-lg border border-[#3c3c3c] bg-[#1e1e1e]/90 shadow-lg backdrop-blur-sm">
-      <div className="px-3 py-2.5">
-        <div className="mb-2 text-[10px] uppercase tracking-wide text-[#858585]">Legend</div>
-        <ul className="space-y-1.5">
-          {graph.categories.map((cat) => (
-            <li key={cat.key} className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
-              <span className="truncate text-[11px] text-[#cccccc]">{cat.label}</span>
-            </li>
-          ))}
-        </ul>
+    <ProjectTerminalPanel
+      ref={cardRef}
+      fileName="legend"
+      className="absolute right-3 top-3 z-10 w-52"
+      bodyPadding="p-0"
+    >
+      <ul className="space-y-1.5 px-3 py-2.5">
+        {graph.categories.map((cat) => (
+          <li key={cat.key} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat.color }} />
+            <span className="truncate text-[11px]" style={{ color: PANEL_TEXT }}>{cat.label}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-2 px-3 py-2 text-[11px]" style={{ borderTop: `1px solid ${PANEL_DIVIDER}` }}>
+        <Boxes size={13} style={{ color: PANEL_MUTED }} />
+        <span className="font-semibold" style={{ color: PANEL_TEXT }}>{graph.nodes.length}</span>
+        <span style={{ color: PANEL_MUTED }}>Technologies</span>
       </div>
-      <div className="flex items-center gap-2 border-t border-[#3c3c3c] px-3 py-2 text-[11px]">
-        <Boxes size={13} className="text-[#858585]" />
-        <span className="font-semibold text-white">{graph.nodes.length}</span>
-        <span className="text-[#9d9d9d]">Technologies</span>
-      </div>
-    </div>
+    </ProjectTerminalPanel>
   );
 }
 

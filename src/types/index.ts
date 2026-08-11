@@ -1,4 +1,4 @@
-export type FileType = 'markdown' | 'typescript' | 'python' | 'json' | 'yaml' | 'toml' | 'shell' | 'mermaid' | 'tsx' | 'graph' | 'log';
+export type FileType = 'markdown' | 'typescript' | 'python' | 'json' | 'yaml' | 'toml' | 'shell' | 'mermaid' | 'tsx' | 'graph' | 'log' | 'explore';
 
 export interface VirtualFile {
   id: string;

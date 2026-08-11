@@ -26,6 +26,23 @@ const GraphFileIcon = () => (
   </svg>
 );
 
+/** constellation.explore's file icon: a small connected-node cluster, one
+ * color rather than GraphFileIcon's three (this is one file format, not
+ * three distinct technologies) — the same VS Code blue the constellation
+ * viewer's own `#` heading marker already uses (ManifestConstellation.tsx),
+ * so the icon and the file it opens read as the same identity. Filled dots
+ * for stars, thin connecting strokes, no fill on the lines — the same
+ * "point of light" language ConstellationScene.tsx's actual star nodes use. */
+const ConstellationFileIcon = () => (
+  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 7L12 4L19 10L13 19" className="text-[#569cd6]" stroke="currentColor" />
+    <circle cx="5" cy="7" r="1.4" className="text-[#569cd6]" fill="currentColor" />
+    <circle cx="12" cy="4" r="1.4" className="text-[#569cd6]" fill="currentColor" />
+    <circle cx="19" cy="10" r="1.4" className="text-[#569cd6]" fill="currentColor" />
+    <circle cx="13" cy="19" r="1.4" className="text-[#569cd6]" fill="currentColor" />
+  </svg>
+);
+
 const FileIconMap: Record<string, React.ReactNode> = {
   markdown: <FileText size={16} className="text-[#519aba]" />,
   python: <FileCode2 size={16} className="text-[#3572A5]" />,
@@ -36,6 +53,7 @@ const FileIconMap: Record<string, React.ReactNode> = {
   log: <TerminalIcon size={16} className="text-[#4d5a5e]" />,
   mermaid: <FileText size={16} className="text-[#ff3670]" />,
   graph: <GraphFileIcon />,
+  explore: <ConstellationFileIcon />,
   default: <FileIcon size={16} className="text-[#cccccc]" />,
 };
 

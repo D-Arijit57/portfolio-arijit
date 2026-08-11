@@ -45,7 +45,7 @@ export interface ManifestTechnology {
    * constellationGraph.ts), exactly as before this field existed. This is
    * what lets a project give its own major technologies distinct identity
    * colors (e.g. Flutter blue, Firebase orange) even when several of them
-   * share one manifest.yaml category, without touching category-based
+   * share one constellation.explore category, without touching category-based
    * coloring for every other project's manifest. */
   color?: string;
   /** Other technologies (by their `technology` name, within the same manifest) this one visually connects to and logically precedes in the Tech Stack Constellation's construction sequence — e.g. "Clerk" listing `connectsTo: ["React", "Convex"]`. The authored topology, not an inferred one. A manifest with no `connectsTo` anywhere falls back to a simple declaration-order chain. */

@@ -59,7 +59,7 @@ function computeGuideIndentUnits(rawLines: string[], indentUnits: number[]): num
 /**
  * Line-aware, indent-guide-drawing YAML block for americanchase.yaml's left
  * pane. Split out from the plain "dump Shiki's HTML in one div" approach
- * (which the manifest.yaml/architecture.mmd viewers can get away with,
+ * (which the constellation.explore/architecture.mmd viewers can get away with,
  * since their lines are short) because americanchase.yaml's `highlights`
  * entries are long enough to wrap — this renders each source line as its
  * own row so it can (a) draw the indent guide lines VS Code shows for

@@ -3,48 +3,54 @@ import type { PipelineStage } from '../../../experience/types';
 import { isContributed } from '../../../experience/pipeline';
 import { hasAnimated, markAnimated, prefersReducedMotion } from '../../../lib/typingReveal';
 import { useInViewOnce } from '../../../hooks/useInViewOnce';
-import { ExperienceTerminalPanel, PROMPT_ACCENT } from '../pipeline/terminal/ExperienceTerminalPanel';
 import { PipelineStageOutput } from '../pipeline/terminal/PipelineStageOutput';
-import { PipelineArrow } from '../pipeline/terminal/PipelineArrow';
-import { StageDetail } from '../pipeline/StageDetail';
-import { CONTENT_DIM, DIM, TEXT } from '../pipeline/tokens';
+import { CONTENT_DIM, DIM, RULE } from '../pipeline/tokens';
 
 const SESSION_KEY = 'americanchase-canvas-pipeline';
 
-/** How long a stage stays "executing" before handing off. ExperienceTerminalTwo's
- * own value, kept so the cascade runs at the speed this page already established. */
-const STAGE_DWELL_MS = 150;
+/** Enough of the column on screen to be worth watching flow. */
+const VISIBLE_THRESHOLD = 0.15;
 
-/** Enough of the column on screen to be worth watching unlock. */
-const VISIBLE_THRESHOLD = 0.25;
+/** The rail's own column width — dot plus breathing room before the stage text. */
+const RAIL_PX = 22;
+const DOT_PX = 9;
 
 /**
- * The engineering pipeline — the canvas's data-driven backbone.
+ * The engineering pipeline — the system flow itself, not another artifact.
  *
- * Vertical at every width, which is the one behavioural difference from
- * `ExperienceTerminalTwo`: that component switches orientation below 560px,
- * this one is always `horizontal={false}` and always `direction="down"`. Every
- * stage row is `PipelineStageOutput` and every connector `PipelineArrow`, both
- * unmodified — including the field rule that makes this artifact distinct from
- * architecture.ts: the row prints `claim ?? description` and the stage's
- * headline measurement, i.e. *what changed*, where the diagram prints
- * `description` and technologies, i.e. *what the system is*.
+ * Deliberately *not* wrapped in `ExperienceTerminalPanel`: it has no traffic
+ * lights, no title bar, no `$ ./pipeline.sh`, and no heading. The four stages
+ * down a lit rail say "pipeline" without a label, and framing them as a
+ * terminal window would have demoted the page's one first-class visualization
+ * to a fourth card. The terminal shell stays where it belongs — on the
+ * artifacts, which really are files and sessions.
  *
- * The cascade is `ExperienceTerminalTwo`'s mechanic, ported rather than
- * reinvented: a stage settles, its connector carries a packet, and the
- * packet's own `animationend` unlocks the stage on the far side. No stage is
- * ever released by a timer counted alongside an animation. `instant` (reduced
- * motion, or a repeat visit this session) mounts everything settled.
+ * Flow reveal, top to bottom. A stage settles, the rail segment beneath it
+ * draws, and the segment's own `animationend` is what reveals the next stage —
+ * the same event-driven rule the rest of this workspace's sequencing follows,
+ * with no timer counted alongside an animation. The segment reuses
+ * `.execution-wire-draw` verbatim (`pathLength={100}` + `strokeDasharray="100"`,
+ * so a short gap and a tall one draw at the same apparent speed), which also
+ * means its `prefers-reduced-motion` behaviour is inherited rather than
+ * reimplemented.
+ *
+ * Under reduced motion — or on a repeat visit this session — `instant` mounts
+ * every stage revealed and every segment solid. That path is load-bearing, not
+ * a nicety: `.execution-wire-draw` resolves to `animation: none` under reduced
+ * motion, so no `animationend` would ever fire and a chain waiting on one
+ * would stall forever.
  */
 export function SystemPipeline({
   stages,
+  accents,
   activeStageId,
   onStageActiveChange,
   anchorRef,
   stageAnchorRef,
 }: {
   stages: PipelineStage[];
-  /** A stage highlighted from outside — e.g. an artifact being hovered. */
+  /** Stage id → identity colour (see canvas/stageAccents.ts). */
+  accents: Map<string, string>;
   activeStageId?: string | null;
   onStageActiveChange?: (stageId: string | null) => void;
   anchorRef?: (node: HTMLDivElement | null) => void;
@@ -54,11 +60,10 @@ export function SystemPipeline({
   const reduceMotion = prefersReducedMotion();
   const instant = useRef(reduceMotion || hasAnimated(SESSION_KEY)).current;
 
-  const [unlocked, setUnlocked] = useState(instant ? stages.length : 0);
-  const [pulsing, setPulsing] = useState<number | null>(null);
-  // `defaultStageId()`'s own rule — the first stage worth opening is never a
-  // context-only one — applied to the stage list directly, since this column
-  // is handed stages rather than the whole visualization model.
+  /** How many stages have been revealed. */
+  const [revealed, setRevealed] = useState(instant ? stages.length : 0);
+  /** Index of the rail segment currently drawing, if any. */
+  const [drawing, setDrawing] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState(
     () => stages.find(isContributed)?.id ?? stages[0]?.id,
   );
@@ -67,32 +72,32 @@ export function SystemPipeline({
   const listRef = useRef<HTMLDivElement>(null);
   const { ref: inViewRef, inView } = useInViewOnce<HTMLDivElement>(VISIBLE_THRESHOLD);
 
-  const complete = unlocked >= stages.length;
+  const complete = revealed >= stages.length;
   const selected = stages.find((stage) => stage.id === selectedId);
 
   useEffect(() => {
     if (!instant) markAnimated(SESSION_KEY);
   }, [instant]);
 
-  // First stage runs once the column is genuinely on screen.
+  // The first stage arrives once the column is genuinely on screen.
   useEffect(() => {
-    if (instant || !inView || unlocked > 0) return;
-    setUnlocked(1);
-  }, [instant, inView, unlocked]);
+    if (instant || !inView || revealed > 0) return;
+    setRevealed(1);
+  }, [instant, inView, revealed]);
 
-  // A stage settles → send its packet down the next connector.
+  // A stage has settled → start drawing the segment below it. The segment's
+  // own animationend reveals the next stage.
   useEffect(() => {
-    if (instant || unlocked === 0 || complete || pulsing !== null) return undefined;
-    const timer = window.setTimeout(() => setPulsing(unlocked - 1), STAGE_DWELL_MS);
-    return () => window.clearTimeout(timer);
-  }, [instant, unlocked, complete, pulsing]);
+    if (instant || revealed === 0 || complete || drawing !== null) return;
+    setDrawing(revealed - 1);
+  }, [instant, revealed, complete, drawing]);
 
-  const handlePulseArrived = () => {
-    setPulsing(null);
-    setUnlocked((count) => Math.min(count + 1, stages.length));
+  const handleSegmentDrawn = () => {
+    setDrawing(null);
+    setRevealed((count) => Math.min(count + 1, stages.length));
   };
 
-  // Roving tablist focus — ported unchanged from ExperienceTerminalTwo.
+  // Roving tablist focus — ported unchanged from the previous pipeline.
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const forward = ['ArrowRight', 'ArrowDown'];
     const back = ['ArrowLeft', 'ArrowUp'];
@@ -120,24 +125,27 @@ export function SystemPipeline({
         inViewRef.current = node;
         anchorRef?.(node);
       }}
+      className="flex h-full min-h-0 flex-col"
     >
-      <ExperienceTerminalPanel title="pipeline.sh">
-        <div className="font-mono text-[12px]" style={{ color: TEXT }}>
-          <span style={{ color: PROMPT_ACCENT }}>$</span> ./pipeline.sh
-        </div>
+      <div
+        ref={listRef}
+        role="tablist"
+        aria-label="Pipeline stages"
+        aria-orientation="vertical"
+        onKeyDown={handleKeyDown}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        {stages.map((stage, index) => {
+          const accent = accents.get(stage.id) ?? RULE;
+          const isRevealed = index < revealed;
+          const last = index === stages.length - 1;
 
-        <div
-          ref={listRef}
-          role="tablist"
-          aria-label="Pipeline stages"
-          aria-orientation="vertical"
-          onKeyDown={handleKeyDown}
-          className="mt-4 flex w-full flex-col"
-        >
-          {stages.map((stage, index) => (
+          return (
             <React.Fragment key={stage.id}>
               <div
                 ref={(node) => stageAnchorRef?.(stage.id, node)}
+                className="grid"
+                style={{ gridTemplateColumns: `${RAIL_PX}px minmax(0, 1fr)` }}
                 onMouseEnter={() => {
                   setHoveredId(stage.id);
                   onStageActiveChange?.(stage.id);
@@ -146,10 +154,8 @@ export function SystemPipeline({
                   setHoveredId(null);
                   onStageActiveChange?.(null);
                 }}
-                // Keyboard parity. React's onFocus/onBlur are focusin/focusout
-                // and so bubble from the tab button inside — without these,
-                // arrowing through the stages moved selection but lit none of
-                // the connectors that hovering the same row lights.
+                // Keyboard parity — React's onFocus/onBlur are focusin/focusout
+                // and bubble from the tab button inside.
                 onFocus={() => {
                   setHoveredId(stage.id);
                   onStageActiveChange?.(stage.id);
@@ -159,67 +165,206 @@ export function SystemPipeline({
                   onStageActiveChange?.(null);
                 }}
               >
-                <PipelineStageOutput
-                  stage={stage}
-                  index={index}
-                  horizontal={false}
-                  dormant={index >= unlocked}
-                  active={!complete && index === unlocked - 1}
-                  selected={complete && stage.id === selectedId}
-                  dimmed={
-                    complete &&
-                    hoveredId === null &&
-                    activeStageId != null &&
-                    activeStageId !== stage.id &&
-                    stage.id !== selectedId
-                  }
-                  tabId={`${idPrefix}-tab-${stage.id}`}
-                  panelId={`${idPrefix}-panel`}
-                  onSelect={() => setSelectedId(stage.id)}
-                  onHover={(hovering) => setHoveredId(hovering ? stage.id : null)}
-                />
+                <StageDot accent={accent} revealed={isRevealed} reduceMotion={reduceMotion} />
 
-                {/* Contribution state as words, not only as the colour
-                    PipelineStageOutput already varies — plus the highlight
-                    indices this reading was interpreted from, so every row on
-                    the column is traceable without opening anything. */}
                 <div
-                  className="mt-1 font-mono text-[10.5px]"
-                  style={{ color: DIM, opacity: index >= unlocked ? 0 : 1, transition: 'opacity 250ms ease-out' }}
+                  style={{
+                    opacity: isRevealed ? 1 : 0,
+                    transition: reduceMotion ? 'none' : 'opacity 220ms ease-out',
+                  }}
                 >
-                  {isContributed(stage) ? 'direct contribution' : 'context only'}
-                  {stage.sourceHighlights.length > 0 && (
-                    <> · {stage.sourceHighlights.map((i) => `h${i}`).join(' ')}</>
-                  )}
+                  <PipelineStageOutput
+                    stage={stage}
+                    index={index}
+                    horizontal={false}
+                    dormant={false}
+                    active={false}
+                    selected={complete && stage.id === selectedId}
+                    dimmed={
+                      complete &&
+                      hoveredId === null &&
+                      activeStageId != null &&
+                      activeStageId !== stage.id &&
+                      stage.id !== selectedId
+                    }
+                    tabId={`${idPrefix}-tab-${stage.id}`}
+                    panelId={`${idPrefix}-panel`}
+                    onSelect={() => setSelectedId(stage.id)}
+                    onHover={(hovering) => setHoveredId(hovering ? stage.id : null)}
+                  />
+
+                  <div className="mt-1 font-mono text-[10.5px]" style={{ color: DIM }}>
+                    {isContributed(stage) ? 'direct contribution' : 'context only'}
+                    {stage.sourceHighlights.length > 0 && (
+                      <> · {stage.sourceHighlights.map((i) => `h${i}`).join(' ')}</>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {index < stages.length - 1 && (
-                <PipelineArrow
-                  direction="down"
-                  lit={index < unlocked - 1}
-                  pulsing={pulsing === index}
-                  onPulseEnd={handlePulseArrived}
+              {/* The flowing segment. `flex-1` is what lets the pipeline fill
+                  its column: the gaps absorb whatever height the artifacts
+                  beside them happen to need, so the rail reads as one long
+                  run rather than four rows clustered at the top. */}
+              {!last && (
+                <RailSegment
+                  accent={accent}
+                  state={instant ? 'solid' : drawing === index ? 'drawing' : index < revealed - 1 ? 'solid' : 'idle'}
+                  onDrawn={handleSegmentDrawn}
                 />
               )}
             </React.Fragment>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {complete && selected && (
-          <div
-            key={selected.id}
-            className={`mt-5 border-t pt-4 ${reduceMotion ? '' : 'animate-[fade-rise_320ms_ease-out_both]'}`}
-            style={{ borderColor: '#333333' }}
-          >
-            <StageDetail
-              stage={selected}
-              panelId={`${idPrefix}-panel`}
-              tabId={`${idPrefix}-tab-${selected.id}`}
+      {/* The indicators are the end of the column.
+​
+          The stage's full evidence — contribution sentence, before/after diff,
+          technologies, highlight provenance — used to render here as a
+          `StageDetail` panel and no longer does. It was the tallest block on
+          the page and it restated, at length, what the stage row directly above
+          it had already said in one line. The column now terminates on the key.
+​
+          Selection state, the tablist roles and the roving-focus handler all
+          stay exactly as they were: they are what makes the stages keyboard
+          navigable, and `aria-controls` still names a live panel id. Only the
+          large explanatory surface is gone from the default presentation. */}
+      <div style={{ paddingLeft: RAIL_PX }}>
+        <StageLegend stages={stages} accents={accents} visible={complete} reduceMotion={reduceMotion} />
+      </div>
+
+      {/* The tabs' `aria-controls` target. Empty by design — the stage row is
+          its own label — but present so the relationship the roles assert is
+          real rather than dangling. */}
+      <div id={`${idPrefix}-panel`} role="tabpanel" aria-labelledby={selected ? `${idPrefix}-tab-${selected.id}` : undefined} />
+    </div>
+  );
+}
+
+/** The node on the rail. Its ring is the stage's own identity colour — the
+ * same value its connector and its legend entry wear. */
+function StageDot({
+  accent,
+  revealed,
+  reduceMotion,
+}: {
+  accent: string;
+  revealed: boolean;
+  reduceMotion: boolean;
+}) {
+  return (
+    <div aria-hidden="true" className="flex justify-center pt-[7px]">
+      <span
+        className="block shrink-0 rounded-full"
+        style={{
+          width: DOT_PX,
+          height: DOT_PX,
+          border: `1.5px solid ${accent}`,
+          backgroundColor: revealed ? accent : 'transparent',
+          opacity: revealed ? 1 : 0.35,
+          // One restrained ring, only while lit — no bloom, no pulse.
+          boxShadow: revealed ? `0 0 5px ${accent}55` : 'none',
+          transition: reduceMotion ? 'none' : 'opacity 220ms ease-out, background-color 220ms ease-out, box-shadow 220ms ease-out',
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * One run of rail between two stages.
+ *
+ * An SVG `line` rather than a bordered div specifically so it can reuse
+ * `.execution-wire-draw` — the workspace's existing one-shot draw, including
+ * its `pathLength` normalisation and its reduced-motion override — instead of
+ * needing a new keyframe. `onAnimationEnd` is the signal that advances the
+ * pipeline; nothing downstream is released on a guessed duration.
+ */
+function RailSegment({
+  accent,
+  state,
+  onDrawn,
+}: {
+  accent: string;
+  state: 'idle' | 'drawing' | 'solid';
+  onDrawn: () => void;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="grid min-h-[26px] flex-1"
+      style={{ gridTemplateColumns: `${RAIL_PX}px minmax(0, 1fr)` }}
+    >
+      <div className="relative">
+        {/* The channel exists before anything flows through it. */}
+        <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+          <line x1="50%" y1="0" x2="50%" y2="100%" stroke={RULE} strokeWidth={1} />
+          {state !== 'idle' && (
+            <line
+              x1="50%"
+              y1="0"
+              x2="50%"
+              y2="100%"
+              stroke={accent}
+              strokeWidth={1.5}
+              strokeOpacity={state === 'solid' ? 0.55 : 0.9}
+              pathLength={100}
+              strokeDasharray="100"
+              className={state === 'drawing' ? 'execution-wire-draw' : undefined}
+              onAnimationEnd={state === 'drawing' ? onDrawn : undefined}
             />
-          </div>
-        )}
-      </ExperienceTerminalPanel>
+          )}
+        </svg>
+      </div>
+      <div />
+    </div>
+  );
+}
+
+/**
+ * The key, attached to the foot of the rail rather than floating elsewhere.
+ *
+ * Every entry names a real stage and reads its state from `isContributed` —
+ * so it can never describe a stage the pipeline doesn't have, and the dot
+ * beside it is the same colour that stage wears on the rail and on its
+ * connectors. Explanatory UI, not a fifth artifact.
+ */
+function StageLegend({
+  stages,
+  accents,
+  visible,
+  reduceMotion,
+}: {
+  stages: PipelineStage[];
+  accents: Map<string, string>;
+  visible: boolean;
+  reduceMotion: boolean;
+}) {
+  return (
+    <div
+      className="mt-4 border-t pt-3"
+      style={{
+        borderColor: RULE,
+        opacity: visible ? 1 : 0,
+        transition: reduceMotion ? 'none' : 'opacity 260ms ease-out',
+      }}
+    >
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {stages.map((stage) => (
+          <li key={stage.id} className="flex items-center gap-2 font-mono text-[10.5px]">
+            <span
+              aria-hidden="true"
+              className="block h-[7px] w-[7px] shrink-0 rounded-full"
+              style={{ backgroundColor: accents.get(stage.id) ?? RULE }}
+            />
+            <span style={{ color: CONTENT_DIM }}>{stage.label}</span>
+            <span style={{ color: DIM }}>
+              {isContributed(stage) ? 'direct contribution' : 'context only'}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

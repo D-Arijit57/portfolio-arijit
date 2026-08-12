@@ -29,32 +29,33 @@ export function WorkspaceHeader({ identity }: { identity: WorkspaceIdentity }) {
   const end = identity.endDate === 'Present' ? 'present' : identity.endDate;
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-x-10 gap-y-5">
+    <header className="flex flex-wrap items-start justify-between gap-x-10 gap-y-3">
       <div className="flex min-w-0 items-start gap-3.5">
         {logo && (
           <img
             src={logo}
             alt=""
-            className="h-[34px] w-auto max-w-[130px] shrink-0 translate-y-[3px] object-contain"
+            className="h-[28px] w-auto max-w-[110px] shrink-0 translate-y-[2px] object-contain"
           />
         )}
 
         <div className="min-w-0">
           <h1
-            className="font-mono text-[26px] font-semibold leading-[1.15] tracking-[-0.01em]"
+            className="font-mono text-[22px] font-semibold leading-[1.15] tracking-[-0.01em]"
             style={{ color: STRONG }}
           >
             {identity.company}
           </h1>
-          <p
-            className="mt-1 font-mono text-[13px] uppercase tracking-[0.14em]"
-            style={{ color: CONTENT_DIM }}
-          >
-            {identity.role}
-          </p>
-          <p className="mt-2.5 font-mono text-[12.5px] tabular-nums" style={{ color: TEXT }}>
-            {identity.startDate} <span style={{ color: DIM }}>→</span> {end}
-            <span style={{ color: CONTENT_DIM }}> · {identity.duration}</span>
+          {/* Role and dates share a line: two stacked rows under the company
+              name cost the composition a row it needs elsewhere. */}
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-3 font-mono text-[12px]">
+            <span className="uppercase tracking-[0.14em]" style={{ color: CONTENT_DIM }}>
+              {identity.role}
+            </span>
+            <span className="tabular-nums" style={{ color: TEXT }}>
+              {identity.startDate} <span style={{ color: DIM }}>→</span> {end}
+              <span style={{ color: CONTENT_DIM }}> · {identity.duration}</span>
+            </span>
           </p>
         </div>
       </div>

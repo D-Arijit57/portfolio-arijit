@@ -60,12 +60,47 @@ export interface ArchitectureBlock {
   description: string;
   technologies: string[];
   /**
-   * No declared technologies — the document entering the system rather than a
-   * component of it. Rendered as the flow's boundary instead of as a block
-   * with an empty technology row.
+   * No declared technologies — a component the system has rather than one he
+   * built on top of a named technology. Marked so the renderer can draw it
+   * as a hollow leaf instead of implying a stack it doesn't have.
    */
   boundary: boolean;
   sourceHighlights: number[];
+}
+
+/**
+ * A subsystem: the stages that share a source highlight.
+ *
+ * This is the one real decomposition the model contains, and it is not an
+ * invention of the renderer. Highlight 0 describes an LLM document workflow
+ * and produced `intake` and `extract`; highlight 2 describes a RAG pipeline
+ * and produced `index` and `retrieve`. Two sentences, two subsystems, two
+ * stages each — which is why the architecture can be a tree at all rather than
+ * the same four stages relisted in the pipeline's order.
+ *
+ * The branch carries no authored name. The model names no subsystems, so
+ * inventing "LLM Workflow" or "RAG Pipeline" as node labels would be writing
+ * architecture rather than reading it. What identifies a branch instead is the
+ * union of its stages' declared technologies — genuinely the thing that
+ * distinguishes these two halves of the system — plus the highlight it was
+ * read from.
+ */
+export interface ArchitectureBranch {
+  /** Stable: "branch-0", from the highlight index it groups on. */
+  id: string;
+  /** The highlight index every stage in this branch traces back to. */
+  sourceHighlight: number;
+  /** Union of the children's technologies, in first-seen order. */
+  technologies: string[];
+  blocks: ArchitectureBlock[];
+}
+
+/** The tree's root — the system the branches belong to. Both fields canonical. */
+export interface ArchitectureRoot {
+  /** `visualization.title` — "a document, end to end". */
+  label: string;
+  /** `experience.description`. */
+  description: string;
 }
 
 /**
@@ -124,7 +159,10 @@ interface ArtifactBase {
 }
 
 export type Artifact =
-  | (ArtifactBase & { kind: 'architecture'; payload: { blocks: ArchitectureBlock[] } })
+  | (ArtifactBase & {
+      kind: 'architecture';
+      payload: { root: ArchitectureRoot; branches: ArchitectureBranch[] };
+    })
   | (ArtifactBase & { kind: 'metrics'; payload: { readings: MetricReading[] } })
   | (ArtifactBase & { kind: 'shipped'; payload: { groups: ShippedGroup[] } })
   | (ArtifactBase & { kind: 'source'; payload: { fileId: string } });
@@ -256,7 +294,23 @@ function unionHighlights(sets: number[][]): number[] {
   return [...new Set(sets.flat())].sort((a, b) => a - b);
 }
 
-function buildArchitecture(visualization: PipelineVisualizationModel): Artifact | undefined {
+/**
+ * The architecture tree: a root, its subsystems, and their stages.
+ *
+ * Grouping is by the highlight a stage was interpreted from — the only
+ * decomposition the model actually asserts. Stages that came from the same
+ * sentence describe the same piece of the system, so they are siblings under
+ * one branch; stages from different sentences belong to different branches.
+ * Nothing here reorders or renames a stage, and nothing invents a component.
+ *
+ * Returns undefined unless the grouping produces a real tree — more than one
+ * branch, or a branch with more than one child. A single chain would have no
+ * hierarchy to draw and would only be the pipeline again in a different panel.
+ */
+function buildArchitecture(
+  visualization: PipelineVisualizationModel,
+  description: string,
+): Artifact | undefined {
   const blocks: ArchitectureBlock[] = visualization.stages.map((stage) => ({
     id: stage.id,
     label: stage.label,
@@ -266,8 +320,35 @@ function buildArchitecture(visualization: PipelineVisualizationModel): Artifact 
     sourceHighlights: stage.sourceHighlights,
   }));
 
-  // Nothing to draw a structure from if no stage declares a single technology.
-  if (blocks.every((block) => block.boundary)) return undefined;
+  if (blocks.length === 0) return undefined;
+
+  // Group on the first highlight each stage traces to, in first-seen order.
+  const byHighlight = new Map<number, ArchitectureBlock[]>();
+  const order: number[] = [];
+  for (const block of blocks) {
+    const key = block.sourceHighlights[0];
+    if (key === undefined) continue;
+    if (!byHighlight.has(key)) {
+      byHighlight.set(key, []);
+      order.push(key);
+    }
+    byHighlight.get(key)!.push(block);
+  }
+
+  const branches: ArchitectureBranch[] = order.map((highlight) => {
+    const children = byHighlight.get(highlight)!;
+    return {
+      id: `branch-${highlight}`,
+      sourceHighlight: highlight,
+      technologies: [...new Set(children.flatMap((child) => child.technologies))],
+      blocks: children,
+    };
+  });
+
+  // No hierarchy to draw — see the doc comment above.
+  if (branches.length < 2 && !branches.some((branch) => branch.blocks.length > 1)) {
+    return undefined;
+  }
 
   return {
     id: 'architecture',
@@ -275,7 +356,10 @@ function buildArchitecture(visualization: PipelineVisualizationModel): Artifact 
     title: 'architecture.ts',
     command: 'cat architecture.ts',
     sourceHighlights: unionHighlights(blocks.map((block) => block.sourceHighlights)),
-    payload: { blocks },
+    payload: {
+      root: { label: visualization.title, description },
+      branches,
+    },
   };
 }
 
@@ -353,7 +437,7 @@ function buildRelationships(
   // nothing on this page claims to describe work that wasn't done there.
   const architecture = byId.get('architecture');
   if (architecture && architecture.kind === 'architecture') {
-    for (const block of architecture.payload.blocks) {
+    for (const block of architecture.payload.branches.flatMap((branch) => branch.blocks)) {
       if (block.boundary) continue;
       const stage = stages.find((candidate) => candidate.id === block.id);
       if (!stage || !isContributed(stage)) continue;
@@ -424,7 +508,7 @@ export function buildExperienceWorkspace(experience: WorkExperience): Experience
   ];
 
   const artifacts = [
-    buildArchitecture(visualization),
+    buildArchitecture(visualization, experience.description),
     buildMetrics(impact),
     buildShipped(visualization),
     buildSource(experience, WORK_HISTORY_FILE_ID),

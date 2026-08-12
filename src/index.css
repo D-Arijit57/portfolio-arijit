@@ -151,6 +151,37 @@
   }
 }
 
+/* architecture.ts's continuous data-flow signal (ArchitectureDiagram.tsx).
+
+   A pulse rather than a sliding dash: the mark fades up as it leaves its
+   source, travels the edge at constant speed, and fades out as it arrives.
+   That opacity envelope is what makes it read as a signal being emitted and
+   absorbed rather than as a dash permanently orbiting a track — and it leaves
+   each edge quiet for part of every cycle, which keeps several of them on one
+   panel from feeling busy. Paired with `stroke-dasharray: 3 97` and a round
+   cap, the visible mark is a dot, not a segment; `pathLength` normalisation
+   means a short edge and a tall drop pulse at the same apparent speed.
+
+   The reduced-motion rule here is a backstop, not the mechanism: the component
+   does not render this element at all when the user prefers reduced motion, so
+   the diagram resolves to static edges rather than to a dot frozen mid-run. */
+@keyframes architecture-flow {
+  0% { stroke-dashoffset: 0; opacity: 0; }
+  12% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+.architecture-flow {
+  animation: architecture-flow 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .architecture-flow {
+    animation: none;
+  }
+}
+
 /* Phase 9D: startup.log's fireflies (CampfireFireflies.tsx). Two keyframes and
    one class for all eight — every per-firefly value (peak opacity, both
    periods, and the four wander waypoints) arrives as a CSS custom property, so

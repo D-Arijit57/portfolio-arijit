@@ -42,12 +42,19 @@ export function ExperienceTerminalPanel({
   headerExtra,
   className = '',
   dormant = false,
+  dense = false,
   children,
 }: {
   /** A short, static window label — never the live command. */
   title: string;
   headerExtra?: React.ReactNode;
   className?: string;
+  /**
+   * Tighter body padding, for a surface showing several panels at once where
+   * `p-6` on each is what pushes the composition past the fold. Additive and
+   * opt-in — every existing caller keeps the original padding untouched.
+   */
+  dense?: boolean;
   /**
    * A terminal that exists but hasn't been reached by the execution chain
    * yet. Same treatment as CortexaTerminalPanel's own `dormant`, and the
@@ -97,7 +104,10 @@ export function ExperienceTerminalPanel({
           own body treatment exactly (not a max-width — the pipeline inside
           is meant to span the terminal, so padding stays the only thing
           holding content off the edges). */}
-      <div className="p-6 font-mono text-[14px] leading-[1.9]" style={{ color: CORTEXA_TEXT }}>
+      <div
+        className={`font-mono ${dense ? 'p-3.5 text-[13px] leading-[1.5]' : 'p-6 text-[14px] leading-[1.9]'}`}
+        style={{ color: CORTEXA_TEXT }}
+      >
         {children}
       </div>
     </div>

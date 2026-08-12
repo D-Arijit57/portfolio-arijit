@@ -55,6 +55,25 @@ export const CONTENT_DIM = '#8a8a8a';
 export const ACCENT = '#569cd6';
 export const METRIC = '#d7ba7d';
 
+/**
+ * Per-stage identity colours — what a stage, its architecture block, its
+ * connector and its legend dot all wear, so a line can be followed back to
+ * the thing it came from without a key.
+ *
+ * No new hue enters the palette. These are exactly the five values
+ * `resume/evidence/claims.ts` already established as this workspace's
+ * identity set (and documented there as "values the workspace already uses —
+ * the success green, the prompt blue, the tradeoff amber, `--tok-concept`
+ * purple, and the shared MUTED_PALETTE teal").
+ *
+ * Assignment is derived, never keyed by stage id: a stage he didn't change
+ * takes CONTEXT, and each stage he did takes the next hue in order. That way
+ * the mapping survives a stage being renamed, reordered, added or removed —
+ * the same reason nothing else on this page is keyed by a literal id.
+ */
+export const STAGE_CONTEXT_ACCENT = '#4CD964';
+export const STAGE_CONTRIBUTION_ACCENTS = ['#c586c0', '#569cd6', '#e2c08d', '#4ec9b0'] as const;
+
 /** VS Code's own diff channels — the evidence language. */
 export const DIFF_REMOVED = '#c9736b';
 export const DIFF_ADDED = '#4CD964';

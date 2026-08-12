@@ -49,37 +49,58 @@ interface Wire {
 /** Corner radius where a run turns into the channel and back out again. */
 const CORNER_RADIUS = 7;
 
+/** How far below a panel's bottom edge a detoured wire runs — roughly half the
+ * grid's row gap, so it sits in the visible gutter rather than against either
+ * panel. */
+const GUTTER_DROP = 9;
+
+/** Where a detoured wire leaves its panel's bottom edge: in from the right
+ * corner, so the drop reads as a deliberate exit rather than as the panel's
+ * own border continuing. */
+const RAIL_INSET = 28;
+
 /**
- * Out of the source, down (or up) a vertical lane, and into the target —
- * right angles with rounded corners, not a bezier.
+ * A right-angle polyline with rounded corners, from an ordered list of points.
  *
- * The S-curve `CortexaConnectors` and `EvidenceConnector` use is right for
- * those surfaces, where a wire crosses a wide gap between two panels. Here six
- * wires share one narrow channel between the artifact column and the pipeline,
- * and a curve spanning 300px vertically inside a 50px channel degenerates into
- * a near-vertical squiggle that reads as noise. An orthogonal run stays legible
- * at any aspect ratio, and — because every wire leaving one artifact shares a
- * lane — the three that fan out of a single panel draw as one trunk with three
- * branches rather than three overlapping diagonals.
+ * Written as a general builder rather than one hardcoded shape because a wire
+ * leaving an artifact in the inner column needs an extra turn — down into the
+ * row gutter, along it, and only then into the channel — and hand-writing a
+ * second path template for that case is how the two get out of sync.
  */
-function orthogonalPath(from: Point, to: Point, laneX: number): string {
-  const dy = to.y - from.y;
-  if (Math.abs(dy) < 1) return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+function roundedPolyline(points: Point[], radius = CORNER_RADIUS): string {
+  if (points.length < 2) return '';
+  const parts = [`M ${points[0].x} ${points[0].y}`];
 
-  const sign = dy > 0 ? 1 : -1;
-  const r = Math.max(
-    0,
-    Math.min(CORNER_RADIUS, Math.abs(dy) / 2, Math.abs(laneX - from.x), Math.abs(to.x - laneX)),
-  );
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const prev = points[i - 1];
+    const corner = points[i];
+    const next = points[i + 1];
 
-  return [
-    `M ${from.x} ${from.y}`,
-    `L ${laneX - r} ${from.y}`,
-    `Q ${laneX} ${from.y} ${laneX} ${from.y + sign * r}`,
-    `L ${laneX} ${to.y - sign * r}`,
-    `Q ${laneX} ${to.y} ${laneX + r} ${to.y}`,
-    `L ${to.x} ${to.y}`,
-  ].join(' ');
+    const inLen = Math.hypot(corner.x - prev.x, corner.y - prev.y);
+    const outLen = Math.hypot(next.x - corner.x, next.y - corner.y);
+    const r = Math.max(0, Math.min(radius, inLen / 2, outLen / 2));
+
+    if (r === 0) {
+      parts.push(`L ${corner.x} ${corner.y}`);
+      continue;
+    }
+
+    const enter = {
+      x: corner.x + ((prev.x - corner.x) / inLen) * r,
+      y: corner.y + ((prev.y - corner.y) / inLen) * r,
+    };
+    const exit = {
+      x: corner.x + ((next.x - corner.x) / outLen) * r,
+      y: corner.y + ((next.y - corner.y) / outLen) * r,
+    };
+
+    parts.push(`L ${enter.x} ${enter.y}`);
+    parts.push(`Q ${corner.x} ${corner.y} ${exit.x} ${exit.y}`);
+  }
+
+  const last = points[points.length - 1];
+  parts.push(`L ${last.x} ${last.y}`);
+  return parts.join(' ');
 }
 
 /** Vertical S-curve — the fallback for a layout that has reflowed the target
@@ -122,6 +143,7 @@ export function ArtifactConnectors({
   edges,
   getAnchor,
   boundaryId,
+  obstacleIds,
   emphasisIds,
   enabled,
 }: {
@@ -139,6 +161,14 @@ export function ArtifactConnectors({
    * convention `TerminalExecutionWire` already follows.
    */
   boundaryId?: string;
+  /**
+   * Anchor ids of panels a wire must not be routed through. A source in an
+   * inner column would otherwise run straight across whatever sits between it
+   * and the channel — and a semantic connector that disappears behind an
+   * unrelated artifact has stopped saying the thing it exists to say. When the
+   * straight run is blocked, the wire detours down into the row gutter first.
+   */
+  obstacleIds?: string[];
   /** Anchor ids currently emphasised — usually one artifact and its stages. */
   emphasisIds: Set<string>;
   /** False below the width where the curves have room to read. */
@@ -187,6 +217,10 @@ export function ArtifactConnectors({
 
       const boundary = boundaryId ? getAnchor(boundaryId)?.getBoundingClientRect() : undefined;
 
+      const obstacles = (obstacleIds ?? [])
+        .map((id) => ({ id, rect: getAnchor(id)?.getBoundingClientRect() }))
+        .filter((entry): entry is { id: string; rect: DOMRect } => Boolean(entry.rect));
+
       // One vertical lane per source artifact, ordered by first appearance so
       // the assignment is stable across re-measures. Lanes are spread evenly
       // across the channel between the artifact column and the target panel.
@@ -233,17 +267,59 @@ export function ArtifactConnectors({
           continue;
         }
 
-        const start = rel(fromRect.right, fromY);
-        const end = rel(endX, toY);
+        // Which panels sit between this source and the channel?
+        const inTheWay = obstacles.filter(
+          ({ id, rect }) => id !== edge.from && rect.left >= fromRect.right - 1 && rect.left < endX,
+        );
 
+        // Does a straight run right, at this y, cross one of them?
+        const blocked = inTheWay.some(({ rect }) => fromY > rect.top && fromY < rect.bottom);
+
+        // The detour has to clear every panel it passes under, not just its own
+        // — a neighbour taller than the source would otherwise have the
+        // horizontal run drawn straight through its content.
+        const gutterBottom = inTheWay.reduce(
+          (lowest, { rect }) => Math.max(lowest, rect.bottom),
+          fromRect.bottom,
+        );
+
+        const end = rel(endX, toY);
         const laneIndex = laneOwners.indexOf(edge.from);
-        const channel = end.x - start.x;
-        const laneX = start.x + (channel * (laneIndex + 1)) / (laneOwners.length + 1);
+
+        // The channel is the open gutter between the artifact canvas's right
+        // edge and the target panel. Lanes are spread evenly across it, one per
+        // source artifact, so wires leaving the same artifact draw as a single
+        // trunk with branches instead of parallel diagonals.
+        const canvasRight = obstacles.reduce(
+          (widest, { rect }) => (rect.right < endX ? Math.max(widest, rect.right) : widest),
+          fromRect.right,
+        );
+        const channelLeft = rel(canvasRight, 0).x;
+        const laneX =
+          channelLeft + ((end.x - channelLeft) * (laneIndex + 1)) / (laneOwners.length + 1);
+
+        // Unblocked: out of the right edge, into the lane, down, into the
+        // target. Blocked: drop into the row gutter beneath this panel first,
+        // run along it under the artifact in the way, then into the lane.
+        const start = blocked
+          ? rel(fromRect.right - RAIL_INSET, fromRect.bottom)
+          : rel(fromRect.right, fromY);
+
+        const gutterY = rel(0, gutterBottom).y + GUTTER_DROP;
+        const points: Point[] = blocked
+          ? [
+              start,
+              { x: start.x, y: gutterY },
+              { x: laneX, y: gutterY },
+              { x: laneX, y: end.y },
+              end,
+            ]
+          : [start, { x: laneX, y: start.y }, { x: laneX, y: end.y }, end];
 
         next.push({
           id: edge.id,
           color: edge.color,
-          d: orthogonalPath(start, end, laneX),
+          d: roundedPolyline(points),
           from: start,
           to: end,
           resting: edge.restingVisible,

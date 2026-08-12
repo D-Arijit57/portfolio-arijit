@@ -22,11 +22,18 @@ function jitter(seed: string, mod: number): number {
   return hashStringToIndex(seed, mod) / mod;
 }
 
+/** Connection-port dot radius, and how far outside the ring it sits. */
+const PORT_R = 2.1;
+const PORT_OFFSET = 1.5;
+
 export interface ConstellationEdgeProps {
   edgeKey: string;
   pathId: string;
   from: ConstellationPosition;
   to: ConstellationPosition;
+  /** Ring radii of the two nodes — where this edge's ports are seated. */
+  fromRadius: number;
+  toRadius: number;
   color: string;
   state: ConstellationVisualState;
   reduceMotion: boolean;
@@ -35,8 +42,31 @@ export interface ConstellationEdgeProps {
   isRevealed: boolean;
 }
 
-export function ConstellationEdge({ edgeKey, pathId, from, to, color, state, reduceMotion, delay, duration, isRevealed }: ConstellationEdgeProps) {
+export function ConstellationEdge({ edgeKey, pathId, from, to, fromRadius, toRadius, color, state, reduceMotion, delay, duration, isRevealed }: ConstellationEdgeProps) {
   const pathD = `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
+
+  /**
+   * Connection ports — the reference anatomy's item 6: the points where an edge
+   * meets a node.
+   *
+   * Placed here rather than on the node because only the edge knows its own
+   * direction; a node would have to be told about every edge incident to it to
+   * work out where its ports belong. Seated just outside each ring so the dot
+   * sits on the boundary rather than under the node's own interior, which is
+   * what makes an edge read as *docking* rather than as a line passing beneath
+   * a disc. The line itself still runs centre-to-centre and is simply covered
+   * by the node, so nothing about the existing geometry or the particle paths
+   * changes.
+   */
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const ux = dx / length;
+  const uy = dy / length;
+  const ports = [
+    { x: from.x + ux * (fromRadius + PORT_OFFSET), y: from.y + uy * (fromRadius + PORT_OFFSET) },
+    { x: to.x - ux * (toRadius + PORT_OFFSET), y: to.y - uy * (toRadius + PORT_OFFSET) },
+  ];
 
   return (
     <g>
@@ -62,6 +92,20 @@ export function ConstellationEdge({ edgeKey, pathId, from, to, color, state, red
         animate={{ pathLength: 1, opacity: EDGE_OPACITY[state] }}
         transition={{ duration, delay, ease: 'easeOut' }}
       />
+
+      {ports.map((port, index) => (
+        <motion.circle
+          key={`port-${index}`}
+          cx={port.x}
+          cy={port.y}
+          r={PORT_R}
+          fill={color}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: EDGE_OPACITY[state] * 1.6 }}
+          transition={{ duration: 0.3, delay: delay + duration, ease: 'easeOut' }}
+          style={{ mixBlendMode: 'screen' }}
+        />
+      ))}
 
       {/* The one-shot "signal" particle that travels once while this
           edge is first being drawn during construction. */}

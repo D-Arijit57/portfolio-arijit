@@ -10,40 +10,64 @@ import type { FileRevealSequenceResult } from '../../hooks/useFileRevealSequence
 import type { ConstellationVisualState } from './constellationVisualState';
 
 /**
- * A single constellation star — astrophotography-style layering, back to
- * front: a wide atmospheric halo, a brighter mid bloom that breathes
- * independently per star, a white-hot corona immediately around the
- * core, the technology chip itself, a directional specular highlight, a
- * pulsing outline ring, and a small blinking twinkle glint. All additive
- * (`mix-blend-mode: screen`) so overlapping glow brightens instead of
- * flattening into a muddy blend, sampling a per-category
- * `<radialGradient>` (defined once in ConstellationScene's `<defs>`)
- * rather than a flat fill behind a blur — a bright near-white core fading
- * outward into the category's own color, not a filled UI circle with a
- * shadow. Interaction is lighting-driven, not scale-driven: hovering
- * brightens the glow layers and the ring rather than growing the star.
+ * A single constellation node, built to the reference anatomy: an icon core,
+ * a thin category-coloured inner ring, a soft outer glow, a label and a
+ * subtitle.
+ *
+ * The structural change from the previous version — and the reason the old
+ * nodes read as dull — is that the disc is no longer *filled* with the
+ * category gradient. A bright gradient behind a translucent dark scrim left
+ * the icon competing with its own background, so the icon had to stay small
+ * and the ring had nowhere to sit but flush against a busy edge. Here the
+ * interior is near-black and quiet, the ring is the node's defining line, the
+ * glow lives *outside* that ring, and the icon is large enough to be the thing
+ * you actually read. Roughly the reference's proportions: icon ≈ 0.62 of the
+ * ring's diameter, glow reaching ~1.6× the ring.
+ *
+ * Everything remains additive (`mix-blend-mode: screen`) so overlapping glow
+ * brightens rather than muddying, and still samples the per-category
+ * `<radialGradient>` defined once in ConstellationScene's `<defs>`.
+ *
+ * Interaction is lighting-driven rather than layout-driven: hovering
+ * intensifies the glow and the ring, selection adds a second outer ring, and
+ * an unrelated node desaturates. Nothing jumps position.
  */
 
-const NODE_OPACITY: Record<ConstellationVisualState, number> = { default: 1, active: 1, connected: 1, dimmed: 0.15 };
-const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.6, active: 1, connected: 0.9, dimmed: 0.4 };
-const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 1.25, active: 2.25, connected: 1.6, dimmed: 1.25 };
-// Overall multiplier on the glow stack (halo + bloom + corona) per
-// interaction state — this, not a scale transform, is what "hovering
-// feels magical" means here.
-const GLOW_BOOST: Record<ConstellationVisualState, number> = { default: 1, active: 1.7, connected: 1.3, dimmed: 0.3 };
-const STATE_TRANSITION = { duration: 0.2, ease: 'easeInOut' as const };
-// Tier-driven visual hierarchy — "the user should immediately understand
-// what powers the project": primary (the center) reads clearly larger and
-// brighter than secondary (each category's own anchor), which in turn
-// reads larger than supporting technologies.
-const RING_EXTRA: Record<ConstellationTier, number> = { primary: 18, secondary: 12, supporting: 8 };
-const ICON_SIZE: Record<ConstellationTier, number> = { primary: 22, secondary: 16, supporting: 12 };
-const TITLE_FONT: Record<ConstellationTier, number> = { primary: 13, secondary: 11.5, supporting: 10 };
+const NODE_OPACITY: Record<ConstellationVisualState, number> = { default: 1, active: 1, connected: 1, dimmed: 0.18 };
+/** The ring is the node's identity, so it stays legible even at rest. */
+const RING_OPACITY: Record<ConstellationVisualState, number> = { default: 0.85, active: 1, connected: 1, dimmed: 0.3 };
+const RING_WIDTH: Record<ConstellationVisualState, number> = { default: 1.75, active: 2.75, connected: 2.15, dimmed: 1.4 };
+/** Multiplier on the glow stack — this, not a scale transform, is what hover
+ * and selection actually change. */
+const GLOW_BOOST: Record<ConstellationVisualState, number> = { default: 1, active: 1.85, connected: 1.4, dimmed: 0.25 };
+/** The reference's 200–300ms ease-out. */
+const STATE_TRANSITION = { duration: 0.24, ease: 'easeOut' as const };
+
+/** How far outside the ring the heartbeat pulse expands. Uniform, like the
+ * radius it is measured from. */
+const RING_EXTRA: Record<ConstellationTier, number> = { primary: 12, secondary: 12, supporting: 12 };
+/**
+ * Icon core, as a fraction of the ring's radius.
+ *
+ * The reference's size guide puts a 32–38px icon inside a 48–56px ring — about
+ * 0.62 of the ring's diameter, i.e. 1.24 of its radius. The previous values
+ * (22 / 16 / 12 against radii of 46 / 30 / 21) were closer to 0.3, which is
+ * what made the icon read as a small mark floating on a disc rather than as
+ * the node's core.
+ */
+const ICON_RATIO = 1.24;
+/** Uniform, for the same reason the radius is: three label sizes under three
+ * identically-sized rings reads as inconsistency rather than as hierarchy. */
+const TITLE_FONT: Record<ConstellationTier, number> = { primary: 11.5, secondary: 11.5, supporting: 11.5 };
 const HEARTBEAT_MIN_S = 3.5;
 const HEARTBEAT_MAX_S = 6;
 const HEARTBEAT_DELAY_WINDOW_S = 6;
 const FLOAT_MIN_S = 5;
 const FLOAT_MAX_S = 4;
+/** The reference's "subtle breathing (scale 1.00 → 1.06 → 1.00)". */
+const BREATHE_SCALE = 1.06;
+const BREATHE_MIN_S = 4.5;
+const BREATHE_MAX_S = 7;
 
 function jitter(seed: string, mod: number): number {
   return hashStringToIndex(seed, mod) / mod;
@@ -76,7 +100,7 @@ function ConstellationStarImpl({
 }: ConstellationStarProps) {
   const radius = TIER_RADIUS[node.tier];
   const ringExtra = RING_EXTRA[node.tier];
-  const iconSize = ICON_SIZE[node.tier];
+  const iconSize = radius * ICON_RATIO;
   const logo = resolveTechLogo(node.technology);
   const glowGradientId = `constellation-star-glow-${node.color.slice(1)}`;
   const glowBoost = GLOW_BOOST[state];
@@ -96,14 +120,16 @@ function ConstellationStarImpl({
   const heartbeatDurationS = HEARTBEAT_MIN_S + jitter(`${node.id}:hb-dur`, 4691) * (HEARTBEAT_MAX_S - HEARTBEAT_MIN_S);
   const breatheDelayS = jitter(`${node.id}:breathe-delay`, 4441) * 5;
   const breatheDurationS = 4.5 + jitter(`${node.id}:breathe-dur`, 4457) * 3;
-  const twinkleDelayS = jitter(`${node.id}:twinkle-delay`, 4127) * 4;
-  const twinkleDurationS = 2.2 + jitter(`${node.id}:twinkle-dur`, 4159) * 2.4;
+  const scaleBreatheDurationS = BREATHE_MIN_S + jitter(`${node.id}:sb-dur`, 4001) * (BREATHE_MAX_S - BREATHE_MIN_S);
+  const scaleBreatheDelayS = jitter(`${node.id}:sb-delay`, 4013) * 4;
   // Microscopic (1-2px) idle drift — "never static" without ever reading
   // as motion sickness or as if the layout itself were unstable.
   const floatDelayS = jitter(`${node.id}:float-delay`, 4211) * 6;
   const floatDurationS = FLOAT_MIN_S + jitter(`${node.id}:float-dur`, 4229) * FLOAT_MAX_S;
   const floatDx = (jitter(`${node.id}:float-dx`, 4241) - 0.5) * 3;
   const floatDy = (jitter(`${node.id}:float-dy`, 4243) - 0.5) * 3;
+
+  const iconColor = logo?.color ?? node.color;
 
   return (
     <motion.g
@@ -135,101 +161,145 @@ function ConstellationStarImpl({
               : { type: 'spring' as const, stiffness: 320, damping: 18 }
           }
         >
-          {!reduceMotion && (
-            <g style={{ opacity: glowBoost, transition: 'opacity 0.25s ease-out' }}>
-              {/* Atmospheric halo — wide and soft. */}
-              <circle
-                r={radius * 3.4}
-                fill={`url(#${glowGradientId})`}
-                opacity={0.15}
-                filter="url(#constellation-halo-blur)"
-                style={{ mixBlendMode: 'screen' }}
-              />
-              {/* Mid bloom — tighter and brighter, breathes independently
-                  per node so the whole halo pulses in brightness. */}
-              <circle
-                r={radius * 1.75}
-                fill={`url(#${glowGradientId})`}
-                style={{
-                  mixBlendMode: 'screen',
-                  animation: `constellation-glow-breathe ${breatheDurationS}s ease-in-out infinite`,
-                  animationDelay: `${breatheDelayS}s`,
-                }}
-              />
-              {/* White-hot corona — immediately around the chip, fading
-                  into the mid bloom's color further out. This is what
-                  makes the center read as near-white with color emerging
-                  from it, rather than a flat color disc with a glow
-                  glued behind it. */}
-              <circle r={radius * 1.18} fill="#ffffff" opacity={0.4} filter="url(#constellation-corona-blur)" style={{ mixBlendMode: 'screen' }} />
-              <circle
-                r={radius + ringExtra}
-                fill="none"
-                stroke={node.color}
-                strokeWidth={isRoot ? 3 : 1.5}
-                opacity={0}
-                filter="url(#constellation-node-glow)"
-                style={{
-                  animation: `constellation-heartbeat ${heartbeatDurationS}s ease-in-out infinite`,
-                  animationDelay: `${heartbeatDelayS}s`,
-                }}
-              />
-            </g>
-          )}
-          {/* The chip's own body now samples the same white-hot-core ->
-              category-color gradient the halo/bloom/corona layers use,
-              instead of a flat near-black fill — this is what actually
-              makes the disc itself read as a light source. A translucent
-              dark scrim on top keeps the icon legible against it without
-              hiding the gradient entirely. */}
-          <circle r={radius} fill={`url(#${glowGradientId})`} />
-          <circle r={radius} fill="#04060a" opacity={0.4} />
-          {!reduceMotion && (
-            // Bright core highlight — a directional specular glint
-            // suggesting the star has a hot core catching light, distinct
-            // from the small blinking twinkle glint below.
-            <circle cx={-radius * 0.3} cy={-radius * 0.34} r={radius * 0.4} fill="#ffffff" opacity={0.32} style={{ mixBlendMode: 'screen' }} />
-          )}
-          <circle r={radius} fill="none" stroke={node.color} strokeOpacity={RING_OPACITY[state]} strokeWidth={RING_WIDTH[state] + (isRoot ? 1 : 0)} />
-          {!reduceMotion && (
+          {/* The breathing sits on its own group so it can loop forever
+              without fighting the reveal spring above it, which animates the
+              same property once and then stops. Driven by Motion rather than a
+              CSS keyframe because a CSS `scale` on an SVG group resolves its
+              origin against the view-box, not the group — every node would
+              breathe toward the canvas centre instead of its own. */}
+          <motion.g
+            animate={reduceMotion ? undefined : { scale: [1, BREATHE_SCALE, 1] }}
+            transition={
+              reduceMotion
+                ? undefined
+                : {
+                    duration: scaleBreatheDurationS,
+                    delay: scaleBreatheDelayS,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }
+            }
+          >
+            {!reduceMotion && (
+              <g style={{ opacity: glowBoost, transition: 'opacity 0.24s ease-out' }}>
+                {/* Wide atmospheric halo — depth and presence, well outside
+                    the ring so it never washes out the icon. */}
+                <circle
+                  r={radius * 2.6}
+                  fill={`url(#${glowGradientId})`}
+                  opacity={0.17}
+                  filter="url(#constellation-halo-blur)"
+                  style={{ mixBlendMode: 'screen' }}
+                />
+                {/* The outer glow proper: a thick blurred stroke sitting *on*
+                    the ring, so the light appears to come off the ring itself
+                    rather than from a disc behind it. Its intensity oscillates
+                    gently, per the reference's animation notes. */}
+                <circle
+                  r={radius}
+                  fill="none"
+                  stroke={node.color}
+                  strokeWidth={radius * 0.5}
+                  opacity={0.34}
+                  filter="url(#constellation-node-glow)"
+                  style={{
+                    mixBlendMode: 'screen',
+                    animation: `constellation-glow-breathe ${breatheDurationS}s ease-in-out infinite`,
+                    animationDelay: `${breatheDelayS}s`,
+                  }}
+                />
+                {/* The slow expanding pulse that reads as a live signal. */}
+                <circle
+                  r={radius + ringExtra}
+                  fill="none"
+                  stroke={node.color}
+                  strokeWidth={isRoot ? 3 : 1.5}
+                  opacity={0}
+                  filter="url(#constellation-node-glow)"
+                  style={{
+                    animation: `constellation-heartbeat ${heartbeatDurationS}s ease-in-out infinite`,
+                    animationDelay: `${heartbeatDelayS}s`,
+                  }}
+                />
+              </g>
+            )}
+
+            {/* Interior. Deliberately near-black and quiet: it exists to give
+                the icon a clean field to sit on, not to be a light source. A
+                faint screen-blended tint keeps it from reading as a hole
+                punched in the starfield. */}
+            <circle r={radius} fill="#05070d" opacity={0.88} />
             <circle
-              cx={-radius * 0.32}
-              cy={-radius * 0.36}
-              r={Math.max(1.2, radius * 0.1)}
-              fill="#ffffff"
-              opacity={0}
-              style={{
-                animation: `constellation-twinkle ${twinkleDurationS}s ease-in-out infinite`,
-                animationDelay: `${twinkleDelayS}s`,
-              }}
+              r={radius}
+              fill={`url(#${glowGradientId})`}
+              opacity={0.14}
+              style={{ mixBlendMode: 'screen' }}
             />
-          )}
-          {isRoot && !reduceMotion && (
-            <>
-              <SparkleGlyph x={radius * 0.82} y={-radius * 0.88} size={7} color="#ffffff" />
-              <SparkleGlyph x={-radius * 1.02} y={radius * 0.5} size={4.5} color={node.color} />
-            </>
-          )}
-          <foreignObject x={-radius} y={-radius} width={radius * 2} height={radius * 2}>
-            <button
-              type="button"
-              data-constellation-node={node.id}
-              className="flex h-full w-full items-center justify-center focus:outline-none"
-              onMouseEnter={() => onHoverChange(true)}
-              onMouseLeave={() => onHoverChange(false)}
-              onFocus={() => onHoverChange(true)}
-              onBlur={() => onHoverChange(false)}
-              onClick={onSelect}
-            >
-              {logo ? (
-                <svg viewBox="0 0 24 24" width={iconSize} height={iconSize} fill={logo.color} aria-hidden="true">
-                  <path d={logo.path} />
-                </svg>
-              ) : (
-                <Component size={iconSize * 0.8} color={node.color} />
-              )}
-            </button>
-          </foreignObject>
+
+            {/* Inner ring — the category indicator, and the node's defining line. */}
+            <circle
+              r={radius}
+              fill="none"
+              stroke={node.color}
+              strokeOpacity={RING_OPACITY[state]}
+              strokeWidth={RING_WIDTH[state] + (isRoot ? 1 : 0)}
+              style={{ transition: 'stroke-opacity 0.24s ease-out, stroke-width 0.24s ease-out' }}
+            />
+
+            {/* Selection ring — the reference's Active/Selected state carries a
+                second, near-white ring outside the coloured one. Rendered only
+                when selected, so the resting node keeps exactly one ring. */}
+            {state === 'active' && (
+              <circle
+                r={radius + 5}
+                fill="none"
+                stroke="#ffffff"
+                strokeOpacity={0.55}
+                strokeWidth={1}
+              />
+            )}
+
+            {isRoot && !reduceMotion && (
+              <>
+                <SparkleGlyph x={radius * 0.82} y={-radius * 0.88} size={7} color="#ffffff" />
+                <SparkleGlyph x={-radius * 1.02} y={radius * 0.5} size={4.5} color={node.color} />
+              </>
+            )}
+
+            {/* Icon core. The button fills the whole ring so the entire node is
+                the hit target, not just the glyph. */}
+            <foreignObject x={-radius} y={-radius} width={radius * 2} height={radius * 2}>
+              <button
+                type="button"
+                data-constellation-node={node.id}
+                className="flex h-full w-full items-center justify-center focus:outline-none"
+                onMouseEnter={() => onHoverChange(true)}
+                onMouseLeave={() => onHoverChange(false)}
+                onFocus={() => onHoverChange(true)}
+                onBlur={() => onHoverChange(false)}
+                onClick={onSelect}
+              >
+                {logo ? (
+                  <svg
+                    viewBox="0 0 24 24"
+                    width={iconSize}
+                    height={iconSize}
+                    fill={iconColor}
+                    aria-hidden="true"
+                    style={{
+                      // A touch of the icon's own colour as light, which is what
+                      // "large, crisp, high contrast" needs against a dark field.
+                      filter: reduceMotion ? undefined : `drop-shadow(0 0 ${radius * 0.14}px ${iconColor}aa)`,
+                    }}
+                  >
+                    <path d={logo.path} />
+                  </svg>
+                ) : (
+                  <Component size={iconSize * 0.86} color={node.color} />
+                )}
+              </button>
+            </foreignObject>
+          </motion.g>
         </motion.g>
 
         <motion.text

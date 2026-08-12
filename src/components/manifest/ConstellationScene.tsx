@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Maximize, RotateCcw, X, ChevronDown, Boxes } from 'lucide-react';
 import type { ConstellationGraph, ConstellationNode } from '../../manifest/constellationGraph';
 import type { ConstellationLayoutResult } from '../../manifest/constellationLayout';
+import { TIER_RADIUS } from '../../manifest/constellationLayout';
 import type { ConstellationRevealUnit } from '../../manifest/constellationReveal';
 import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 import { useConstellationViewport } from '../../hooks/useConstellationViewport';
@@ -257,6 +258,7 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
                 const to = layout.positions.get(edge.to);
                 if (!from || !to) return null;
                 const targetNode = nodeById.get(edge.to);
+                const sourceNode = nodeById.get(edge.from);
                 const color = targetNode?.color ?? '#5a5a5a';
                 const edgeKey = `${edge.from}->${edge.to}`;
                 const unitIndex = unitIndexByEdgeKey.get(edgeKey) ?? 0;
@@ -269,6 +271,8 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
                     pathId={`constellation-edge-${edgeKey}`}
                     from={from}
                     to={to}
+                    fromRadius={sourceNode ? TIER_RADIUS[sourceNode.tier] : 0}
+                    toRadius={targetNode ? TIER_RADIUS[targetNode.tier] : 0}
                     color={color}
                     state={stateForEdge(edge.from, edge.to)}
                     reduceMotion={reduceMotion}

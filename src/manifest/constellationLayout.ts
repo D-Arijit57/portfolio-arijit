@@ -30,10 +30,37 @@ export interface ConstellationLayoutResult {
   height: number;
 }
 
+/**
+ * Node ring radius. Uniform across tiers — every node is the same size.
+ *
+ * These were 46 / 30 / 21, encoding tier as scale. That read as three unrelated
+ * node designs sharing a canvas rather than one system, and it fought the
+ * reference anatomy, whose size guide describes a single ring with the icon
+ * sized against it.
+ *
+ * This is a *world-space* radius, not a pixel size: `useConstellationViewport`
+ * fits the whole composition to ~74% of the usable canvas, so what reaches the
+ * screen is this value times the fit scale (currently ≈0.44 — a 42 here renders
+ * as a ~37px ring). Raising it enlarges the nodes relative to the composition
+ * without changing the framing, because the bounding box it feeds grows by only
+ * 2×Δr against a spread of ~1500 units. That is the lever for "bigger nodes";
+ * the fit padding is the lever for "bigger composition", and they are separate
+ * on purpose.
+ *
+ * Hierarchy is still expressed, just not by size: the root sits at the centre of
+ * the composition, carries a heavier ring stroke and its own sparkle accents,
+ * and every node's category reads from its ring colour.
+ *
+ * Kept as a per-tier record rather than a single constant so the layout's bounds
+ * math and the star renderer keep their existing shape, and so a future design
+ * can re-differentiate by tier without threading a new type through both.
+ */
+const NODE_RADIUS = 42;
+
 export const TIER_RADIUS: Record<ConstellationTier, number> = {
-  primary: 46,
-  secondary: 30,
-  supporting: 21,
+  primary: NODE_RADIUS,
+  secondary: NODE_RADIUS,
+  supporting: NODE_RADIUS,
 };
 
 // Normalized [0,1] authored coordinates are scaled into this fixed

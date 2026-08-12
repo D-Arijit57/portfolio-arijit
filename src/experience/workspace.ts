@@ -56,8 +56,18 @@ export interface ArchitectureBlock {
   /** The stage's own id. */
   id: string;
   label: string;
-  /** `stage.description`, verbatim. Never `claim`. */
+  /** `stage.description`, verbatim — what this stage *is*. */
   description: string;
+  /**
+   * `stage.claim`, verbatim — the outcome at this stage. Absent for a stage he
+   * didn't change. Carried so the diagram can terminate its flow in the
+   * outcomes the system produces; the pipeline column reads the same field, and
+   * that overlap is deliberate rather than accidental (see the diagram's own
+   * doc comment).
+   */
+  claim?: string;
+  /** The stage's headline measurement, `metrics[0].value`. */
+  headlineMetric?: string;
   technologies: string[];
   /**
    * No declared technologies — a component the system has rather than one he
@@ -315,6 +325,8 @@ function buildArchitecture(
     id: stage.id,
     label: stage.label,
     description: stage.description,
+    claim: stage.claim,
+    headlineMetric: stage.metrics?.[0]?.value,
     technologies: stage.technologies ?? [],
     boundary: (stage.technologies ?? []).length === 0,
     sourceHighlights: stage.sourceHighlights,

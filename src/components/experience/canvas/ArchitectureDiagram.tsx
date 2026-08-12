@@ -1,42 +1,56 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { ArchitectureBranch, ArchitectureRoot } from '../../../experience/workspace';
+import type { ArchitectureBlock, ArchitectureBranch, ArchitectureRoot } from '../../../experience/workspace';
 import { prefersReducedMotion } from '../../../lib/typingReveal';
-import { TechnologyRow } from '../pipeline/StageMetrics';
-import { CONTENT_DIM, RULE, TEXT } from '../pipeline/tokens';
+import { CONTENT_DIM, DIM, STRONG, TEXT } from '../pipeline/tokens';
 
-/** Edges are drawn a step brighter than `RULE`, the workspace's separator
- * grey: a line that divides content and a line that connects two modules
- * should not read at the same weight. */
+/** Edges are drawn a step brighter than `RULE`, the workspace's separator grey:
+ * a line that divides content and a line that connects two modules should not
+ * read at the same weight. */
 const EDGE_RULE = '#4a4a4a';
+const EDGE_STROKE = 1.6;
 
-/** One full travel of a signal along an edge. */
-const FLOW_PERIOD_S = 2.6;
+/** One full travel of a signal down a dotted branch. */
+const FLOW_PERIOD_S = 2.8;
 
-/** Below this container width the diagram gives up its second column and the
- * boxes stack — still a graph, just a single-file one. */
+/** Height of the SVG bands carrying the turn and the dotted fan-out. */
+const TURN_PX = 12;
+const FAN_PX = 18;
+
+/** Below this container width the diagram stacks — still the same nodes and the
+ * same parent/child relationships, just one column. */
 const GRAPH_MIN_PX = 300;
 
 /**
  * architecture.ts — the system's structure, as a block diagram.
  *
- * Laid out as a real two-dimensional graph rather than a column: the branches
- * the model asserts occupy separate rows, and the stages inside each branch sit
- * side by side, so the flow turns a corner instead of running straight down.
- * That turn is the whole point — the pipeline column already answers "what
- * happens first, second, third, fourth", and a vertical list here would only
- * answer it again in a different panel. This answers "what belongs with what".
+ * The flow turns a corner rather than running straight down: entry and the
+ * extraction subsystem across the top, the retrieval subsystem back across the
+ * second row, and the outcomes fanned out beneath on dotted branches. That
+ * two-dimensional reading is what separates this artifact from the pipeline
+ * column, which answers "what happens first, second, third, fourth" in one
+ * straight line.
  *
- * The grouping comes from `ArchitectureBranch` (see `experience/workspace.ts`):
- * stages read from the same source highlight describe the same piece of the
- * system, so they are siblings on one row. Highlight 0 gave `intake` and
- * `extract`; highlight 2 gave `index` and `retrieve`. Nothing is renamed and
- * nothing is invented — in particular there is no gateway, database, queue or
- * service here, because the canonical model contains none.
+ * Every node is canonical:
  *
- * A box carries `stage.description` ("what this stage *is* — true of the system
- * with or without him") and its technologies. Never `claim`, never a metric:
- * those belong to the pipeline and to metrics.log respectively, and repeating
- * them here is what would collapse three artifacts into one.
+ *   entry        the context-only stage — `label` + `description`.
+ *   subsystem    an `ArchitectureBranch`: the stages that share a source
+ *                highlight. Identified by the union of its children's
+ *                technologies and the highlight it came from, plus the labels
+ *                of the stages inside it. It carries **no authored name** —
+ *                the model names no subsystems, and writing "LLM Workflow" or
+ *                "RAG Pipeline" here would be inventing architecture rather
+ *                than reading it, even though both phrases happen to appear
+ *                inside the highlight sentences.
+ *   outcome      a contributed stage's `claim` and headline metric.
+ *
+ * The outcome row overlaps with what metrics.log and the pipeline already
+ * state, and that is a deliberate, requested exception to this page's
+ * otherwise strict one-fact-one-place rule: a structure diagram that never
+ * shows what the structure produces reads as an inventory. The overlap is
+ * bounded — claims and headline metrics only, never the full measurement set.
+ *
+ * There is no gateway, database, queue or service anywhere here, because the
+ * canonical model contains none.
  */
 export function ArchitectureDiagram({
   root,
@@ -66,253 +80,337 @@ export function ArchitectureDiagram({
 
   if (branches.length === 0) return null;
 
+  const accentOf = (block?: ArchitectureBlock) =>
+    (block && accents.get(block.id)) ?? EDGE_RULE;
+
+  /** A subsystem wears the colour of its first contributing stage. */
+  const branchAccent = (branch: ArchitectureBranch) =>
+    accentOf(branch.blocks.find((block) => !block.boundary) ?? branch.blocks[0]);
+
+  /**
+   * Every subsystem becomes a row, and rows alternate direction so the flow
+   * turns a corner instead of running straight down.
+   *
+   * Deliberately a map over `branches` rather than a destructured
+   * `[first, second]`: the shape of this diagram follows the data, so adding a
+   * fifth stage or a third source highlight to `workHistory.ts` grows the
+   * diagram by a row instead of silently dropping the branch that has nowhere
+   * to go. Nothing below assumes two of anything.
+   *
+   * Within a row: any context-only stage leads (it is the system's entry, not
+   * his work), then the subsystem the branch represents, then each stage he
+   * contributed, in model order.
+   */
+  const rows = branches.map((branch) => ({
+    branch,
+    nodes: [
+      ...branch.blocks
+        .filter((block) => block.boundary)
+        .map((block) => ({ kind: 'entry' as const, block })),
+      { kind: 'subsystem' as const, branch },
+      ...branch.blocks
+        .filter((block) => !block.boundary)
+        .map((block) => ({ kind: 'stage' as const, block })),
+    ],
+  }));
+
+  /** Every contributed stage that produced something — the dotted row. */
+  const outcomes = branches
+    .flatMap((branch) => branch.blocks)
+    .filter((block) => block.claim || block.headlineMetric);
+
   return (
     <div ref={containerRef} className="w-full">
-      <p className="mb-2 text-[11px] leading-[1.4]" style={{ color: CONTENT_DIM }}>
-        {root.description}
-      </p>
+      <RootNode root={root} />
 
-      <div className="flex flex-col">
-        {branches.map((branch, branchIndex) => (
+      {rows.map(({ branch, nodes }, rowIndex) => {
+        const reversed = wide && rowIndex % 2 === 1;
+        const ordered = reversed ? [...nodes].reverse() : nodes;
+
+        return (
           <React.Fragment key={branch.id}>
-            <BranchRow
-              branch={branch}
-              accents={accents}
-              wide={wide}
-              // Alternating direction is what makes the graph turn a corner:
-              // the first row runs left→right, the next right→left, so the
-              // whole diagram reads as a serpentine rather than a list.
-              reversed={wide && branchIndex % 2 === 1}
-              delay={(branchIndex * FLOW_PERIOD_S) / (branches.length * 2)}
-              reduceMotion={reduceMotion}
-            />
-            {branchIndex < branches.length - 1 && (
-              <RowLink
-                accent={accents.get(branches[branchIndex + 1].blocks[0]?.id ?? '') ?? RULE}
-                alignEnd={branchIndex % 2 === 0 && wide}
-                delay={(branchIndex * FLOW_PERIOD_S) / (branches.length * 2) + 0.3}
-                reduceMotion={reduceMotion}
-              />
+            {rowIndex === 0 ? (
+              <div className="h-1.5" />
+            ) : (
+              // The corner drops from whichever end the previous row finished
+              // at, which alternates with the rows themselves.
+              <Turn align={wide ? (rowIndex % 2 === 1 ? 'end' : 'start') : 'start'} />
             )}
+
+            <div className={wide ? 'flex items-stretch' : 'flex flex-col gap-1.5'}>
+              {ordered.map((node, index) => (
+                <React.Fragment key={node.kind === 'subsystem' ? `sub-${branch.id}` : node.block.id}>
+                  {node.kind === 'subsystem' ? (
+                    <Node
+                      title={
+                        node.branch.technologies.length > 0
+                          ? node.branch.technologies.join(' · ')
+                          : 'no declared technology'
+                      }
+                      tag={`h${node.branch.sourceHighlight}`}
+                      accent={branchAccent(node.branch)}
+                      grow={wide}
+                    />
+                  ) : (
+                    <Node
+                      title={node.block.label}
+                      body={node.block.description}
+                      accent={node.kind === 'entry' ? EDGE_RULE : accentOf(node.block)}
+                      muted={node.kind === 'entry'}
+                      grow={wide}
+                    />
+                  )}
+                  {index < ordered.length - 1 && (
+                    <Arrow direction={wide ? (reversed ? 'left' : 'right') : 'down'} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
           </React.Fragment>
-        ))}
-      </div>
-    </div>
-  );
-}
+        );
+      })}
 
-/** One subsystem: its stages side by side, joined left to right. */
-function BranchRow({
-  branch,
-  accents,
-  wide,
-  reversed,
-  delay,
-  reduceMotion,
-}: {
-  branch: ArchitectureBranch;
-  accents: Map<string, string>;
-  wide: boolean;
-  reversed: boolean;
-  delay: number;
-  reduceMotion: boolean;
-}) {
-  const blocks = reversed ? [...branch.blocks].reverse() : branch.blocks;
-
-  return (
-    <div className={wide ? 'flex items-stretch' : 'flex flex-col'}>
-      {blocks.map((block, index) => (
-        <React.Fragment key={block.id}>
-          <BlockBox
-            label={block.label}
-            description={block.description}
-            technologies={block.technologies}
-            accent={accents.get(block.id) ?? RULE}
-            hollow={block.boundary}
-            wide={wide}
+      {/* The dotted fan-out, and the outcomes it feeds. */}
+      {outcomes.length > 0 && (
+        <>
+          <DottedFan
+            accents={outcomes.map((block) => accentOf(block))}
+            reduceMotion={reduceMotion}
+            vertical={!wide}
           />
-          {index < blocks.length - 1 && (
-            <EdgeLink
-              direction={wide ? (reversed ? 'left' : 'right') : 'down'}
-              accent={accents.get(blocks[index + 1].id) ?? RULE}
-              delay={delay}
-              reduceMotion={reduceMotion}
-            />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-/** A node in the graph. Bordered, compact, and coloured by its own stage. */
-function BlockBox({
-  label,
-  description,
-  technologies,
-  accent,
-  hollow,
-  wide,
-}: {
-  label: string;
-  description: string;
-  technologies: string[];
-  accent: string;
-  hollow: boolean;
-  wide: boolean;
-}) {
-  return (
-    <div
-      className="rounded-md px-2.5 py-1.5"
-      style={{
-        border: `1px solid ${hollow ? RULE : accent}`,
-        ...(wide ? { flexGrow: 1, flexBasis: 0, minWidth: 0 } : {}),
-      }}
-    >
-      <div
-        className="font-mono text-[10px] uppercase tracking-[0.1em]"
-        style={{ color: hollow ? CONTENT_DIM : accent }}
-      >
-        {label}
-      </div>
-      <p className="mt-1 text-[10.5px] leading-[1.35]" style={{ color: hollow ? CONTENT_DIM : TEXT }}>
-        {description}
-      </p>
-      {technologies.length > 0 && (
-        <div className="mt-1 text-[10px]">
-          <TechnologyRow technologies={technologies} />
-        </div>
+          <div
+            className={wide ? 'grid items-start' : 'flex flex-col gap-1.5'}
+            style={
+              wide
+                ? { gridTemplateColumns: `repeat(${outcomes.length}, minmax(0, 1fr))`, gap: 8 }
+                : undefined
+            }
+          >
+            {outcomes.map((block) => (
+              <Node
+                key={`outcome-${block.id}`}
+                title={block.claim ?? block.label}
+                body={block.headlineMetric}
+                accent={accentOf(block)}
+                emphasis
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-/** Edge geometry, in real pixels — the containers are fixed-size, so the SVGs
- * need no viewBox and the arrowheads can never be distorted by a non-uniform
- * scale the way a percentage-based `preserveAspectRatio="none"` box would. */
-const EDGE_W = 36;
-const EDGE_H = 12;
-const DROP_H = 22;
-const HEAD = 6;
-/** Static edge weight. Lifted from a 1px hairline — at that weight the edges
- * read as panel rules rather than as connections between modules — but held
- * well under the boxes' own 1px borders becoming secondary. */
-const EDGE_STROKE = 1.6;
-
-/** The travelling mark: a round dot on a `pathLength`-normalised track, so a
- * short edge and a tall drop pulse at the same apparent speed. */
-function pulseProps(accent: string, delay: number) {
-  return {
-    stroke: accent,
-    strokeWidth: 3,
-    strokeLinecap: 'round' as const,
-    pathLength: 100,
-    strokeDasharray: '3 97',
-    className: 'architecture-flow',
-    style: { animationDelay: `${delay}s` },
-  };
+/** The system every node belongs to. */
+function RootNode({ root }: { root: ArchitectureRoot }) {
+  return (
+    <div className="flex justify-center">
+      <div
+        className="rounded-md px-3 py-0.5 text-center"
+        style={{ border: `1px solid ${EDGE_RULE}`, maxWidth: '88%' }}
+      >
+        <div className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: STRONG }}>
+          {root.label}
+        </div>
+        <p className="mt-0.5 text-[10px] leading-[1.3]" style={{ color: CONTENT_DIM }}>
+          {root.description}
+        </p>
+      </div>
+    </div>
+  );
 }
 
-/**
- * An edge between two boxes on the same row.
- *
- * The arrowhead is a filled triangle drawn in the same SVG as its line rather
- * than a `▶` glyph positioned next to one — a text arrowhead sat on a
- * different baseline from the stroke it terminated and needed a hand-tuned
- * negative margin to look attached at all. Drawn together, the head lands
- * exactly on the line's end at any size.
- *
- * Under reduced motion the pulse is not rendered, leaving a static edge with
- * its arrowhead — direction is still unambiguous.
- */
-function EdgeLink({
-  direction,
+/** One block in the diagram. Squared, bordered, coloured by whatever it
+ * represents — a stage, a subsystem, or an outcome. */
+function Node({
+  title,
+  body,
+  tag,
   accent,
-  delay,
-  reduceMotion,
+  grow = false,
+  muted = false,
+  emphasis = false,
 }: {
-  direction: 'right' | 'left' | 'down';
+  title: string;
+  body?: string;
+  tag?: string;
   accent: string;
-  delay: number;
-  reduceMotion: boolean;
+  grow?: boolean;
+  /** The context-only entry node — present, but not his work. */
+  muted?: boolean;
+  /** An outcome. The measurement is the point, so it takes the accent. */
+  emphasis?: boolean;
 }) {
-  if (direction !== 'down') {
-    const rightwards = direction === 'right';
-    // Tail-to-head along the travel direction, so the pulse always runs the
-    // way the arrow points.
-    const tailX = rightwards ? 1 : EDGE_W - 1;
-    const headX = rightwards ? EDGE_W - 1 : 1;
-    const lineEnd = rightwards ? headX - HEAD : headX + HEAD;
-    const y = EDGE_H / 2;
+  return (
+    <div
+      className="rounded-md px-2 py-1"
+      style={{
+        border: `1px solid ${accent}`,
+        ...(grow ? { flexGrow: 1, flexBasis: 0, minWidth: 0 } : {}),
+      }}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-1.5">
+        <span
+          className="font-mono text-[9.5px] uppercase tracking-[0.08em]"
+          style={{ color: muted ? CONTENT_DIM : accent }}
+        >
+          {title}
+        </span>
+        {tag && (
+          <span className="font-mono text-[9px]" style={{ color: DIM }}>
+            {tag}
+          </span>
+        )}
+      </div>
+      {body && (
+        <p
+          className={`leading-[1.3] ${emphasis ? 'font-mono text-[10px] tabular-nums' : 'text-[10px]'}`}
+          style={{ color: muted ? CONTENT_DIM : emphasis ? accent : TEXT }}
+        >
+          {body}
+        </p>
+      )}
+    </div>
+  );
+}
 
+/** A solid edge between two blocks on the same row, or between stacked ones. */
+function Arrow({ direction }: { direction: 'right' | 'left' | 'down' }) {
+  const HEAD = 5;
+
+  if (direction === 'down') {
     return (
-      <div aria-hidden="true" className="flex shrink-0 items-center" style={{ width: EDGE_W }}>
-        <svg width={EDGE_W} height={EDGE_H} className="overflow-visible">
-          <line x1={tailX} y1={y} x2={lineEnd} y2={y} stroke={EDGE_RULE} strokeWidth={EDGE_STROKE} strokeLinecap="round" />
-          <polygon
-            points={`${headX},${y} ${lineEnd},${y - HEAD * 0.62} ${lineEnd},${y + HEAD * 0.62}`}
-            fill={EDGE_RULE}
-          />
-          {!reduceMotion && (
-            <line x1={tailX} y1={y} x2={lineEnd} y2={y} {...pulseProps(accent, delay)} />
-          )}
+      <div aria-hidden="true" className="flex justify-center">
+        <svg width={12} height={14}>
+          <line x1={6} y1={0} x2={6} y2={14 - HEAD} stroke={EDGE_RULE} strokeWidth={EDGE_STROKE} />
+          <polygon points={`6,14 ${6 - HEAD * 0.6},${14 - HEAD} ${6 + HEAD * 0.6},${14 - HEAD}`} fill={EDGE_RULE} />
         </svg>
       </div>
     );
   }
 
-  return <Drop accent={accent} delay={delay} reduceMotion={reduceMotion} />;
-}
-
-/** A downward edge — between stacked boxes, or from one subsystem row to the
- * next. Same construction as the horizontal edge, turned through 90°. */
-function Drop({
-  accent,
-  delay,
-  reduceMotion,
-}: {
-  accent: string;
-  delay: number;
-  reduceMotion: boolean;
-}) {
-  const x = 6;
-  const lineEnd = DROP_H - HEAD;
+  const rightwards = direction === 'right';
+  const W = 22;
+  const tail = rightwards ? 1 : W - 1;
+  const head = rightwards ? W - 1 : 1;
+  const end = rightwards ? head - HEAD : head + HEAD;
 
   return (
-    <div aria-hidden="true" className="flex justify-center py-1">
-      <svg width={12} height={DROP_H} className="overflow-visible">
-        <line x1={x} y1={1} x2={x} y2={lineEnd} stroke={EDGE_RULE} strokeWidth={EDGE_STROKE} strokeLinecap="round" />
-        <polygon
-          points={`${x},${DROP_H - 1} ${x - HEAD * 0.62},${lineEnd} ${x + HEAD * 0.62},${lineEnd}`}
-          fill={EDGE_RULE}
-        />
-        {!reduceMotion && (
-          <line x1={x} y1={1} x2={x} y2={lineEnd} {...pulseProps(accent, delay)} />
-        )}
+    <div aria-hidden="true" className="flex shrink-0 items-center" style={{ width: W }}>
+      <svg width={W} height={10}>
+        <line x1={tail} y1={5} x2={end} y2={5} stroke={EDGE_RULE} strokeWidth={EDGE_STROKE} />
+        <polygon points={`${head},5 ${end},${5 - HEAD * 0.6} ${end},${5 + HEAD * 0.6}`} fill={EDGE_RULE} />
       </svg>
     </div>
   );
 }
 
-/** The drop from one subsystem row to the next, aligned under whichever end of
- * the row the flow arrived at so the serpentine's corner is visible. */
-function RowLink({
-  accent,
-  alignEnd,
-  delay,
-  reduceMotion,
-}: {
-  accent: string;
-  alignEnd: boolean;
-  delay: number;
-  reduceMotion: boolean;
-}) {
+/** The corner between row one and row two. */
+function Turn({ align }: { align: 'start' | 'end' }) {
+  const HEAD = 5;
   return (
     <div
       aria-hidden="true"
-      className={`flex ${alignEnd ? 'justify-end pr-[14%]' : 'justify-start pl-[14%]'}`}
+      className={`flex ${align === 'end' ? 'justify-end pr-[14%]' : 'justify-start pl-2'}`}
     >
-      <Drop accent={accent} delay={delay} reduceMotion={reduceMotion} />
+      <svg width={12} height={TURN_PX}>
+        <line x1={6} y1={0} x2={6} y2={TURN_PX - HEAD} stroke={EDGE_RULE} strokeWidth={EDGE_STROKE} />
+        <polygon
+          points={`6,${TURN_PX} ${6 - HEAD * 0.6},${TURN_PX - HEAD} ${6 + HEAD * 0.6},${TURN_PX - HEAD}`}
+          fill={EDGE_RULE}
+        />
+      </svg>
     </div>
+  );
+}
+
+/**
+ * The dotted fan-out into the outcome row — and the one animated thing in this
+ * diagram.
+ *
+ * These branches are dotted rather than solid because they carry a different
+ * kind of relationship: the solid arrows above are the path a document takes
+ * through the system, while these say "and this is what that produced". The
+ * travelling pulse rides the dotted branches specifically, so the motion reads
+ * as results being emitted rather than as another copy of the pipeline's
+ * sequence.
+ *
+ * Drawn in a `0 0 100 100` viewBox with `preserveAspectRatio="none"`, so the
+ * geometry is percentages and needs no measurement, and with
+ * `vector-effect="non-scaling-stroke"` so that non-uniform scale can't smear
+ * the stroke or the dash pattern.
+ */
+function DottedFan({
+  accents,
+  reduceMotion,
+  vertical,
+}: {
+  accents: string[];
+  reduceMotion: boolean;
+  vertical: boolean;
+}) {
+  const count = accents.length;
+  const centre = (index: number) => ((index + 0.5) / count) * 100;
+
+  if (vertical) {
+    return (
+      <div aria-hidden="true" className="flex justify-start pl-2">
+        <svg width={12} height={FAN_PX}>
+          <line
+            x1={6}
+            y1={0}
+            x2={6}
+            y2={FAN_PX}
+            stroke={EDGE_RULE}
+            strokeWidth={EDGE_STROKE}
+            strokeDasharray="2 3"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      className="w-full"
+      height={FAN_PX}
+    >
+      {accents.map((accent, index) => {
+        const d = `M 50 0 V 44 H ${centre(index)} V 100`;
+        return (
+          <g key={index}>
+            <path
+              d={d}
+              fill="none"
+              stroke={EDGE_RULE}
+              strokeWidth={EDGE_STROKE}
+              strokeDasharray="2 3"
+              vectorEffect="non-scaling-stroke"
+            />
+            {!reduceMotion && (
+              <path
+                d={d}
+                fill="none"
+                stroke={accent}
+                strokeWidth={3}
+                strokeLinecap="round"
+                pathLength={100}
+                strokeDasharray="3 97"
+                vectorEffect="non-scaling-stroke"
+                className="architecture-flow"
+                style={{
+                  animationDelay: `${(index * FLOW_PERIOD_S) / count}s`,
+                  filter: `drop-shadow(0 0 2px ${accent})`,
+                }}
+              />
+            )}
+          </g>
+        );
+      })}
+    </svg>
   );
 }

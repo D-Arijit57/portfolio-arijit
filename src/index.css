@@ -182,6 +182,39 @@
   }
 }
 
+/* The right-hand pipeline's data-flow pulse (canvas/SystemPipeline.tsx).
+
+   Deliberately a different animation from `.architecture-flow` above, because
+   the two report different things: the architecture's marks propagate outward
+   through a branching structure, this one is a single packet descending one
+   path. So it travels only during the first `PULSE_TRAVEL_FRACTION` of its
+   cycle and then holds, invisible, for the rest — each rail segment is delayed
+   by exactly that fraction, which is what hands the packet from one segment to
+   the next and leaves a short beat before the following one departs. Change
+   the 30% here and `PULSE_TRAVEL_FRACTION` in SystemPipeline.tsx must move with
+   it; they are two halves of one timing.
+
+   Opacity ramps at both ends rather than snapping, so the packet arrives and
+   departs instead of appearing. Velocity is constant throughout — the ramps sit
+   inside the travel window, not on the position curve. */
+@keyframes pipeline-pulse {
+  0% { stroke-dashoffset: 0; opacity: 0; }
+  3% { opacity: 1; }
+  26% { opacity: 1; }
+  30% { stroke-dashoffset: -100; opacity: 0; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+.pipeline-pulse {
+  animation: pipeline-pulse 3.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pipeline-pulse {
+    animation: none;
+  }
+}
+
 /* Phase 9D: startup.log's fireflies (CampfireFireflies.tsx). Two keyframes and
    one class for all eight — every per-firefly value (peak opacity, both
    periods, and the four wander waypoints) arrives as a CSS custom property, so

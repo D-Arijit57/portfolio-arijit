@@ -8,6 +8,20 @@ import { CONTENT_DIM, DIM, RULE } from '../pipeline/tokens';
 
 const SESSION_KEY = 'americanchase-canvas-pipeline';
 
+/**
+ * The pulse's cycle, and the fraction of it the packet spends travelling.
+ *
+ * Both must stay in sync with `@keyframes pipeline-pulse` in index.css: the
+ * keyframe moves the dash over the first 30% and then holds it invisible, and
+ * delaying each segment by exactly that fraction is what hands the packet down
+ * the rail as one continuous descent rather than lighting every segment at
+ * once. A CSS keyframe can't read a JS constant, so this pair is kept honest by
+ * name and by this comment — the same arrangement `BOOT_LINE_ANIM_MS` already
+ * has with `.boot-line-print`.
+ */
+const PULSE_PERIOD_S = 3.6;
+const PULSE_TRAVEL_FRACTION = 0.3;
+
 /** Enough of the column on screen to be worth watching flow. */
 const VISIBLE_THRESHOLD = 0.15;
 
@@ -210,6 +224,9 @@ export function SystemPipeline({
                 <RailSegment
                   accent={accent}
                   state={instant ? 'solid' : drawing === index ? 'drawing' : index < revealed - 1 ? 'solid' : 'idle'}
+                  index={index}
+                  pulsing={complete}
+                  reduceMotion={reduceMotion}
                   onDrawn={handleSegmentDrawn}
                 />
               )}
@@ -284,10 +301,28 @@ function StageDot({
 function RailSegment({
   accent,
   state,
+  index,
+  pulsing,
+  reduceMotion,
   onDrawn,
 }: {
   accent: string;
   state: 'idle' | 'drawing' | 'solid';
+  /** Position in the rail — sets when this segment's packet departs. */
+  index: number;
+  /**
+   * Whether the steady-state flow is running.
+   *
+   * Gated on the *whole* pipeline having settled rather than on this segment
+   * alone, and that is load-bearing: `animation-delay` counts from the moment
+   * an element mounts, so segments mounted one at a time by the reveal cascade
+   * would each start their own clock and the staggered handoff would drift into
+   * three unrelated blips. Mounting every pulse in one commit gives them a
+   * shared origin, which is what makes the delays add up to a single packet
+   * descending the rail.
+   */
+  pulsing: boolean;
+  reduceMotion: boolean;
   onDrawn: () => void;
 }) {
   return (
@@ -313,6 +348,31 @@ function RailSegment({
               strokeDasharray="100"
               className={state === 'drawing' ? 'execution-wire-draw' : undefined}
               onAnimationEnd={state === 'drawing' ? onDrawn : undefined}
+            />
+          )}
+
+          {/* The travelling packet. Mounted only once this segment has settled,
+              so the reveal cascade and the steady-state flow never overlap and
+              the reader is never watching two different signals on one rail.
+              One short round-capped dash on a pathLength=100 track — a dot, not
+              a trail — with a small drop-shadow so it reads as luminous without
+              lighting the rail it runs on. */}
+          {pulsing && !reduceMotion && (
+            <line
+              x1="50%"
+              y1="0"
+              x2="50%"
+              y2="100%"
+              stroke={accent}
+              strokeWidth={3}
+              strokeLinecap="round"
+              pathLength={100}
+              strokeDasharray="2 98"
+              className="pipeline-pulse"
+              style={{
+                animationDelay: `${index * PULSE_PERIOD_S * PULSE_TRAVEL_FRACTION}s`,
+                filter: `drop-shadow(0 0 3px ${accent})`,
+              }}
             />
           )}
         </svg>

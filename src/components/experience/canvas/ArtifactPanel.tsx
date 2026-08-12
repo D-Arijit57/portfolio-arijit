@@ -97,7 +97,7 @@ export function ArtifactPanel({
             and the shell is waiting. Static, not blinking: four blinking
             carets across four panels would be four looping animations
             competing with the one on the architecture diagram. */}
-        <div className="mt-2 font-mono text-[12px]" style={{ color: TEXT }}>
+        <div className="mt-1.5 font-mono text-[12px]" style={{ color: TEXT }}>
           <span style={{ color: PROMPT_ACCENT }}>$</span>{' '}
           <span aria-hidden="true" style={{ color: DIM }}>
             _

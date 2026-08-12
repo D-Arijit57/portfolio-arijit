@@ -13,7 +13,7 @@ import { CONTENT_DIM, DIM, SURFACE } from '../pipeline/tokens';
 /** Gutter between two terminals, and between the two artifact rows — one
  * value, taken from the reference's own rhythm (~5.5% of the canvas). */
 const COL_GAP = 28;
-const ROW_GAP = 20;
+const ROW_GAP = 16;
 
 // Connectors are enabled at the `wide` tier only — below it the pipeline has
 // reflowed beneath the artifacts and every wire would be a long vertical drop

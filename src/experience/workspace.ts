@@ -206,10 +206,13 @@ export interface Relationship {
   /**
    * Drawn at rest, or only while its artifact is hovered/focused.
    *
-   * `evidences` is hover-only on purpose: the source file backs every stage on
-   * the page, so drawing that set permanently would be four lines from one
-   * node to everything — the exact "connector spaghetti" this system exists to
-   * avoid. At rest the canvas shows six edges that each say something specific.
+   * Every relationship is now drawn at rest, including `evidences` — the source
+   * file backs every stage on the page, and a reader should be able to see that
+   * without hunting for it. What keeps that from becoming the "connector
+   * spaghetti" this system exists to avoid is weight rather than presence: the
+   * renderer draws the evidence set at a markedly fainter resting opacity than
+   * the describes/measures edges, so it reads as the substrate underneath the
+   * page's specific claims rather than as four more competing signals.
    */
   restingVisible: boolean;
 }
@@ -495,7 +498,7 @@ function buildRelationships(
         to: stage.id,
         kind: 'evidences',
         reason: highlight.text,
-        restingVisible: false,
+        restingVisible: true,
       });
     }
   }

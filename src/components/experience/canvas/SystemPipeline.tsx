@@ -28,6 +28,9 @@ const VISIBLE_THRESHOLD = 0.15;
 /** The rail's own column width — dot plus breathing room before the stage text. */
 const RAIL_PX = 22;
 const DOT_PX = 9;
+/** Where the dot sits from the top of its row — aligned to the `[0N]` marker's
+ * own cap height, and the origin every rail run is measured from. */
+const DOT_TOP_PX = 7;
 
 /**
  * The engineering pipeline — the system flow itself, not another artifact.
@@ -179,7 +182,12 @@ export function SystemPipeline({
                   onStageActiveChange?.(null);
                 }}
               >
-                <StageDot accent={accent} revealed={isRevealed} reduceMotion={reduceMotion} />
+                <StageDot
+                  accent={accent}
+                  revealed={isRevealed}
+                  reduceMotion={reduceMotion}
+                  connect={!last}
+                />
 
                 <div
                   style={{
@@ -259,22 +267,73 @@ export function SystemPipeline({
   );
 }
 
-/** The node on the rail. Its ring is the stage's own identity colour — the
- * same value its connector and its legend entry wear. */
+/**
+ * The node on the rail, and the rail's run through its own row.
+ *
+ * The run is the point. A stage row is as tall as its text, and previously the
+ * rail existed only in the gaps *between* rows — so the line stopped under each
+ * dot, skipped the whole row, and picked up again below it. Four dots joined by
+ * three floating dashes rather than one continuous rail. This draws from the
+ * dot's centre to the bottom of its own row, which is exactly where
+ * `RailSegment` takes over, so the two meet with no seam.
+ *
+ * The dot renders after the run so it paints over the line's origin: the rail
+ * emerges from underneath the node rather than butting against it.
+ */
 function StageDot({
   accent,
   revealed,
   reduceMotion,
+  connect,
 }: {
   accent: string;
   revealed: boolean;
   reduceMotion: boolean;
+  /** False on the last stage — nothing follows it to connect to. */
+  connect: boolean;
 }) {
+  const transition = reduceMotion
+    ? 'none'
+    : 'opacity 220ms ease-out, background-color 220ms ease-out, box-shadow 220ms ease-out';
+
   return (
-    <div aria-hidden="true" className="flex justify-center pt-[7px]">
+    <div aria-hidden="true" className="relative flex justify-center">
+      {connect && (
+        <>
+          {/* The channel, present before anything has flowed through it. */}
+          <span
+            className="absolute"
+            style={{
+              left: '50%',
+              transform: 'translateX(-50%)',
+              top: DOT_TOP_PX + DOT_PX / 2,
+              bottom: 0,
+              width: 1,
+              backgroundColor: RULE,
+            }}
+          />
+          {/* Lit once this stage has arrived, at the same opacity a settled
+              `RailSegment` uses, so the run and the segment read as one line. */}
+          <span
+            className="absolute"
+            style={{
+              left: '50%',
+              transform: 'translateX(-50%)',
+              top: DOT_TOP_PX + DOT_PX / 2,
+              bottom: 0,
+              width: 1.5,
+              backgroundColor: accent,
+              opacity: revealed ? 0.55 : 0,
+              transition,
+            }}
+          />
+        </>
+      )}
+
       <span
-        className="block shrink-0 rounded-full"
+        className="relative block shrink-0 rounded-full"
         style={{
+          marginTop: DOT_TOP_PX,
           width: DOT_PX,
           height: DOT_PX,
           border: `1.5px solid ${accent}`,
@@ -282,7 +341,7 @@ function StageDot({
           opacity: revealed ? 1 : 0.35,
           // One restrained ring, only while lit — no bloom, no pulse.
           boxShadow: revealed ? `0 0 5px ${accent}55` : 'none',
-          transition: reduceMotion ? 'none' : 'opacity 220ms ease-out, background-color 220ms ease-out, box-shadow 220ms ease-out',
+          transition,
         }}
       />
     </div>
@@ -328,7 +387,7 @@ function RailSegment({
   return (
     <div
       aria-hidden="true"
-      className="grid min-h-[26px] flex-1"
+      className="grid min-h-[20px] flex-1"
       style={{ gridTemplateColumns: `${RAIL_PX}px minmax(0, 1fr)` }}
     >
       <div className="relative">

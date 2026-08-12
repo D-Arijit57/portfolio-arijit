@@ -159,6 +159,9 @@ export function ExperienceWorkspaceCanvas({
         to: relationship.to,
         color: accents.get(relationship.to) ?? CONTENT_DIM,
         restingVisible: relationship.restingVisible,
+        // The source file underwrites every stage, so its edges are ambient
+        // context rather than one of the page's specific claims.
+        ambient: relationship.kind === 'evidences',
       })),
     [workspace.relationships, accents],
   );

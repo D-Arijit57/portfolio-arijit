@@ -20,6 +20,17 @@ const IDLE_OPACITY = 0.38;
 const ACTIVE_OPACITY = 0.95;
 /** Non-emphasised wires drop to this while something else is emphasised. */
 const MUTED_OPACITY = 0.1;
+/**
+ * The resting weight of an ambient wire — one that is true of the whole page
+ * rather than of one specific claim.
+ *
+ * Present, findable, and clearly subordinate: enough to show that the source
+ * file underwrites every stage, not enough to compete with the describes and
+ * measures edges that each say something particular. Ambient wires still reach
+ * full `ACTIVE_OPACITY` when their own artifact is emphasised, so nothing is
+ * hidden — only ranked.
+ */
+const AMBIENT_OPACITY = 0.17;
 
 export interface ConnectorEdge {
   id: string;
@@ -30,6 +41,9 @@ export interface ConnectorEdge {
   color: string;
   /** Drawn at rest, or only while one of its endpoints is emphasised. */
   restingVisible: boolean;
+  /** True of the page as a whole rather than of one claim — drawn at rest, but
+   * at `AMBIENT_OPACITY` so it sits beneath the specific edges. */
+  ambient?: boolean;
 }
 
 interface Point {
@@ -44,6 +58,7 @@ interface Wire {
   from: Point;
   to: Point;
   resting: boolean;
+  ambient: boolean;
 }
 
 /** Corner radius where a run turns into the channel and back out again. */
@@ -263,6 +278,7 @@ export function ArtifactConnectors({
             from: start,
             to: end,
             resting: edge.restingVisible,
+            ambient: Boolean(edge.ambient),
           });
           continue;
         }
@@ -323,6 +339,7 @@ export function ArtifactConnectors({
           from: start,
           to: end,
           resting: edge.restingVisible,
+          ambient: Boolean(edge.ambient),
         });
       }
       setWires(next);
@@ -368,7 +385,8 @@ export function ArtifactConnectors({
         // never has to be reasoned about as "faint lines you can't quite see".
         if (!wire.resting && !active) return null;
 
-        const opacity = active ? ACTIVE_OPACITY : emphasising ? MUTED_OPACITY : IDLE_OPACITY;
+        const resting = wire.ambient ? AMBIENT_OPACITY : IDLE_OPACITY;
+        const opacity = active ? ACTIVE_OPACITY : emphasising ? MUTED_OPACITY : resting;
 
         return (
           <g key={wire.id} className="artifact-connector">
@@ -376,7 +394,7 @@ export function ArtifactConnectors({
               d={wire.d}
               fill="none"
               stroke={wire.color}
-              strokeWidth={active ? 1.5 : 1}
+              strokeWidth={active ? 1.5 : wire.ambient ? 0.75 : 1}
               strokeOpacity={opacity}
             />
             {[wire.from, wire.to].map((point, index) => (
@@ -384,7 +402,7 @@ export function ArtifactConnectors({
                 key={index}
                 cx={point.x}
                 cy={point.y}
-                r={active ? 2.75 : 2}
+                r={active ? 2.75 : wire.ambient ? 1.5 : 2}
                 fill={wire.color}
                 fillOpacity={opacity}
               />

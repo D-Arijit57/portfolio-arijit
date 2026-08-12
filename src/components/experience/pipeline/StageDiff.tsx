@@ -72,8 +72,15 @@ export function StageDiff({ stage }: { stage: PipelineStage }) {
  * It grows from zero once, on the frame it appears. That movement is the
  * measurement being taken; it doesn't repeat, and under reduced motion the
  * bar is simply drawn at its final length with the same information intact.
+ *
+ * Exported (additively — nothing else about this file changed) so
+ * `canvas/ArtifactPanel.tsx`'s metrics.log renders its one comparison through
+ * this exact component rather than a lookalike. The page is allowed a single
+ * proportional mark; having one implementation draw it is what guarantees the
+ * `comparisonGeometry()` gate can't be sidestepped by a second bar written
+ * somewhere else.
  */
-function ComparisonBar({
+export function ComparisonBar({
   ratio,
   color,
   label,

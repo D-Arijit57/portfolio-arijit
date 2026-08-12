@@ -130,6 +130,27 @@
   }
 }
 
+/* americanchase.yaml's artifact→stage connectors (ArtifactConnectors.tsx).
+   Same reasoning as the evidence line above, one step wider in scope: six
+   wires share the canvas at rest, so emphasising one has to read as that line
+   brightening rather than as the set rearranging. Opacity and radius only —
+   never `d` — which is what guarantees hover can't cost a re-measure. */
+.artifact-connector path,
+.artifact-connector circle {
+  transition:
+    stroke-opacity 140ms ease-out,
+    fill-opacity 140ms ease-out,
+    stroke-width 140ms ease-out,
+    r 140ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artifact-connector path,
+  .artifact-connector circle {
+    transition: none;
+  }
+}
+
 /* Phase 9D: startup.log's fireflies (CampfireFireflies.tsx). Two keyframes and
    one class for all eight — every per-firefly value (peak opacity, both
    periods, and the four wander waypoints) arrives as a CSS custom property, so

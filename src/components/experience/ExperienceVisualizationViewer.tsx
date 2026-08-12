@@ -1,6 +1,6 @@
 import React from 'react';
 import { workHistory } from '../../content/workHistory';
-import { PipelineVisualization } from './pipeline/PipelineVisualization';
+import { ExperienceWorkspaceCanvas } from './canvas/ExperienceWorkspaceCanvas';
 import type { VirtualFile } from '../../types';
 
 /**
@@ -31,13 +31,7 @@ export function ExperienceVisualizationViewer({ file }: { file: VirtualFile }) {
 
   switch (experience.visualization.type) {
     case 'pipeline':
-      return (
-        <PipelineVisualization
-          experience={experience}
-          visualization={experience.visualization}
-          file={file}
-        />
-      );
+      return <ExperienceWorkspaceCanvas experience={experience} file={file} />;
     default:
       return null;
   }

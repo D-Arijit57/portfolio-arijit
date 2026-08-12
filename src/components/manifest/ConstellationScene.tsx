@@ -259,7 +259,16 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
                 if (!from || !to) return null;
                 const targetNode = nodeById.get(edge.to);
                 const sourceNode = nodeById.get(edge.from);
-                const color = targetNode?.color ?? '#5a5a5a';
+                // Inherited from the *source*, per the connection reference:
+                // every edge leaving a node carries that node's category, so a
+                // branch reads as one family fanning out rather than as a set
+                // of unrelated lines that happen to meet.
+                const color = sourceNode?.color ?? '#5a5a5a';
+                // Thickness by importance — the target's tier. With every node
+                // now drawn at one size, the edges are where that hierarchy
+                // still shows.
+                const importance =
+                  targetNode?.tier === 'primary' ? 'high' : targetNode?.tier === 'secondary' ? 'medium' : 'low';
                 const edgeKey = `${edge.from}->${edge.to}`;
                 const unitIndex = unitIndexByEdgeKey.get(edgeKey) ?? 0;
                 const delay = revealSequence.isComplete ? 0 : revealSequence.getUnitTransition(unitIndex).delay;
@@ -274,6 +283,7 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
                     fromRadius={sourceNode ? TIER_RADIUS[sourceNode.tier] : 0}
                     toRadius={targetNode ? TIER_RADIUS[targetNode.tier] : 0}
                     color={color}
+                    importance={importance}
                     state={stateForEdge(edge.from, edge.to)}
                     reduceMotion={reduceMotion}
                     delay={delay}

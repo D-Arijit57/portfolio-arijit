@@ -1,6 +1,13 @@
 import React, { useId, useRef } from 'react';
 import { ChevronRight, ArrowUpRight, Folder, Check } from 'lucide-react';
-import type { Artifact, MetricReading, ShippedGroup } from '../../../experience/workspace';
+import type {
+  Artifact,
+  ContributedArea,
+  MetricReading,
+  ShippedGroup,
+  SourceSummary,
+  StateChange,
+} from '../../../experience/workspace';
 import type { VirtualFile } from '../../../types';
 import { prefersReducedMotion } from '../../../lib/typingReveal';
 import { useFileRevealSequence } from '../../../hooks/useFileRevealSequence';
@@ -81,11 +88,20 @@ export function ArtifactPanel({
               accents={accents}
             />
           )}
-          {artifact.kind === 'metrics' && <MetricsLog readings={artifact.payload.readings} accents={accents} />}
+          {artifact.kind === 'metrics' && (
+            <MetricsLog
+              readings={artifact.payload.readings}
+              changes={artifact.payload.changes}
+              stack={artifact.payload.stack}
+              coverage={artifact.payload.coverage}
+              accents={accents}
+            />
+          )}
           {artifact.kind === 'shipped' && <ShippedTree groups={artifact.payload.groups} />}
           {artifact.kind === 'source' && (
             <SourceView
               file={file}
+              summary={artifact.payload.summary}
               expanded={expanded ?? false}
               onToggleExpanded={onToggleExpanded}
               onOpenFile={onOpenFile}
@@ -136,14 +152,26 @@ function CommandLine({ command }: { command: string }) {
  * reference reads as a log, and two numbers in one unit are already legible as
  * a pair. `ComparisonBar` (StageDiff.tsx) is untouched and still exports.
  */
-function MetricsLog({ readings, accents }: { readings: MetricReading[]; accents: Map<string, string> }) {
+function MetricsLog({
+  readings,
+  changes,
+  stack,
+  coverage,
+  accents,
+}: {
+  readings: MetricReading[];
+  changes: StateChange[];
+  stack: string[];
+  coverage: ContributedArea[];
+  accents: Map<string, string>;
+}) {
   /** A measurement owned by a stage wears that stage's colour; a spanning one
    * has no stage to borrow from and stays neutral. */
   const tick = (reading: MetricReading) =>
     reading.ownerIsStage ? accents.get(reading.ownerId) : undefined;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       {readings.map((reading) => (
         <section key={`${reading.ownerId}-${reading.id}`}>
           {/* A single-value metric states its value on the heading line rather
@@ -190,6 +218,82 @@ function MetricsLog({ readings, accents }: { readings: MetricReading[]; accents:
           )}
         </section>
       ))}
+
+      {/* DEBUGGING — the model's only qualitative evidence: a described state
+          change with no number attached. Carried on the stage all along and
+          previously unrendered. */}
+      {changes.map((change) => (
+        <section key={`change-${change.ownerId}`}>
+          <SectionHeading
+            label="debugging"
+            tag={`${change.ownerLabel} · ${highlightTags(change.sourceHighlights)}`}
+            accent={accents.get(change.ownerId)}
+          />
+          <dl className="mt-0.5 grid grid-cols-[auto_1fr] gap-x-2 font-mono text-[10.5px] leading-[1.35]">
+            <Row label="before" value={change.before} color={DIFF_REMOVED} />
+            <Row label="after" value={change.after} color={DIFF_ADDED} />
+          </dl>
+        </section>
+      ))}
+
+      {/* STACK — `experience.tech`, verbatim. One column per entry: three
+          technologies in two columns left a half-empty second row, and the
+          panel's height is what decides whether the composition fits a laptop
+          viewport without scrolling. */}
+      {stack.length > 0 && (
+        <section>
+          <SectionHeading label="stack" />
+          <ul className="mt-0.5 m-0 grid list-none grid-cols-3 gap-x-3 p-0 font-mono text-[11px]" style={{ color: TEXT }}>
+            {stack.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* PRODUCTION — every area contributed to. A stage or a spanning group
+          appears here if and only if the model records a contribution for it,
+          so the list can never claim coverage the data doesn't have. */}
+      {coverage.length > 0 && (
+        <section>
+          <SectionHeading label="production" />
+          <ul className="m-0 mt-0.5 flex list-none flex-wrap gap-x-4 gap-y-0.5 p-0 font-mono text-[11px]">
+            {coverage.map((area) => (
+              <li key={`cov-${area.id}`} className="flex items-baseline gap-1.5">
+                <span style={{ color: DIFF_ADDED }}>✓</span>
+                <span style={{ color: CONTENT_DIM }}>{area.label}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** A titled band inside metrics.log — an optional identity dot, the section
+ * name, and an optional right-aligned provenance tag. */
+function SectionHeading({ label, tag, accent }: { label: string; tag?: string; accent?: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3">
+      <span
+        className="flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.08em]"
+        style={{ color: STRONG }}
+      >
+        {accent && (
+          <span
+            aria-hidden="true"
+            className="block h-[5px] w-[5px] shrink-0 rounded-full"
+            style={{ backgroundColor: accent }}
+          />
+        )}
+        {label}
+      </span>
+      {tag && (
+        <span className="ml-auto font-mono text-[10px]" style={{ color: DIM }}>
+          {tag}
+        </span>
+      )}
     </div>
   );
 }
@@ -233,66 +337,77 @@ function provenanceOf(reading: MetricReading): string {
  * the page.
  */
 function ShippedTree({ groups }: { groups: ShippedGroup[] }) {
-  const deliverables = groups.flatMap((group) => group.deliverables ?? []);
+  /**
+   * Each contribution renders as a directory with its own entries — the shape
+   * `ls` actually produces, and the reason this panel stopped looking empty.
+   *
+   * Every entry is read off the group: its technologies, each of its metrics,
+   * and any generated deliverable names. Nothing is authored here, so a group
+   * the model gives one fact to shows one line rather than being padded out to
+   * match its neighbour.
+   */
+  const entriesFor = (group: ShippedGroup) => {
+    const entries: { key: string; text: string; tone: 'tech' | 'metric' | 'name' }[] = [];
+    for (const name of group.deliverables ?? []) {
+      entries.push({ key: `d-${name}`, text: `${name}/`, tone: 'name' });
+    }
+    if (group.technologies.length > 0) {
+      entries.push({ key: 't', text: group.technologies.join(' · '), tone: 'tech' });
+    }
+    for (const metric of group.metrics) {
+      entries.push({ key: `m-${metric.id}`, text: `${metric.value} ${metric.label}`, tone: 'metric' });
+    }
+    return entries;
+  };
+
   const generated = groups.some((group) => group.deliverables);
 
   return (
-    <div>
-      {/* The listing `ls shipped/` actually produced. */}
-      {deliverables.length > 0 && (
-        <ul className="m-0 list-none space-y-1 p-0 font-mono text-[11.5px]">
-          {deliverables.map((name) => (
-            <li key={name} className="flex items-center gap-2">
+    <div className="flex flex-col gap-2">
+      {groups.map((group) => {
+        const entries = entriesFor(group);
+        return (
+          <section key={group.id}>
+            <div className="flex items-center gap-2 font-mono text-[11px]">
               <Folder size={12} aria-hidden="true" style={{ color: METRIC }} className="shrink-0" />
-              <span style={{ color: TEXT }}>{name}/</span>
-              <span className="ml-auto flex items-center gap-1" style={{ color: DIFF_ADDED }}>
-                <Check size={11} aria-hidden="true" />
-                delivered
+              <span className="uppercase tracking-[0.08em]" style={{ color: STRONG }}>
+                {group.label}
               </span>
-            </li>
-          ))}
-        </ul>
-      )}
+              <span className="ml-auto" style={{ color: DIM }}>
+                {group.sourceHighlights.map((i) => `h${i}`).join(' ')}
+              </span>
+            </div>
+
+            <ul className="m-0 mt-0.5 list-none p-0 font-mono text-[11px]">
+              {entries.map((entry, index) => (
+                <li key={entry.key} className="flex gap-1.5">
+                  <span aria-hidden="true" className="shrink-0" style={{ color: DIM }}>
+                    {index === entries.length - 1 ? '└─' : '├─'}
+                  </span>
+                  <span
+                    className={entry.tone === 'metric' ? 'tabular-nums' : undefined}
+                    style={{
+                      color: entry.tone === 'metric' ? METRIC : entry.tone === 'tech' ? CONTENT_DIM : TEXT,
+                    }}
+                  >
+                    {entry.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="mt-0.5 text-[10px] leading-[1.35]" style={{ color: CONTENT_DIM }}>
+              {group.contribution}
+            </p>
+          </section>
+        );
+      })}
 
       {generated && (
-        <p className="mt-1.5 text-[10px] leading-[1.4]" style={{ color: DIM }}>
+        <p className="text-[10px] leading-[1.4]" style={{ color: DIM }}>
           placeholder names, generated from the delivered count — the source does not name them
         </p>
       )}
-
-      {/* The reference lists every cross-cutting measurement here as bullets.
-          They are not repeated: all three already appear in metrics.log, which
-          owns measurement for the whole page, and printing them twice within
-          one screen is duplication rather than composition. shipped/ keeps what
-          only it can say — what was delivered, and what was done. */}
-
-      {/* The contribution sentences, verbatim but compact.
-​
-          The reference drops these entirely; they are kept because with
-          `StageDetail` gone from the pipeline column this is the only place on
-          the page the canonical contribution wording survives, and losing it
-          would leave the bullets above asserting outcomes with nothing stating
-          what was actually done. Held to one tight block per group — label and
-          technologies inline, sentence beneath — so keeping them costs the
-          composition a few lines rather than a fold. */}
-      <div className="mt-2 space-y-1" style={{ borderTop: `1px solid ${RULE}`, paddingTop: 8 }}>
-        {groups.map((group) => (
-          <p key={group.id} className="text-[10.5px] leading-[1.35]" style={{ color: CONTENT_DIM }}>
-            <span
-              className="font-mono uppercase tracking-[0.08em]"
-              style={{ color: STRONG }}
-            >
-              {group.label}
-            </span>
-            {group.technologies.length > 0 && (
-              <span className="ml-1.5" style={{ color: DIM }}>
-                {group.technologies.join(' · ')}
-              </span>
-            )}
-            <span className="ml-1.5">{group.contribution}</span>
-          </p>
-        ))}
-      </div>
     </div>
   );
 }
@@ -311,11 +426,13 @@ function ShippedTree({ groups }: { groups: ShippedGroup[] }) {
  */
 function SourceView({
   file,
+  summary,
   expanded,
   onToggleExpanded,
   onOpenFile,
 }: {
   file: VirtualFile;
+  summary: SourceSummary;
   expanded: boolean;
   onToggleExpanded?: () => void;
   onOpenFile?: () => void;
@@ -335,7 +452,25 @@ function SourceView({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {/* A short YAML head of the file itself, so the panel says something at
+          rest instead of being a bare toggle. Every value is read off the
+          canonical model — the same fields the full source below prints. */}
+      <pre className="m-0 font-mono text-[11px] leading-[1.5]" style={{ color: TEXT }}>
+        <span style={{ color: PROMPT_ACCENT }}>experience</span>:{'\n'}
+        {'  '}<span style={{ color: PROMPT_ACCENT }}>role</span>:{' '}
+        <span style={{ color: CONTENT_DIM }}>{summary.role}</span>
+        {'\n'}
+        {'  '}<span style={{ color: PROMPT_ACCENT }}>stack</span>:{'\n'}
+        {summary.stack.map((item) => (
+          <span key={item}>
+            {'    - '}
+            <span style={{ color: CONTENT_DIM }}>{item}</span>
+            {'\n'}
+          </span>
+        ))}
+      </pre>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <button
           type="button"
           onClick={onToggleExpanded}

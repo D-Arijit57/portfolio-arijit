@@ -139,7 +139,39 @@ export interface MetricReading {
 }
 
 /**
- * One cross-cutting contribution in shipped/ — work that isn't a stage
+ * A stage's recorded state change, surfaced in metrics.log.
+ *
+ * `before`/`after` have been carried on `PipelineStage` all along and stopped
+ * being rendered anywhere when the pipeline's evidence panel was removed. They
+ * are the only qualitative evidence in the model — a described change with no
+ * number attached — and putting them back is what lets metrics.log say
+ * something when the résumé supplies few quantities.
+ */
+export interface StateChange {
+  ownerId: string;
+  ownerLabel: string;
+  before: string;
+  after: string;
+  sourceHighlights: number[];
+}
+
+/** The short YAML head americanchase.yaml's own artifact prints at rest. */
+export interface SourceSummary {
+  role: string;
+  location: string;
+  stack: string[];
+}
+
+/** A contributed area, for metrics.log's coverage list. */
+export interface ContributedArea {
+  id: string;
+  label: string;
+  isStage: boolean;
+  sourceHighlights: number[];
+}
+
+/**
+ * One cross-cutting contribution in contributions/ — work that isn't a stage
  * because nothing flows through it (see `SpanningContribution`'s own comment).
  */
 export interface ShippedGroup {
@@ -173,9 +205,20 @@ export type Artifact =
       kind: 'architecture';
       payload: { root: ArchitectureRoot; branches: ArchitectureBranch[] };
     })
-  | (ArtifactBase & { kind: 'metrics'; payload: { readings: MetricReading[] } })
+  | (ArtifactBase & {
+      kind: 'metrics';
+      payload: {
+        readings: MetricReading[];
+        /** Described state changes — qualitative evidence, no numbers. */
+        changes: StateChange[];
+        /** `experience.tech`, verbatim. */
+        stack: string[];
+        /** Every area he contributed to, stage or spanning. */
+        coverage: ContributedArea[];
+      };
+    })
   | (ArtifactBase & { kind: 'shipped'; payload: { groups: ShippedGroup[] } })
-  | (ArtifactBase & { kind: 'source'; payload: { fileId: string } });
+  | (ArtifactBase & { kind: 'source'; payload: { fileId: string; summary: SourceSummary } });
 
 /* ───────────────────────── relationships ───────────────────────── */
 
@@ -378,15 +421,55 @@ function buildArchitecture(
   };
 }
 
-function buildMetrics(readings: MetricReading[]): Artifact | undefined {
-  if (readings.length === 0) return undefined;
+/**
+ * metrics.log — everything the model can say about outcomes, not just its
+ * numbers.
+ *
+ * The résumé behind this experience states two quantities. A panel showing two
+ * rows and nothing else reads as a broken widget rather than as an honest one,
+ * so three further sections are derived from data that already existed and was
+ * simply going unrendered: the described before/after change, the stack the
+ * work was done in, and the areas contributed to. None of it is authored here.
+ */
+function buildMetrics(
+  readings: MetricReading[],
+  visualization: PipelineVisualizationModel,
+  stack: string[],
+): Artifact | undefined {
+  const changes: StateChange[] = visualization.stages
+    .filter((stage) => stage.before && stage.after)
+    .map((stage) => ({
+      ownerId: stage.id,
+      ownerLabel: stage.label,
+      before: stage.before!.summary,
+      after: stage.after!.summary,
+      sourceHighlights: stage.sourceHighlights,
+    }));
+
+  const coverage: ContributedArea[] = [
+    ...visualization.stages
+      .filter(isContributed)
+      .map((stage) => ({ id: stage.id, label: stage.label, isStage: true, sourceHighlights: stage.sourceHighlights })),
+    ...(visualization.spanning ?? []).map((group) => ({
+      id: group.id,
+      label: group.label,
+      isStage: false,
+      sourceHighlights: group.sourceHighlights,
+    })),
+  ];
+
+  if (readings.length === 0 && changes.length === 0 && coverage.length === 0) return undefined;
+
   return {
     id: 'metrics',
     kind: 'metrics',
     title: 'metrics.log',
     command: 'cat metrics.log',
-    sourceHighlights: unionHighlights(readings.map((reading) => reading.sourceHighlights)),
-    payload: { readings },
+    sourceHighlights: unionHighlights([
+      ...readings.map((reading) => reading.sourceHighlights),
+      ...changes.map((change) => change.sourceHighlights),
+    ]),
+    payload: { readings, changes, stack, coverage },
   };
 }
 
@@ -413,21 +496,29 @@ function buildShipped(visualization: PipelineVisualizationModel): Artifact | und
   return {
     id: 'shipped',
     kind: 'shipped',
-    title: 'shipped/',
-    command: 'ls shipped/',
+    // "contributions/", not "shipped/": what the résumé documents at this role
+    // is work contributed to an existing production system, not systems
+    // shipped. The old name implied ownership the model no longer supports.
+    title: 'contributions/',
+    command: 'ls contributions/',
     sourceHighlights: unionHighlights(groups.map((group) => group.sourceHighlights)),
     payload: { groups },
   };
 }
 
 function buildSource(experience: WorkExperience, fileId: string): Artifact {
+  const summary: SourceSummary = {
+    role: experience.role.toLowerCase(),
+    location: experience.location,
+    stack: experience.tech,
+  };
   return {
     id: 'source',
     kind: 'source',
     title: 'americanchase.yaml — source',
     command: 'cat ./americanchase.yaml',
     sourceHighlights: experience.highlights.map((_, index) => index),
-    payload: { fileId },
+    payload: { fileId, summary },
   };
 }
 
@@ -524,7 +615,7 @@ export function buildExperienceWorkspace(experience: WorkExperience): Experience
 
   const artifacts = [
     buildArchitecture(visualization, experience.description),
-    buildMetrics(impact),
+    buildMetrics(impact, visualization, experience.tech),
     buildShipped(visualization),
     buildSource(experience, WORK_HISTORY_FILE_ID),
   ].filter((artifact): artifact is Artifact => artifact !== undefined);

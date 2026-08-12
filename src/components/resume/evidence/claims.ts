@@ -87,54 +87,54 @@ export interface Claim {
  */
 export const CLAIMS: Claim[] = [
   {
-    id: 'llm-workflow',
+    id: 'esm-deploy-fix',
     bulletIndex: 0,
     color: '#4CD964',
     references: [
       {
         fileId: 'american_chase',
         fileName: 'americanchase.yaml',
-        locator: 'stage · extract',
-        description: stageDescription('extract'),
+        locator: 'spanning · deploy',
+        description: spanningDescription('deploy'),
       },
     ],
   },
   {
-    id: 'rag-pipeline',
+    id: 'hydration-race',
     bulletIndex: 1,
     color: '#569cd6',
     references: [
       {
         fileId: 'american_chase',
         fileName: 'americanchase.yaml',
-        locator: 'stage · index',
-        description: stageDescription('index'),
+        locator: 'stage · hydrate',
+        description: stageDescription('hydrate'),
       },
     ],
   },
   {
-    id: 'search-time',
+    id: 'backend-issues',
     bulletIndex: 2,
     color: '#e2c08d',
     references: [
       {
         fileId: 'american_chase',
         fileName: 'americanchase.yaml',
-        locator: 'stage · retrieve',
-        description: stageDescription('retrieve'),
+        locator: 'stage · serve',
+        description: stageDescription('serve'),
       },
     ],
   },
   {
-    id: 'defect-reduction',
+    id: 'ai-assistant',
     bulletIndex: 3,
     color: '#c586c0',
     references: [
       {
         fileId: 'american_chase',
         fileName: 'americanchase.yaml',
-        locator: 'spanning · reliability',
-        description: spanningDescription('reliability'),
+        locator: 'spanning · assistant',
+        description: spanningDescription('assistant'),
       },
     ],
   },

@@ -16,28 +16,33 @@ Loading profile...
 
 Candidate ........... Arijit Das
 Role ................ Software Engineer
-Focus ............... Backend • AI • Developer Tools
+Focus ............... Backend systems • LLM applications
 Status .............. AVAILABLE
 
 Strengths
 ─────────
-✓ Builds production-ready software
-✓ Backend engineering
-✓ AI-powered applications
-✓ Product-first mindset
-✓ Strong ownership
+✓ Node.js/Express backend services and REST APIs
+✓ Production debugging and root-cause analysis
+✓ Full-stack delivery, frontend through backend
+✓ LLM and RAG application work
+✓ Readable, testable code
 
 Recent Highlights
 ─────────────────
-• Built LLM-powered workflow automation
-• Integrated production RAG pipeline
-• Reduced search time from 5 min → <2 min
-• Reduced recurring production issues by 35%
-• Built full-stack remote interview platform
+• Fixed a serverless deploy failure across 37 backend modules
+• Traced a production data race in unawaited async hydration
+• Resolved 5+ backend issues by debugging APIs and logging
+• Contributed to an AI assistant alongside senior engineers
+• Built a full-stack remote interview platform
+
+Looking For
+───────────
+Backend or full-stack engineering, ideally where LLM features
+are shipped into real production systems rather than demos.
 
 Recommendation
 ──────────────
-✓ Strong candidate for Software & AI Engineering Roles
+✓ Strong candidate for Backend & AI Engineering Roles
 
 Learn More
 ──────────
@@ -191,18 +196,18 @@ const WORK_HISTORY_YAML = `# Work History
 experiences:
   - company: "American Chase"
     role: "Software Engineer"
-    startDate: "2025-03"
+    startDate: "2026-03"
     endDate: "Present"
     location: "Indore, MP"
-    tech: ["OpenAI API", "LangChain", "RAG", "Node.js", "Express.js"]
+    tech: ["Node.js", "Express.js", "REST APIs"]
     highlights:
-      - Developed an LLM-powered document workflow using OpenAI API and LangChain, automating key-field extraction and saving 2 hrs/week for a US operations team.
+      - Fixed a serverless deploy failure caused by extensionless relative imports that local tooling resolved but Node's native ESM loader rejected. Added .js extensions across 37 backend modules and verified by reproducing the production runtime locally.
 
-      - Resolved 5+ production defects in a Node.js/Express backend, reducing recurring issues by 35% through root-cause analysis and improved logging.
+      - Traced intermittent missing data in production to a provider refresh started at module scope but never awaited, letting the serverless invocation return before hydration finished. Made the refresh a shared promise that data routes await.
 
-      - Integrated a RAG pipeline into an internal business tool, enabling natural language search across 200+ documents and reducing lookup time from 5 mins to under 2 mins.
+      - Resolved 5+ backend issues in a Node.js/Express application by debugging APIs and improving application logging for easier troubleshooting.
 
-      - Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.
+      - Worked on an AI assistant for the client side operations team with senior engineers, contributing to implementation and testing across the feature.
 `;
 
 // Hand-authored project documentation, kept textually identical to
@@ -549,13 +554,24 @@ categories:
   - key: languages
     title: Programming Languages
     nodes:
-      - id: cpp
-        name: C++
+      - id: javascript
+        name: JavaScript
         category: languages
         isCore: true
-        description: A high-performance, compiled systems language with manual memory control and object-oriented features.
-        documentation: https://en.cppreference.com
-        tags: [systems, compiled, oop]
+        description: The language of the web, and the runtime language of the Node.js backends and React frontends in this workspace.
+        documentation: https://developer.mozilla.org/docs/Web/JavaScript
+        relatedNodes: [nodejs, typescript, react]
+        tags: [web, backend, frontend]
+
+      - id: typescript
+        name: TypeScript
+        category: languages
+        isCore: true
+        description: A typed superset of JavaScript that surfaces contract errors at compile time rather than in production.
+        documentation: https://www.typescriptlang.org/docs
+        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
+        relatedNodes: [javascript, react, nextjs]
+        tags: [typed, web]
 
       - id: python
         name: Python
@@ -564,114 +580,24 @@ categories:
         description: A dynamically-typed, readable general-purpose language widely used for scripting, data, and machine learning.
         documentation: https://docs.python.org/3
         projects: [RakshaChakra - Secure Mobile Banking]
-        notes: Built the fraud-detection backend for RakshaChakra, evaluated at 92% accuracy.
-        relatedNodes: [aws]
+        notes: Built the fraud-detection backend for RakshaChakra, evaluated at 92% accuracy against expected behaviour.
+        relatedNodes: [machine-learning, aws]
         tags: [scripting, ml, backend]
 
-      - id: javascript
-        name: JavaScript
+      - id: cpp
+        name: C++
         category: languages
-        description: The core scripting language of the web, running in browsers and on servers via Node.js.
-        documentation: https://developer.mozilla.org/en-US/docs/Web/JavaScript
-        relatedNodes: [typescript, nodejs]
-        tags: [web, scripting]
-
-      - id: typescript
-        name: TypeScript
-        category: languages
-        isCore: true
-        description: A statically-typed superset of JavaScript that catches errors at compile time.
-        documentation: https://www.typescriptlang.org/docs
-        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
-        relatedNodes: [react, nextjs, javascript]
-        tags: [web, typed]
+        description: A high-performance, compiled systems language with manual memory control and object-oriented features.
+        documentation: https://en.cppreference.com
+        notes: Used for competitive algorithmic work — TCS CodeVita 2025, top 5% (4,811 / 100,000).
+        tags: [systems, compiled, algorithms]
 
       - id: sql
         name: SQL
         category: languages
-        description: The standard query language for relational databases.
-        relatedNodes: [postgresql, mongodb]
-        tags: [database, query]
-
-      - id: go
-        name: Go
-        category: languages
-        description: A compiled, statically-typed language designed for simple, efficient concurrent systems.
-        documentation: https://go.dev/doc
-        tags: [systems, backend, concurrency]
-
-  - key: frontend
-    title: Frontend
-    nodes:
-      - id: react
-        name: React
-        category: frontend
-        isCore: true
-        description: A component-based JavaScript library for building user interfaces.
-        documentation: https://react.dev
-        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
-        relatedNodes: [nextjs, typescript, tailwindcss]
-        tags: [ui, library, component-based]
-
-      - id: nextjs
-        name: Next.js
-        category: frontend
-        isCore: true
-        description: A React framework with routing, server components, and API routes built in.
-        documentation: https://nextjs.org/docs
-        projects: [Cortexa Remote Interview Platform]
-        relatedNodes: [react, typescript, vercel]
-        tags: [framework, ssr]
-
-      - id: vue
-        name: Vue
-        category: frontend
-        description: An approachable, component-based JavaScript framework for building user interfaces.
-        documentation: https://vuejs.org
-        tags: [ui, framework]
-
-      - id: tailwindcss
-        name: Tailwind CSS
-        category: frontend
-        description: A utility-first CSS framework for building custom designs without leaving HTML.
-        documentation: https://tailwindcss.com/docs
-        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
-        relatedNodes: [react, shadcn-radix, html-css]
-        tags: [css, styling]
-
-      - id: framer-motion
-        name: Framer Motion
-        category: frontend
-        description: A production-ready animation library for React, published today as the "motion" package.
-        documentation: https://motion.dev
-        projects: [Portfolio Workspace (this site)]
-        relatedNodes: [react]
-        tags: [animation, react]
-
-      - id: shadcn-radix
-        name: shadcn/ui + Radix UI
-        category: frontend
-        description: Accessible, unstyled UI primitives (Radix) composed into a themeable component set (shadcn/ui).
-        documentation: https://ui.shadcn.com
-        projects: [Cortexa Remote Interview Platform]
-        relatedNodes: [tailwindcss, react]
-        tags: [ui, components, accessibility]
-
-      - id: html-css
-        name: HTML/CSS
-        category: frontend
-        description: The foundational markup and styling languages of the web.
-        relatedNodes: [tailwindcss]
-        tags: [web, markup, styling]
-
-      - id: zustand
-        name: Zustand
-        category: frontend
-        description: A small, unopinionated state-management library for React.
-        documentation: https://zustand.docs.pmnd.rs
-        projects: [Portfolio Workspace (this site)]
-        relatedNodes: [react]
-        tags: [state-management, react]
+        description: The declarative query language for relational data — joins, aggregates, and set operations over tables.
+        documentation: https://www.postgresql.org/docs/current/sql.html
+        tags: [data, query]
 
   - key: backend
     title: Backend
@@ -682,133 +608,118 @@ categories:
         isCore: true
         description: A JavaScript runtime for building server-side applications outside the browser.
         documentation: https://nodejs.org/docs
-        projects: [Cortexa Remote Interview Platform]
-        notes: Resolved 5+ production defects in a Node.js/Express backend at American Chase, reducing recurring issues by 35% through root-cause analysis and improved logging.
-        relatedNodes: [expressjs, javascript, typescript]
+        projects: [American Chase, Cortexa Remote Interview Platform]
+        notes: Resolved 5+ backend issues in a Node.js/Express application at American Chase by debugging APIs and improving application logging.
+        relatedNodes: [expressjs, javascript, rest-apis]
         tags: [runtime, backend]
 
       - id: expressjs
         name: Express.js
         category: backend
+        isCore: true
         description: A minimal, unopinionated web framework for Node.js.
         documentation: https://expressjs.com
+        projects: [American Chase]
+        notes: The application framework behind the serverless backend debugged at American Chase.
         relatedNodes: [nodejs, rest-apis]
         tags: [framework, backend]
 
       - id: rest-apis
         name: REST APIs
         category: backend
+        isCore: true
         description: An architectural style for designing networked applications around stateless, resource-oriented HTTP endpoints.
-        relatedNodes: [expressjs, graphql]
-        tags: [api, architecture]
+        documentation: https://developer.mozilla.org/docs/Web/HTTP
+        projects: [American Chase, Cortexa Remote Interview Platform]
+        relatedNodes: [nodejs, expressjs]
+        tags: [http, api, backend]
 
-      - id: postgresql
-        name: PostgreSQL
-        category: backend
-        description: An open-source, standards-compliant relational database.
-        documentation: https://www.postgresql.org/docs
-        relatedNodes: [sql]
-        tags: [database, relational]
+  - key: frontend
+    title: Frontend
+    nodes:
+      - id: react
+        name: React
+        category: frontend
+        isCore: true
+        description: A component-based UI library for building interfaces from composable, stateful pieces.
+        documentation: https://react.dev
+        projects: [Cortexa Remote Interview Platform, Portfolio Workspace (this site)]
+        relatedNodes: [nextjs, javascript, typescript]
+        tags: [ui, components]
 
-      - id: mongodb
-        name: MongoDB
-        category: backend
-        description: A document-oriented NoSQL database.
-        documentation: https://www.mongodb.com/docs
-        relatedNodes: [sql]
-        tags: [database, nosql]
-
-      - id: redis
-        name: Redis
-        category: backend
-        description: An in-memory key-value store used for caching, queues, and fast lookups.
-        documentation: https://redis.io/docs
-        tags: [database, cache]
-
-      - id: graphql
-        name: GraphQL
-        category: backend
-        description: A query language for APIs that lets clients request exactly the data they need.
-        documentation: https://graphql.org/learn
-        relatedNodes: [rest-apis]
-        tags: [api, query-language]
-
-      - id: microservices
-        name: Microservices
-        category: backend
-        description: An architectural style that structures an application as a collection of independently deployable services.
-        relatedNodes: [rest-apis, graphql]
-        tags: [architecture]
-
-      - id: convex
-        name: Convex
-        category: backend
-        description: A real-time backend platform combining a database, serverless functions, and live synchronization.
-        documentation: https://docs.convex.dev
+      - id: nextjs
+        name: Next.js
+        category: frontend
+        isCore: true
+        description: A React framework with file-based routing, server rendering, and API routes in one application.
+        documentation: https://nextjs.org/docs
         projects: [Cortexa Remote Interview Platform]
-        relatedNodes: [react, nextjs]
-        tags: [backend-platform, realtime]
+        notes: The application framework behind Cortexa's real-time video interviewing platform.
+        relatedNodes: [react, typescript]
+        tags: [framework, ssr, fullstack]
+
+      - id: flutter
+        name: Flutter
+        category: frontend
+        description: A cross-platform UI toolkit for building natively compiled mobile applications from a single codebase.
+        documentation: https://docs.flutter.dev
+        projects: [RakshaChakra - Secure Mobile Banking]
+        relatedNodes: [machine-learning]
+        tags: [mobile, cross-platform]
 
   - key: ai
     title: Artificial Intelligence
     nodes:
-      - id: openai-api
-        name: OpenAI API
-        category: ai
-        isCore: true
-        description: A hosted API for accessing large language models for text generation and reasoning tasks.
-        documentation: https://platform.openai.com/docs
-        notes: Used to build an LLM-powered document workflow automating key-field extraction, saving 2 hrs/week for a US operations team.
-        relatedNodes: [langchain, rag]
-        tags: [llm, api]
-
-      - id: langchain
-        name: LangChain
-        category: ai
-        isCore: true
-        description: A framework for composing LLM calls, tools, and retrieval steps into structured pipelines.
-        documentation: https://www.langchain.com
-        notes: Used alongside the OpenAI API to build an automated document-processing workflow.
-        relatedNodes: [openai-api, rag, vector-stores]
-        tags: [llm, framework]
-
       - id: rag
         name: RAG
         category: ai
         isCore: true
-        description: Retrieval-Augmented Generation — combines a language model with a search step over external documents to ground its answers.
-        notes: Integrated a RAG pipeline enabling natural-language search across 200+ internal documents, cutting lookup time from around 5 minutes to under 2.
-        relatedNodes: [langchain, vector-stores, openai-api]
+        description: Retrieval-Augmented Generation — grounding a language model's answers in documents retrieved at query time rather than in its weights alone.
+        documentation: https://www.pinecone.io/learn/retrieval-augmented-generation
+        relatedNodes: [vector-dbs, open-source-llms, prompt-engineering]
         tags: [llm, retrieval]
+
+      - id: vector-dbs
+        name: Vector DBs
+        category: ai
+        description: Databases that index high-dimensional embeddings so semantically similar content can be retrieved by nearest-neighbour search.
+        documentation: https://www.pinecone.io/learn/vector-database
+        relatedNodes: [rag]
+        tags: [embeddings, retrieval]
 
       - id: prompt-engineering
         name: Prompt Engineering
         category: ai
-        description: Structuring inputs to a language model to reliably produce the intended output.
-        relatedNodes: [openai-api, langchain]
-        tags: [llm]
+        description: Structuring instructions, context, and examples so a language model produces reliable, checkable output.
+        documentation: https://platform.openai.com/docs/guides/prompt-engineering
+        relatedNodes: [rag, open-source-llms]
+        tags: [llm, technique]
 
-      - id: vector-stores
-        name: Vector Stores
+      - id: open-source-llms
+        name: Open-Source LLMs
         category: ai
-        description: Databases optimized for storing and searching embeddings by semantic similarity — the retrieval half of RAG.
-        relatedNodes: [rag, langchain]
-        tags: [llm, retrieval, database]
+        description: Openly-licensed language models such as Llama and Mistral, run and adapted outside a hosted vendor API.
+        documentation: https://huggingface.co/docs/transformers/index
+        relatedNodes: [hugging-face, prompt-engineering]
+        tags: [llm, llama, mistral]
 
       - id: hugging-face
         name: Hugging Face
         category: ai
-        description: A platform and library ecosystem for open-source machine learning models.
+        description: A hub and library ecosystem for sharing, loading, and running pretrained models and datasets.
         documentation: https://huggingface.co/docs
-        relatedNodes: [open-source-llms]
-        tags: [ml, models]
+        relatedNodes: [open-source-llms, python]
+        tags: [models, ecosystem]
 
-      - id: open-source-llms
-        name: Open-Source LLMs (Llama, Mistral)
+      - id: machine-learning
+        name: Machine Learning
         category: ai
-        description: Openly-available language models that can be run and experimented with outside a hosted API.
-        relatedNodes: [hugging-face]
-        tags: [llm]
+        description: Fitting models to data to predict or classify, and evaluating them against expected behaviour rather than by inspection.
+        documentation: https://scikit-learn.org/stable/user_guide.html
+        projects: [RakshaChakra - Secure Mobile Banking]
+        notes: Fraud-detection models for RakshaChakra, evaluated at 92% accuracy in identifying suspicious transactions.
+        relatedNodes: [python, flutter]
+        tags: [modelling, evaluation]
 
   - key: cloud
     title: Cloud
@@ -816,21 +727,12 @@ categories:
       - id: aws
         name: AWS
         category: cloud
-        description: Amazon's cloud computing platform, spanning compute, storage, and managed services.
+        description: Amazon Web Services — compute, storage, and networking primitives for running applications in the cloud.
         documentation: https://docs.aws.amazon.com
         projects: [RakshaChakra - Secure Mobile Banking]
-        notes: Deployed a cloud-based behavioral-analytics system on AWS EC2 for real-time monitoring.
+        notes: Ran RakshaChakra's behavioural analytics system on EC2.
         relatedNodes: [python]
         tags: [cloud, infrastructure]
-
-      - id: vercel
-        name: Vercel
-        category: cloud
-        description: A hosting platform for frontend frameworks, built around Next.js.
-        documentation: https://vercel.com/docs
-        projects: [Cortexa Remote Interview Platform]
-        relatedNodes: [nextjs]
-        tags: [hosting, deployment]
 
   - key: devtools
     title: Developer Tools
@@ -838,7 +740,7 @@ categories:
       - id: git
         name: Git
         category: devtools
-        description: A distributed version-control system for tracking changes in source code.
+        description: A distributed version control system tracking history as a graph of immutable commits.
         documentation: https://git-scm.com/doc
         relatedNodes: [github]
         tags: [vcs]
@@ -846,34 +748,25 @@ categories:
       - id: github
         name: GitHub
         category: devtools
-        description: A hosting platform for Git repositories, code review, and CI/CD.
+        description: A hosting platform for Git repositories, with pull requests, reviews, and CI automation.
         documentation: https://docs.github.com
         relatedNodes: [git]
         tags: [vcs, collaboration]
 
-      - id: jira
-        name: JIRA
-        category: devtools
-        description: A project- and issue-tracking tool used for agile software development.
-        documentation: https://support.atlassian.com/jira-software-cloud
-        tags: [project-management]
-
       - id: postman
         name: Postman
         category: devtools
-        description: A tool for building, testing, and documenting HTTP APIs.
+        description: A client for exercising and inspecting HTTP APIs while building and debugging them.
         documentation: https://learning.postman.com/docs
         relatedNodes: [rest-apis]
         tags: [api, testing]
 
-      - id: monaco-editor
-        name: Monaco Editor
+      - id: jira
+        name: JIRA
         category: devtools
-        description: The code editor component that powers VS Code, embeddable in web applications.
-        documentation: https://microsoft.github.io/monaco-editor
-        projects: [Cortexa Remote Interview Platform]
-        relatedNodes: [typescript]
-        tags: [editor, tooling]
+        description: An issue and sprint tracker for planning work and following it through to delivery.
+        documentation: https://support.atlassian.com/jira-software-cloud
+        tags: [planning, process]
 `;
 
 export const workspaceSeed: VirtualFolder = {

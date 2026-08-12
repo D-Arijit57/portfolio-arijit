@@ -12,6 +12,15 @@ import type { WorkExperience } from '../experience/types';
  * server/repositories/seed/workspaceSeed.ts). Every stage below records the
  * `highlights` index it was read from; nothing in it asserts a fact those
  * four sentences don't already contain.
+ *
+ * Rewritten against the 2026 résumé. The previous version described an
+ * LLM document workflow with a RAG pipeline — key-field extraction, 200+
+ * indexed documents, a 5 min → under 2 min lookup, 2 delivered features, a
+ * 35% reduction in recurring issues. The current résumé makes none of those
+ * claims for this role, so none of them survive here: what it documents
+ * instead is production debugging on a serverless Node.js/Express backend
+ * plus a contribution to an AI assistant built with senior engineers. The
+ * only quantities that remain are the two the résumé actually states.
  */
 export const workHistory: WorkExperience[] = [
   {
@@ -20,133 +29,107 @@ export const workHistory: WorkExperience[] = [
     companyUrl: 'https://americanchase.com/',
     role: 'Software Engineer',
     location: 'Indore, MP',
-    startDate: '2025-03',
+    startDate: '2026-03',
     endDate: 'Present',
-    description: 'An internal document tool used by a US operations team.',
-    tech: ['OpenAI API', 'LangChain', 'RAG', 'Node.js', 'Express.js'],
+    description: 'A serverless Node.js/Express backend supporting a client operations team.',
+    // Only what this role's own bullets evidence. The résumé's wider skills
+    // list (RAG, vector DBs, Hugging Face, AWS…) belongs to skills.graph, not
+    // here: none of it is attributed to American Chase by any bullet, and the
+    // assistant bullet names no stack at all.
+    tech: ['Node.js', 'Express.js', 'REST APIs'],
 
     highlights: [
       {
-        text: 'Developed an LLM-powered document workflow using OpenAI API and LangChain, automating key-field extraction and saving 2 hrs/week for a US operations team.',
-        metric: '2 hrs/wk',
+        text: "Fixed a serverless deploy failure caused by extensionless relative imports that local tooling resolved but Node's native ESM loader rejected. Added .js extensions across 37 backend modules and verified by reproducing the production runtime locally.",
+        metric: '37 modules',
       },
       {
-        text: 'Resolved 5+ production defects in a Node.js/Express backend, reducing recurring issues by 35% through root-cause analysis and improved logging.',
-        metric: '−35% defects',
+        text: 'Traced intermittent missing data in production to a provider refresh started at module scope but never awaited, letting the serverless invocation return before hydration finished. Made the refresh a shared promise that data routes await.',
       },
       {
-        text: 'Integrated a RAG pipeline into an internal business tool, enabling natural language search across 200+ documents and reducing lookup time from 5 mins to under 2 mins.',
-        metric: '200+ docs',
+        text: 'Resolved 5+ backend issues in a Node.js/Express application by debugging APIs and improving application logging for easier troubleshooting.',
+        metric: '5+ issues',
       },
       {
-        text: 'Contributed to the delivery of 2 AI-assisted workflow features, collaborating with US stakeholders from requirements gathering through production rollout.',
-        metric: '2 features',
+        text: 'Worked on an AI assistant for the client side operations team with senior engineers, contributing to implementation and testing across the feature.',
       },
     ],
 
     visualization: {
       type: 'pipeline',
-      title: 'a document, end to end',
+      // What moves through the system. A request, not a document — the
+      // résumé's two production fixes are both about what happens between an
+      // invocation arriving and a route answering it.
+      title: 'a request, end to end',
       derivedFrom: 'reconstructed from americanchase.yaml · not live instrumentation',
 
       stages: [
         {
-          id: 'intake',
-          label: 'intake',
-          description: 'a document reaches the workflow',
-          // No `claim`: nothing was changed here, so the column shows the
-          // description instead of asserting an outcome.
-          // No contribution on purpose. This stage exists so the pipeline
-          // reads as a real system rather than as four accomplishments with
-          // connectors drawn between them — and the model has to be able to
-          // say "he didn't touch this" without inventing something.
-          sourceHighlights: [0],
+          id: 'request',
+          label: 'request',
+          description: 'a request reaches the serverless backend',
+          // No `claim`: nothing was changed here. The stage exists so the
+          // pipeline reads as a real system rather than as a list of fixes
+          // with connectors drawn between them — and the model has to be able
+          // to say "he didn't touch this" without inventing something.
+          sourceHighlights: [1],
         },
         {
-          id: 'extract',
-          label: 'extract',
-          description: 'key fields are read off the document',
-          claim: 'key fields read off automatically',
+          id: 'hydrate',
+          label: 'hydrate',
+          description: 'provider data is loaded before routes read it',
+          claim: 'hydration awaited, not raced',
           contribution:
-            'Built an LLM-powered document workflow that extracts key fields automatically on upload.',
-          technologies: ['OpenAI API', 'LangChain'],
-          metrics: [
-            {
-              id: 'time-saved',
-              label: 'operations time saved',
-              // A rate, not a before/after pair — no `comparison`, so this
-              // metric can never be drawn as proportional geometry.
-              value: '2 hrs/week',
-            },
-          ],
-          before: { summary: 'key fields extracted by hand' },
-          after: { summary: 'extracted automatically on upload' },
-          sourceHighlights: [0],
+            'Traced intermittent missing data to a provider refresh started at module scope but never awaited, and made it a shared promise that data routes await.',
+          technologies: ['Node.js'],
+          // A described state change with no number attached — the résumé
+          // quantifies neither the failure rate before nor after, so nothing
+          // here can be drawn as proportional geometry.
+          before: { summary: 'an invocation could return before hydration finished' },
+          after: { summary: 'data routes await a shared refresh promise' },
+          sourceHighlights: [1],
         },
         {
-          id: 'index',
-          label: 'index',
-          description: 'document contents become searchable',
-          claim: 'contents made searchable',
-          contribution: 'Integrated a RAG pipeline into the internal business tool.',
-          technologies: ['RAG', 'LangChain'],
+          id: 'serve',
+          label: 'serve',
+          description: 'API routes answer the request',
+          claim: 'failures traceable from the logs',
+          contribution:
+            'Resolved backend issues in a Node.js/Express application by debugging APIs and improving application logging.',
+          technologies: ['Node.js', 'Express.js', 'REST APIs'],
           metrics: [
             {
-              id: 'documents',
-              label: 'documents indexed',
-              // A count. No comparison, and deliberately no before/after
-              // either: the source says a capability was added, not what
-              // preceded it, and guessing would be the first fabricated
-              // thing on this page.
-              value: '200+',
+              id: 'issues',
+              label: 'backend issues resolved',
+              // A count, and a lower-bounded one. No `comparison`, so it can
+              // never be drawn as a ratio.
+              value: '5+',
             },
           ],
-          sourceHighlights: [2],
-        },
-        {
-          id: 'retrieve',
-          label: 'retrieve',
-          description: 'someone needs the document back',
-          claim: 'found in natural language',
-          contribution: 'Enabled natural-language search across the indexed documents.',
-          technologies: ['RAG'],
-          metrics: [
-            {
-              id: 'lookup-time',
-              label: 'lookup time',
-              value: '5 min → under 2 min',
-              // The only genuinely commensurable pair in this dataset, and
-              // therefore the only place proportional geometry is drawn.
-              // `to: 2` is the stated upper bound ("under 2 mins"), so the
-              // rendered bar is a conservative reading of the claim.
-              comparison: { from: 5, to: 2, unit: 'min' },
-            },
-          ],
-          before: { summary: 'finding a document took about 5 minutes' },
-          after: { summary: 'found in under 2 minutes, in natural language' },
           sourceHighlights: [2],
         },
       ],
 
       spanning: [
         {
-          id: 'reliability',
-          label: 'reliability',
+          id: 'deploy',
+          label: 'deploy',
           contribution:
-            'Resolved production defects in the Node.js/Express backend through root-cause analysis and improved logging.',
-          technologies: ['Node.js', 'Express.js'],
-          metrics: [
-            { id: 'recurrence', label: 'recurring issues', value: '−35%' },
-            { id: 'defects', label: 'defects resolved', value: '5+' },
-          ],
-          sourceHighlights: [1],
+            "Fixed a serverless deploy failure caused by extensionless relative imports that Node's native ESM loader rejected, adding .js extensions across the backend and verifying against the production runtime locally.",
+          technologies: ['Node.js'],
+          metrics: [{ id: 'modules', label: 'backend modules corrected', value: '37' }],
+          sourceHighlights: [0],
         },
         {
-          id: 'delivery',
-          label: 'delivery',
+          id: 'assistant',
+          label: 'assistant',
           contribution:
-            'Collaborated with US stakeholders from requirements gathering through production rollout.',
-          metrics: [{ id: 'features', label: 'AI-assisted features', value: '2' }],
+            'Worked on an AI assistant for the client side operations team with senior engineers, contributing to implementation and testing across the feature.',
+          // Deliberately no `technologies` and no `metrics`: the résumé names
+          // no stack for the assistant and quantifies nothing about it. This
+          // is the one place the old version reached hardest — "2 AI-assisted
+          // workflow features … through production rollout" — and the current
+          // résumé supports neither the count nor the ownership.
           sourceHighlights: [3],
         },
       ],

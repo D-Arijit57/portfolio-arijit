@@ -3,18 +3,34 @@ import type { ArchitectureBlock, ArchitectureBranch, ArchitectureRoot } from '..
 import { prefersReducedMotion } from '../../../lib/typingReveal';
 import { CONTENT_DIM, DIM, STRONG, TEXT } from '../pipeline/tokens';
 
-/** Edges are drawn a step brighter than `RULE`, the workspace's separator grey:
- * a line that divides content and a line that connects two modules should not
- * read at the same weight. */
-const EDGE_RULE = '#4a4a4a';
+/**
+ * Two different greys, deliberately not one.
+ *
+ * `NODE_RULE` outlines a *box* — the context-only entry node and the root — and
+ * has to sit quietly behind its own label, so it stays at the workspace's
+ * separator weight.
+ *
+ * `EDGE_RULE` draws the *lines between* boxes, and those are the diagram's
+ * actual content: the whole point of a block diagram over a list is that you
+ * can follow the flow. At separator grey they read as background texture, so
+ * connections are drawn white and the node outlines are left alone.
+ */
+const NODE_RULE = '#4a4a4a';
+const EDGE_RULE = '#ffffff';
 const EDGE_STROKE = 1.6;
+
+/** The fan-out carries the same weight as the solid arrows — same colour, dotted
+ * pattern — so the difference between the two edge kinds stays "what sort of
+ * relationship is this" rather than "which one can you see". */
+const FAN_RULE = EDGE_RULE;
+const FAN_DASH = '2 2.5';
 
 /** One full travel of a signal down a dotted branch. */
 const FLOW_PERIOD_S = 2.8;
 
 /** Height of the SVG bands carrying the turn and the dotted fan-out. */
-const TURN_PX = 12;
-const FAN_PX = 18;
+const TURN_PX = 8;
+const FAN_PX = 16;
 
 /** Below this container width the diagram stacks — still the same nodes and the
  * same parent/child relationships, just one column. */
@@ -130,7 +146,7 @@ export function ArchitectureDiagram({
         return (
           <React.Fragment key={branch.id}>
             {rowIndex === 0 ? (
-              <div className="h-1.5" />
+              <div className="h-0.5" />
             ) : (
               // The corner drops from whichever end the previous row finished
               // at, which alternates with the rows themselves.
@@ -179,7 +195,7 @@ export function ArchitectureDiagram({
             vertical={!wide}
           />
           <div
-            className={wide ? 'grid items-start' : 'flex flex-col gap-1.5'}
+            className={wide ? 'grid items-stretch' : 'flex flex-col gap-1.5'}
             style={
               wide
                 ? { gridTemplateColumns: `repeat(${outcomes.length}, minmax(0, 1fr))`, gap: 8 }
@@ -244,7 +260,7 @@ function Node({
 }) {
   return (
     <div
-      className="rounded-md px-2 py-1"
+      className="flex flex-col justify-center rounded-md px-2 py-0.5"
       style={{
         border: `1px solid ${accent}`,
         ...(grow ? { flexGrow: 1, flexBasis: 0, minWidth: 0 } : {}),
@@ -362,9 +378,9 @@ function DottedFan({
             y1={0}
             x2={6}
             y2={FAN_PX}
-            stroke={EDGE_RULE}
+            stroke={FAN_RULE}
             strokeWidth={EDGE_STROKE}
-            strokeDasharray="2 3"
+            strokeDasharray={FAN_DASH}
           />
         </svg>
       </div>
@@ -386,9 +402,9 @@ function DottedFan({
             <path
               d={d}
               fill="none"
-              stroke={EDGE_RULE}
+              stroke={FAN_RULE}
               strokeWidth={EDGE_STROKE}
-              strokeDasharray="2 3"
+              strokeDasharray={FAN_DASH}
               vectorEffect="non-scaling-stroke"
             />
             {!reduceMotion && (

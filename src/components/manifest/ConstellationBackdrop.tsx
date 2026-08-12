@@ -1,20 +1,41 @@
-import { useMemo } from 'react';
-import { hashStringToIndex } from '../../manifest/colorHash';
+import backdropUrl from '../../assets/constellation-background.webp';
 
 /**
- * The constellation's static backdrop: space gradient, a faint nebula
- * haze, and a plain (non-shiny, static-brightness) ambient star field
- * with a slight parallax drift tied to the interactive pan offset.
- * Deliberately NOT where the "living, blinking star" quality lives — that
- * belongs to the constellation itself (ConstellationStar / ConstellationEdge)
- * so it reads as the focal element, not diluted across the whole backdrop.
+ * The constellation's static backdrop — a single deep-space image behind the
+ * interactive constellation.
+ *
+ * Previously this drew the backdrop procedurally: a radial space gradient, three
+ * heavily-blurred nebula ellipses on a screen blend, and a 70-star ambient field
+ * seeded from `hashStringToIndex`. All of that is replaced by the supplied
+ * artwork, which already carries its own gradient, haze and star field — keeping
+ * the generated layers on top would have doubled the stars and lit the image
+ * through a second nebula.
+ *
+ * Deliberately still NOT where the "living, blinking star" quality lives: that
+ * belongs to the constellation itself (ConstellationStar / ConstellationEdge) so
+ * it reads as the focal element rather than being diluted across the backdrop.
+ *
+ * The parallax drift is kept, and is the reason for the oversize. The image is
+ * drawn 110% of the viewport and offset −5% on both axes, so translating it by a
+ * small fraction of the pan offset can never expose an edge. `slice` makes it
+ * cover rather than letterbox at any aspect ratio.
+ *
+ * Stored as WebP at quality 95 (1536×1024, ~59 kB). The source artwork was a
+ * 1.5 MB PNG — by far the largest asset in the project — and PNG is the wrong
+ * container for this content: a field of single-pixel stars over a gradient is
+ * exactly what lossless entropy coding handles worst. Quality 95 rather than a
+ * more typical 80 is deliberate: the stars *are* the fine high-frequency detail
+ * lossy encoders discard first, so the saving is taken from the format change
+ * rather than from the quality slider.
  */
 
-const STAR_COUNT = 70;
+/** How much larger than the viewport the image is drawn, so the parallax
+ * translate always has slack to move into. */
+const OVERSCAN = 10;
 
-function jitter(seed: string, mod: number): number {
-  return hashStringToIndex(seed, mod) / mod;
-}
+/** Fraction of the pan offset the backdrop drifts by. The constellation moves at
+ * 1.0, so a small value here is what reads as "much further away". */
+const PARALLAX = 0.02;
 
 export interface ConstellationBackdropProps {
   viewportX: number;
@@ -22,46 +43,16 @@ export interface ConstellationBackdropProps {
 }
 
 export function ConstellationBackdrop({ viewportX, viewportY }: ConstellationBackdropProps) {
-  const stars = useMemo(
-    () =>
-      Array.from({ length: STAR_COUNT }, (_, i) => ({
-        cx: `${jitter(`star:${i}:x`, 9973) * 100}%`,
-        cy: `${jitter(`star:${i}:y`, 9967) * 100}%`,
-        r: 0.5 + jitter(`star:${i}:r`, 991) * 0.7,
-        opacity: 0.18 + jitter(`star:${i}:op`, 883) * 0.22,
-      })),
-    [],
-  );
-
   return (
-    <>
-      <rect x={0} y={0} width="100%" height="100%" fill="url(#constellation-space-bg)" />
-
-      {/* Faint nebula haze — two large, heavily-blurred, very
-          low-opacity color blobs. Purely atmospheric depth, not a focal
-          element: additive (screen) blend so it never muddies the black
-          background, and a tiny parallax drift (a small fraction of the
-          pan offset) reads as "further away" than the stars. */}
-      <g
-        aria-hidden="true"
-        opacity={0.9}
-        style={{ mixBlendMode: 'screen' }}
-        transform={`translate(${viewportX * 0.015} ${viewportY * 0.015})`}
-      >
-        <ellipse cx="24%" cy="22%" rx={520} ry={340} fill="#3d52a8" opacity={0.26} filter="url(#constellation-nebula-blur)" />
-        <ellipse cx="78%" cy="74%" rx={580} ry={380} fill="#7d3f9e" opacity={0.22} filter="url(#constellation-nebula-blur)" />
-        <ellipse cx="50%" cy="90%" rx={460} ry={260} fill="#1f5f8b" opacity={0.16} filter="url(#constellation-nebula-blur)" />
-      </g>
-
-      {/* Ambient star field — a slightly stronger parallax drift than the
-          nebula, so it reads as nearer. Static brightness only (no glow,
-          no twinkle); this layer only needs varying static brightness for
-          depth. */}
-      <g aria-hidden="true" transform={`translate(${viewportX * 0.04} ${viewportY * 0.04})`}>
-        {stars.map((star, i) => (
-          <circle key={i} cx={star.cx} cy={star.cy} r={star.r} fill="#ffffff" opacity={star.opacity} />
-        ))}
-      </g>
-    </>
+    <image
+      aria-hidden="true"
+      href={backdropUrl}
+      x={`${-OVERSCAN / 2}%`}
+      y={`${-OVERSCAN / 2}%`}
+      width={`${100 + OVERSCAN}%`}
+      height={`${100 + OVERSCAN}%`}
+      preserveAspectRatio="xMidYMid slice"
+      transform={`translate(${viewportX * PARALLAX} ${viewportY * PARALLAX})`}
+    />
   );
 }

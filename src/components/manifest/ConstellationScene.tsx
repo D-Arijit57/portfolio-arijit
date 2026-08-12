@@ -173,11 +173,11 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
               @keyframes constellation-glow-breathe { 0%, 100% { opacity: 0.28; transform: scale(0.95); } 50% { opacity: 0.5; transform: scale(1.05); } }
             `}
           </style>
-          <radialGradient id="constellation-space-bg" cx="50%" cy="34%" r="80%">
-            <stop offset="0%" stopColor="#0a0f16" />
-            <stop offset="60%" stopColor="#050708" />
-            <stop offset="100%" stopColor="#010102" />
-          </radialGradient>
+          {/* `constellation-space-bg` (the radial space gradient) and
+              `constellation-nebula-blur` (a 55px blur for three haze ellipses)
+              used to live here. Both existed solely for the procedurally-drawn
+              backdrop, which is now a single image (ConstellationBackdrop.tsx),
+              and nothing else referenced either id. */}
           {/* One radial "star" gradient per distinct node color — bright
               near-white core fading through that color into full
               transparency. ConstellationStar's layered halo/bloom circles
@@ -213,9 +213,6 @@ export function ConstellationScene({ fileId, graph, layout, revealOrder, reduceM
           </filter>
           <filter id="constellation-edge-glow" x="-60%" y="-60%" width="220%" height="220%">
             <feGaussianBlur stdDeviation="2.5" />
-          </filter>
-          <filter id="constellation-nebula-blur" x="-60%" y="-60%" width="220%" height="220%">
-            <feGaussianBlur stdDeviation="55" />
           </filter>
         </defs>
 

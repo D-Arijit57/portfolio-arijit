@@ -1,36 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ArchitectureBlock, ArchitectureBranch, ArchitectureRoot } from '../../../experience/workspace';
-import { prefersReducedMotion } from '../../../lib/typingReveal';
-import { CONTENT_DIM, DIM, STRONG, TEXT } from '../pipeline/tokens';
+import { CONTENT_DIM, STRONG, TEXT } from '../pipeline/tokens';
 
 /**
- * Two different greys, deliberately not one.
- *
- * `NODE_RULE` outlines a *box* — the context-only entry node and the root — and
- * has to sit quietly behind its own label, so it stays at the workspace's
- * separator weight.
- *
- * `EDGE_RULE` draws the *lines between* boxes, and those are the diagram's
- * actual content: the whole point of a block diagram over a list is that you
- * can follow the flow. At separator grey they read as background texture, so
- * connections are drawn white and the node outlines are left alone.
+ * Connections are drawn white, not at the workspace's separator grey: the lines
+ * between boxes are the diagram's actual content (the point of a block diagram
+ * over a list is that you can follow the flow), so they must read clearly.
  */
-const NODE_RULE = '#4a4a4a';
 const EDGE_RULE = '#ffffff';
 const EDGE_STROKE = 1.6;
 
-/** The fan-out carries the same weight as the solid arrows — same colour, dotted
- * pattern — so the difference between the two edge kinds stays "what sort of
- * relationship is this" rather than "which one can you see". */
-const FAN_RULE = EDGE_RULE;
-const FAN_DASH = '2 2.5';
-
-/** One full travel of a signal down a dotted branch. */
-const FLOW_PERIOD_S = 2.8;
-
-/** Height of the SVG bands carrying the turn and the dotted fan-out. */
-const TURN_PX = 8;
-const FAN_PX = 16;
+/** Height of the SVG band carrying the turn between rows. */
+const TURN_PX = 16;
 
 /** Below this container width the diagram stacks — still the same nodes and the
  * same parent/child relationships, just one column. */
@@ -78,7 +59,6 @@ export function ArchitectureDiagram({
   /** Stage id → identity colour (see canvas/stageAccents.ts). */
   accents: Map<string, string>;
 }) {
-  const reduceMotion = prefersReducedMotion();
   const containerRef = useRef<HTMLDivElement>(null);
   const [wide, setWide] = useState(true);
 
@@ -130,13 +110,8 @@ export function ArchitectureDiagram({
     ],
   }));
 
-  /** Every contributed stage that produced something — the dotted row. */
-  const outcomes = branches
-    .flatMap((branch) => branch.blocks)
-    .filter((block) => block.claim || block.headlineMetric);
-
   return (
-    <div ref={containerRef} className="w-full">
+    <div ref={containerRef} className="flex w-full flex-1 flex-col justify-evenly gap-3">
       <RootNode root={root} />
 
       {rows.map(({ branch, nodes }, rowIndex) => {
@@ -144,12 +119,12 @@ export function ArchitectureDiagram({
         const ordered = reversed ? [...nodes].reverse() : nodes;
 
         return (
-          <React.Fragment key={branch.id}>
-            {rowIndex === 0 ? (
-              <div className="h-0.5" />
-            ) : (
+          <div key={branch.id} className="flex flex-col">
+            {rowIndex > 0 && (
               // The corner drops from whichever end the previous row finished
-              // at, which alternates with the rows themselves.
+              // at, which alternates with the rows themselves. It stays inside
+              // this row's block so spreading the blocks apart never detaches
+              // the connector from the row it feeds.
               <Turn align={wide ? (rowIndex % 2 === 1 ? 'end' : 'start') : 'start'} />
             )}
 
@@ -163,7 +138,6 @@ export function ArchitectureDiagram({
                           ? node.branch.technologies.join(' · ')
                           : 'no declared technology'
                       }
-                      tag={`h${node.branch.sourceHighlight}`}
                       accent={branchAccent(node.branch)}
                       grow={wide}
                     />
@@ -182,38 +156,9 @@ export function ArchitectureDiagram({
                 </React.Fragment>
               ))}
             </div>
-          </React.Fragment>
+          </div>
         );
       })}
-
-      {/* The dotted fan-out, and the outcomes it feeds. */}
-      {outcomes.length > 0 && (
-        <>
-          <DottedFan
-            accents={outcomes.map((block) => accentOf(block))}
-            reduceMotion={reduceMotion}
-            vertical={!wide}
-          />
-          <div
-            className={wide ? 'grid items-stretch' : 'flex flex-col gap-1.5'}
-            style={
-              wide
-                ? { gridTemplateColumns: `repeat(${outcomes.length}, minmax(0, 1fr))`, gap: 8 }
-                : undefined
-            }
-          >
-            {outcomes.map((block) => (
-              <Node
-                key={`outcome-${block.id}`}
-                title={block.claim ?? block.label}
-                body={block.headlineMetric}
-                accent={accentOf(block)}
-                emphasis
-              />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -223,15 +168,12 @@ function RootNode({ root }: { root: ArchitectureRoot }) {
   return (
     <div className="flex justify-center">
       <div
-        className="rounded-md px-3 py-0.5 text-center"
+        className="rounded-md px-3 py-1 text-center"
         style={{ border: `1px solid ${EDGE_RULE}`, maxWidth: '88%' }}
       >
         <div className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: STRONG }}>
           {root.label}
         </div>
-        <p className="mt-0.5 text-[10px] leading-[1.3]" style={{ color: CONTENT_DIM }}>
-          {root.description}
-        </p>
       </div>
     </div>
   );
@@ -242,7 +184,6 @@ function RootNode({ root }: { root: ArchitectureRoot }) {
 function Node({
   title,
   body,
-  tag,
   accent,
   grow = false,
   muted = false,
@@ -250,7 +191,6 @@ function Node({
 }: {
   title: string;
   body?: string;
-  tag?: string;
   accent: string;
   grow?: boolean;
   /** The context-only entry node — present, but not his work. */
@@ -260,7 +200,7 @@ function Node({
 }) {
   return (
     <div
-      className="flex flex-col justify-center rounded-md px-2 py-0.5"
+      className="flex flex-col justify-center gap-0.5 rounded-md px-2.5 py-1.5"
       style={{
         border: `1px solid ${accent}`,
         ...(grow ? { flexGrow: 1, flexBasis: 0, minWidth: 0 } : {}),
@@ -273,11 +213,6 @@ function Node({
         >
           {title}
         </span>
-        {tag && (
-          <span className="font-mono text-[9px]" style={{ color: DIM }}>
-            {tag}
-          </span>
-        )}
       </div>
       {body && (
         <p
@@ -307,7 +242,7 @@ function Arrow({ direction }: { direction: 'right' | 'left' | 'down' }) {
   }
 
   const rightwards = direction === 'right';
-  const W = 22;
+  const W = 30;
   const tail = rightwards ? 1 : W - 1;
   const head = rightwards ? W - 1 : 1;
   const end = rightwards ? head - HEAD : head + HEAD;
@@ -338,95 +273,5 @@ function Turn({ align }: { align: 'start' | 'end' }) {
         />
       </svg>
     </div>
-  );
-}
-
-/**
- * The dotted fan-out into the outcome row — and the one animated thing in this
- * diagram.
- *
- * These branches are dotted rather than solid because they carry a different
- * kind of relationship: the solid arrows above are the path a document takes
- * through the system, while these say "and this is what that produced". The
- * travelling pulse rides the dotted branches specifically, so the motion reads
- * as results being emitted rather than as another copy of the pipeline's
- * sequence.
- *
- * Drawn in a `0 0 100 100` viewBox with `preserveAspectRatio="none"`, so the
- * geometry is percentages and needs no measurement, and with
- * `vector-effect="non-scaling-stroke"` so that non-uniform scale can't smear
- * the stroke or the dash pattern.
- */
-function DottedFan({
-  accents,
-  reduceMotion,
-  vertical,
-}: {
-  accents: string[];
-  reduceMotion: boolean;
-  vertical: boolean;
-}) {
-  const count = accents.length;
-  const centre = (index: number) => ((index + 0.5) / count) * 100;
-
-  if (vertical) {
-    return (
-      <div aria-hidden="true" className="flex justify-start pl-2">
-        <svg width={12} height={FAN_PX}>
-          <line
-            x1={6}
-            y1={0}
-            x2={6}
-            y2={FAN_PX}
-            stroke={FAN_RULE}
-            strokeWidth={EDGE_STROKE}
-            strokeDasharray={FAN_DASH}
-          />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      className="w-full"
-      height={FAN_PX}
-    >
-      {accents.map((accent, index) => {
-        const d = `M 50 0 V 44 H ${centre(index)} V 100`;
-        return (
-          <g key={index}>
-            <path
-              d={d}
-              fill="none"
-              stroke={FAN_RULE}
-              strokeWidth={EDGE_STROKE}
-              strokeDasharray={FAN_DASH}
-              vectorEffect="non-scaling-stroke"
-            />
-            {!reduceMotion && (
-              <path
-                d={d}
-                fill="none"
-                stroke={accent}
-                strokeWidth={3}
-                strokeLinecap="round"
-                pathLength={100}
-                strokeDasharray="3 97"
-                vectorEffect="non-scaling-stroke"
-                className="architecture-flow"
-                style={{
-                  animationDelay: `${(index * FLOW_PERIOD_S) / count}s`,
-                  filter: `drop-shadow(0 0 2px ${accent})`,
-                }}
-              />
-            )}
-          </g>
-        );
-      })}
-    </svg>
   );
 }

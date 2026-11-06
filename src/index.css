@@ -666,3 +666,21 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* lattice.md's login-page snapshot (LatticeLoginSnapshot.tsx): a slow, small
+   vertical drift plus a hair of tilt — present but never distracting. */
+@keyframes lattice-snapshot-float {
+  0%, 100% { transform: translateY(0) rotate(-0.4deg); }
+  50% { transform: translateY(-6px) rotate(0.4deg); }
+}
+
+.lattice-snapshot-float {
+  animation: lattice-snapshot-float 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lattice-snapshot-float {
+    animation: none;
+  }
+}

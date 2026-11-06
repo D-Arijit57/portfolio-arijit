@@ -43,6 +43,7 @@ export function ExperienceTerminalPanel({
   className = '',
   dormant = false,
   dense = false,
+  fill = false,
   children,
 }: {
   /** A short, static window label — never the live command. */
@@ -64,6 +65,12 @@ export function ExperienceTerminalPanel({
    * stops the connector needing to re-measure when it wakes.
    */
   dormant?: boolean;
+  /**
+   * Make the body a flex column that takes the frame's remaining height, so a
+   * terminal stretched by its grid cell can distribute its content instead of
+   * leaving it at the top. Opt-in; every other caller is unchanged.
+   */
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   // Phase 9B (second pass): title (whether it's `$ command` or a plain
@@ -78,7 +85,7 @@ export function ExperienceTerminalPanel({
     // convergence exactly rather than this shell's earlier rounded-xl copy
     // of Cortexa's panel.
     <div
-      className={`overflow-hidden rounded-md ${className}`}
+      className={`overflow-hidden rounded-md ${fill ? 'flex flex-col' : ''} ${className}`}
       style={{
         backgroundColor: PANEL_BG,
         border: `1px solid ${CHROME_BORDER}`,
@@ -105,7 +112,7 @@ export function ExperienceTerminalPanel({
           is meant to span the terminal, so padding stays the only thing
           holding content off the edges). */}
       <div
-        className={`font-mono ${dense ? 'p-3.5 text-[13px] leading-[1.5]' : 'p-6 text-[14px] leading-[1.9]'}`}
+        className={`font-mono ${dense ? 'p-3.5 text-[13px] leading-[1.5]' : 'p-6 text-[14px] leading-[1.9]'} ${fill ? 'flex flex-1 flex-col' : ''}`}
         style={{ color: CORTEXA_TEXT }}
       >
         {children}

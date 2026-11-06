@@ -21,33 +21,25 @@ export function edgeKey(from: string, to: string): string {
   return `${from}->${to}`;
 }
 
-// Cortexa's real 16 edges (src/content/architecture/cortexa.ts, read-only
-// reference). Client fan-out/converge (10 edges) isn't listed explicitly —
-// it's the `http` fallback in commTypeForEdge() below, since it's the most
-// common case and doesn't need its own table entries.
+// Lattice's edges (src/content/architecture/lattice.ts, read-only reference).
+// Everything not listed — browser/external-app → proxy → API, and the API's
+// fan-out into its domains — is the `http` fallback in commTypeForEdge()
+// below. Only the auth domain and the three database reads/writes carry
+// their own type.
 const EDGE_COMM_TYPES: Record<string, CommType> = {
-  [edgeKey('next_js_app', 'clerk')]: 'auth',
-  [edgeKey('next_js_app', 'convex')]: 'realtime',
-  [edgeKey('next_js_app', 'stream_video')]: 'realtime',
-  [edgeKey('convex', 'interview_scheduling')]: 'invocation',
-  [edgeKey('convex', 'interview_lifecycle')]: 'invocation',
-  [edgeKey('convex', 'coding_challenge')]: 'invocation',
-  [edgeKey('convex', 'recording_management')]: 'invocation',
-  [edgeKey('coding_challenge', 'judge_pipeline')]: 'async',
-  [edgeKey('stream_video', 'recording_management')]: 'async',
+  [edgeKey('django_api', 'auth')]: 'auth',
+  [edgeKey('auth', 'postgres')]: 'invocation',
+  [edgeKey('tenancy', 'postgres')]: 'invocation',
+  [edgeKey('content_services', 'postgres')]: 'invocation',
+  [edgeKey('delivery_api', 'postgres')]: 'invocation',
 };
 
 export function commTypeForEdge(from: string, to: string): CommType {
   return EDGE_COMM_TYPES[edgeKey(from, to)] ?? 'http';
 }
 
-// Stream Video shares the `realtime` *type* with Convex (both are
-// continuous-media streams, not request/response) but reads as visually
-// distinct rather than identical — a color override on top of the shared
-// base config rather than a 7th CommType for one edge.
-const EDGE_COLOR_OVERRIDE: Record<string, string> = {
-  [edgeKey('next_js_app', 'stream_video')]: '#ff79c6',
-};
+// No per-edge color overrides at the moment — each CommType's base color is used as-is.
+const EDGE_COLOR_OVERRIDE: Record<string, string> = {};
 
 // VS Code syntax-theme-adjacent hues, matching the palette family
 // src/architecture/categories.ts already establishes for this canvas.

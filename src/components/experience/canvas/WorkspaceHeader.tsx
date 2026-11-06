@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import type { WorkspaceIdentity } from '../../../experience/workspace';
+import { formatDuration } from '../../../experience/pipeline';
 import { resolveCompanyLogo } from '../companyLogos';
 import { ACCENT, CONTENT_DIM, DIM, STRONG, TEXT } from '../pipeline/tokens';
 
@@ -24,9 +25,46 @@ import { ACCENT, CONTENT_DIM, DIM, STRONG, TEXT } from '../pipeline/tokens';
  * status badge, no domain and no environment, because the model states none
  * of them.
  */
+/**
+ * Whole calendar months from `start` ("YYYY-MM") to `end` ("YYYY-MM" or
+ * "Present", meaning now). Same month arithmetic as `formatDuration`.
+ */
+function monthsBetween(start: string, end: string, now: Date): number {
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end === 'Present' ? [now.getFullYear(), now.getMonth() + 1] : end.split('-').map(Number);
+  return Math.max(0, (ey - sy) * 12 + (em - sm));
+}
+
+/**
+ * Re-renders the caller on a timer, so a role marked "Present" keeps counting
+ * on a page that stays open — and, because the value is always derived from the
+ * start date and the clock rather than stored, nobody has to edit a number as
+ * the months go by. Hourly is plenty for a month-granularity figure; the
+ * visibility handler catches a tab that slept through a month boundary.
+ */
+function useNow(intervalMs = 60 * 60 * 1000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const timer = window.setInterval(tick, intervalMs);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [intervalMs]);
+  return now;
+}
+
 export function WorkspaceHeader({ identity }: { identity: WorkspaceIdentity }) {
   const logo = resolveCompanyLogo(identity.company);
   const end = identity.endDate === 'Present' ? 'present' : identity.endDate;
+  const now = useNow();
+  const months = monthsBetween(identity.startDate, identity.endDate, now);
+  // `formatDuration` reads the clock itself for a "Present" role, so calling it
+  // here (rather than using `identity.duration`, computed once when the
+  // workspace was built) is what lets the subtitle keep up too.
+  const duration = formatDuration(identity.startDate, identity.endDate);
 
   return (
     <header className="flex flex-wrap items-start justify-between gap-x-10 gap-y-3">
@@ -54,14 +92,14 @@ export function WorkspaceHeader({ identity }: { identity: WorkspaceIdentity }) {
             </span>
             <span className="tabular-nums" style={{ color: TEXT }}>
               {identity.startDate} <span style={{ color: DIM }}>→</span> {end}
-              <span style={{ color: CONTENT_DIM }}> · {identity.duration}</span>
+              <span style={{ color: CONTENT_DIM }}> · {duration}</span>
             </span>
           </p>
         </div>
       </div>
 
-      {/* Aligned as a key/value block so the four values line up in one
-          column — `tabular-nums` on the count keeps it on the same grid. */}
+      {/* Aligned as a key/value block so the values line up in one column —
+          `tabular-nums` on the month count keeps it on the same grid. */}
       {/* No `role` row: it is the subtitle directly under the company name,
           and stating it twice on one screen is the kind of filler this page
           exists to avoid. */}
@@ -81,7 +119,7 @@ export function WorkspaceHeader({ identity }: { identity: WorkspaceIdentity }) {
             <ArrowUpRight size={11} aria-hidden="true" />
           </a>
         </dd>
-        <MetaRow label="tech count" value={String(identity.techCount)} numeric />
+        <MetaRow label="experience" value={`${months} ${months === 1 ? 'month' : 'months'}`} numeric />
       </dl>
     </header>
   );

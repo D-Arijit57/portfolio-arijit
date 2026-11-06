@@ -310,7 +310,7 @@ export const useStore = create<StoreState>((set, get) => ({
   ],
   explorerState: {
     isOpen: true,
-    expandedFolders: ['root', 'projects', 'cortexa', 'rakshachakra', 'about', 'experience', 'skills', 'contact'],
+    expandedFolders: ['root', 'projects', 'lattice', 'rakshachakra', 'about', 'experience', 'skills', 'contact'],
     view: 'files',
     width: 220
   },

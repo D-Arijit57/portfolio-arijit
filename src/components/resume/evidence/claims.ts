@@ -18,7 +18,7 @@ import { workHistory } from '../../../content/workHistory';
  *
  * 2. **No line ranges.** An earlier mockup showed `L45–L67`, `L1–L120`; the real
  *    files are 18 and 28 lines. Locators name a real addressable region of the
- *    canonical model (`stage · extract`) instead, which is both truthful and
+ *    canonical model (`stage · hydrate`) instead, which is both truthful and
  *    more useful than a line number that would drift the moment the generator
  *    changed.
  *
@@ -75,7 +75,7 @@ export interface Claim {
  * claims 1–4, and the distinction is deliberate.
  *
  * Claims 1–4 quote `workHistory.ts` — canonical sentences about work that was
- * done. Cortexa's documents have no equivalent of `sourceHighlights`, so there
+ * done. Lattice's documents have no equivalent of `sourceHighlights`, so there
  * is no such sentence to quote here, and writing one would be inventing
  * evidence. What these three say instead is what each artifact *is* — a fact
  * anyone can check by clicking the reference and looking. `architecture.mmd`
@@ -113,15 +113,15 @@ export const CLAIMS: Claim[] = [
     ],
   },
   {
-    id: 'backend-issues',
+    id: 'schema-validation',
     bulletIndex: 2,
     color: '#e2c08d',
     references: [
       {
         fileId: 'american_chase',
         fileName: 'americanchase.yaml',
-        locator: 'stage · serve',
-        description: stageDescription('serve'),
+        locator: 'stage · validate',
+        description: stageDescription('validate'),
       },
     ],
   },
@@ -139,13 +139,13 @@ export const CLAIMS: Claim[] = [
     ],
   },
   {
-    id: 'interview-platform',
+    id: 'content-engine',
     bulletIndex: 4,
     color: '#4ec9b0',
     references: [
-      { fileId: 'cortexa_readme', fileName: 'cortexa.md', description: 'System design, architecture & decisions' },
-      { fileId: 'cortexa_arch', fileName: 'architecture.mmd', description: 'High-level system architecture' },
-      { fileId: 'cortexa_manifest', fileName: 'constellation.explore', description: 'Tech stack & infrastructure' },
+      { fileId: 'lattice_readme', fileName: 'lattice.md', description: 'Multi-tenant content engine: design, features & measured performance' },
+      { fileId: 'lattice_arch', fileName: 'architecture.mmd', description: 'High-level system architecture' },
+      { fileId: 'lattice_manifest', fileName: 'constellation.explore', description: 'Tech stack & infrastructure' },
     ],
   },
 ];

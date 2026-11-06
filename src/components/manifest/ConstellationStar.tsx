@@ -55,7 +55,7 @@ const RING_EXTRA: Record<ConstellationTier, number> = { primary: 12, secondary: 
  * what made the icon read as a small mark floating on a disc rather than as
  * the node's core.
  */
-const ICON_RATIO = 1.24;
+const ICON_RATIO = 1.4;
 /** Uniform, for the same reason the radius is: three label sizes under three
  * identically-sized rings reads as inconsistency rather than as hierarchy. */
 const TITLE_FONT: Record<ConstellationTier, number> = { primary: 11.5, secondary: 11.5, supporting: 11.5 };
@@ -279,7 +279,20 @@ function ConstellationStarImpl({
                 onBlur={() => onHoverChange(false)}
                 onClick={onSelect}
               >
-                {logo ? (
+                {logo?.image ? (
+                  <img
+                    src={logo.image}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                    style={{
+                      width: iconSize,
+                      height: iconSize,
+                      objectFit: 'contain',
+                      filter: reduceMotion ? undefined : `drop-shadow(0 0 ${radius * 0.1}px ${iconColor}88)`,
+                    }}
+                  />
+                ) : logo?.path ? (
                   <svg
                     viewBox="0 0 24 24"
                     width={iconSize}

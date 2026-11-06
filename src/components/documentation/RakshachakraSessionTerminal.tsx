@@ -48,7 +48,7 @@ const SESSION_LINES: SessionLine[] = [
  * in as a prop: every other terminal in this chain (`RakshachakraPipelineTerminal`
  * before it, `RakshachakraSignalsTerminal`) already hardcodes its own traced
  * subset of the canonical data rather than accepting it from the caller. */
-const CORE = ['Flutter', 'Dart', 'Firebase', 'Cloud Firestore', 'Python', 'Provider', 'local_auth'];
+const CORE = ['Python', 'Flask', 'AWS', 'Flutter', 'Dart', 'Firebase', 'Cloud Firestore'];
 
 /** One short label per `## Core Features` bullet (`RAKSHACHAKRA_DOC_MARKDOWN`),
  * same order, same paraphrase-for-caption-length convention `RakshachakraPipelineTerminal`'s
@@ -56,10 +56,10 @@ const CORE = ['Flutter', 'Dart', 'Firebase', 'Cloud Firestore', 'Python', 'Provi
 const CAPABILITIES = [
   'continuous behavioral authentication',
   'behavioral feature extraction',
-  'real-time risk inference',
+  'real-time risk inference (Flask API)',
   'adaptive security response',
   'biometric authentication',
-  'model retraining',
+  'background model retraining',
 ];
 
 function SessionRow({ line, revealed }: { line: SessionLine; revealed: boolean }) {

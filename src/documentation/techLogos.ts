@@ -14,12 +14,30 @@ import {
   siPython,
   siAndroid,
   siMaterialdesign,
+  siDjango,
+  siPytest,
+  siGithubactions,
+  siRender,
+  siDocker,
+  siPostgresql,
+  siFlask,
 } from 'simple-icons';
+import hiveLogo from '../assets/logos/hive.png';
+import awsLogo from '../assets/logos/aws.svg';
 
+/**
+ * One of two kinds of mark:
+ *  - `path`: an official simple-icons brand mark (monochrome SVG path).
+ *  - `image`: the project's own official logo as a raster/SVG asset, for
+ *    marks that aren't single-colour paths (Hive's is a full-colour
+ *    illustration; simple-icons no longer ships AWS).
+ *
+ * A technology with neither falls back to a generic icon at the call site.
+ */
 export interface TechLogo {
-  /** SVG path `d` attribute, official simple-icons brand mark. */
-  path: string;
-  /** Hex color to render the mark in (`#rrggbb`). */
+  path?: string;
+  image?: string;
+  /** Hex color to render the mark in (`#rrggbb`); the glow colour for `image`. */
   color: string;
 }
 
@@ -42,7 +60,7 @@ const TECH_LOGOS: Record<string, TechLogo> = {
   'tailwind css': { path: siTailwindcss.path, color: `#${siTailwindcss.hex}` },
   vercel: { path: siVercel.path, color: '#ffffff' }, // same dark-surface inversion as Next.js — simple-icons ships Vercel as black.
   'shadcn/ui': { path: siShadcnui.path, color: '#ffffff' },
-  jwt: { path: siJsonwebtokens.path, color: `#${siJsonwebtokens.hex}` },
+  jwt: { path: siJsonwebtokens.path, color: '#ffffff' }, // simple-icons ships JWT as black; white on the dark surface, same adaptation as Next.js/Vercel.
   flutter: { path: siFlutter.path, color: `#${siFlutter.hex}` },
   dart: { path: siDart.path, color: `#${siDart.hex}` },
   firebase: { path: siFirebase.path, color: `#${siFirebase.hex}` },
@@ -55,10 +73,31 @@ const TECH_LOGOS: Record<string, TechLogo> = {
   python: { path: siPython.path, color: `#${siPython.hex}` },
   android: { path: siAndroid.path, color: `#${siAndroid.hex}` },
   'material components': { path: siMaterialdesign.path, color: `#${siMaterialdesign.hex}` },
-  // Deliberately NOT mapped: simple-icons' "Hive" mark is an unrelated
-  // product (a social app, #FF7A00) — not the Dart/Flutter `hive` package
-  // Rakshachakra's manifest lists, so it falls back to the generic icon
-  // rather than risk showing the wrong brand.
+  // Lattice stack. Django REST Framework prefix-matches onto "django".
+  // Django's brand green (#092E20) is near-invisible on the dark workspace
+  // surface, so it uses Django's lighter secondary green (#44B78B) — same
+  // dark-surface adaptation as Next.js/Vercel above; Render ships black and
+  // is inverted to white likewise.
+  django: { path: siDjango.path, color: '#44B78B' },
+  pytest: { path: siPytest.path, color: `#${siPytest.hex}` },
+  'github actions': { path: siGithubactions.path, color: `#${siGithubactions.hex}` },
+  render: { path: siRender.path, color: '#ffffff' },
+  docker: { path: siDocker.path, color: `#${siDocker.hex}` },
+  postgresql: { path: siPostgresql.path, color: `#${siPostgresql.hex}` },
+  postgres: { path: siPostgresql.path, color: `#${siPostgresql.hex}` },
+  // Hive: simple-icons' "Hive" is an unrelated social app and "Apache Hive"
+  // is a different product, so neither is used — this is the Dart package's
+  // own logo, from github.com/hivedb/hive (.github/hive.svg), rendered to a
+  // transparent PNG.
+  hive: { image: hiveLogo, color: '#FBBF24' },
+  // Flask: black on simple-icons, white on the dark surface (same
+  // adaptation as Next.js/Vercel).
+  flask: { path: siFlask.path, color: '#ffffff' },
+  // AWS: simple-icons dropped its AWS marks, so this is the AWS logo from
+  // the devicon set (amazonwebservices-plain.svg, all-orange so it reads on
+  // dark).
+  aws: { image: awsLogo, color: '#FF9900' },
+  'aws ec2': { image: awsLogo, color: '#FF9900' },
 };
 
 export function resolveTechLogo(name: string): TechLogo | undefined {

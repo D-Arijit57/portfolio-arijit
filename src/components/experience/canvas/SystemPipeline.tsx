@@ -217,9 +217,6 @@ export function SystemPipeline({
 
                   <div className="mt-1 font-mono text-[10.5px]" style={{ color: DIM }}>
                     {isContributed(stage) ? 'direct contribution' : 'context only'}
-                    {stage.sourceHighlights.length > 0 && (
-                      <> · {stage.sourceHighlights.map((i) => `h${i}`).join(' ')}</>
-                    )}
                   </div>
                 </div>
               </div>

@@ -8,31 +8,21 @@ import { buildPathState, edgeKey, type PathState } from './dependencyPath';
  * what order), not new architectural data — every id below is a real node
  * in its project's own ArchitectureModel, and every consecutive pair is a
  * real edge. Keyed by projectKey first (not a single flat workflow map) —
- * Cortexa's and Rakshachakra's node ids don't overlap, so a single shared
+ * Lattice's and Rakshachakra's node ids don't overlap, so a single shared
  * map would let one project's trace silently reference another's
  * nonexistent nodes (caught when Rakshachakra became the registry's second
  * project, ARCHITECTURE_PLATFORM_DESIGN.md §13/§14).
  *
- * Cortexa's two workflows: verified against src/content/architecture/
- * cortexa.ts's 16 edges; the brief's own example trace,
- * Client->Next.js->Convex->Interview Scheduling->Recording
- * Manager->Judge Pipeline, wasn't walkable — Convex's four business-domain
- * edges are parallel siblings, not a chain — these two replace it.
+ * Lattice's two workflows: verified against src/content/architecture/
+ * lattice.ts's 12 edges — each consecutive pair is a real edge.
  *
  * Rakshachakra's two workflows: verified against src/content/architecture/
  * rakshachakra.ts's 18 edges.
  */
 export const TRACE_WORKFLOWS: Record<string, Record<string, string[]>> = {
-  cortexa: {
-    'Interview Scheduling Request': ['client', 'scheduling_ui', 'next_js_app', 'convex', 'interview_scheduling'],
-    'Coding Challenge & Judge Evaluation': [
-      'client',
-      'monaco_editor',
-      'next_js_app',
-      'convex',
-      'coding_challenge',
-      'judge_pipeline',
-    ],
+  lattice: {
+    'Content Entry Write': ['browser', 'vercel_proxy', 'django_api', 'content_services', 'postgres'],
+    'API-Key Content Delivery': ['external_app', 'vercel_proxy', 'django_api', 'delivery_api', 'postgres'],
   },
   rakshachakra: {
     'Behavioral Risk Scoring': [

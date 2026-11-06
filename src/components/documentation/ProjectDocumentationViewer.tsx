@@ -10,10 +10,10 @@ import { DocumentationHero } from './DocumentationHero';
 import { MetadataRow } from './MetadataRow';
 import { DocumentationSidebar } from './DocumentationSidebar';
 import { DocumentationSection } from './DocumentationSection';
-import { CortexaExecutionFlow } from './CortexaExecutionFlow';
-import { CortexaExploreTerminal } from './CortexaExploreTerminal';
 import { ProjectIdentityLine } from './ProjectIdentityLine';
 import { RakshachakraDocFlow } from './RakshachakraDocFlow';
+import { LatticeDocFlow } from './LatticeDocFlow';
+import { LatticeLoginSnapshot } from './LatticeLoginSnapshot';
 import { createDocumentationComponents } from './documentationComponents';
 import { useFileRevealSequence } from '../../hooks/useFileRevealSequence';
 import { PAGE_BACKGROUND } from './ProjectTerminalPanel';
@@ -28,42 +28,31 @@ import { PAGE_BACKGROUND } from './ProjectTerminalPanel';
  * same hero/sidebar/section treatment automatically — *unless* it opts into
  * the terminal grammar below.
  *
- * Two real, narrow, explicitly-approved exceptions to the generic path —
+ * One real, narrow, explicitly-approved exception to the generic path —
  * not "a project doc with slightly different styling" but a different
  * main-content renderer entirely, sharing one hero (`ProjectIdentityLine`,
- * `head -1`) and one page background (`PAGE_BACKGROUND`) but otherwise
- * independent:
+ * `head -1`) and one page background (`PAGE_BACKGROUND`):
  *
- *   - Cortexa (`isCortexaDoc`): `CortexaExecutionFlow` (the three-terminal
- *     chain: problem.sh derives a constraint → cortexa.sh justifies
- *     decisions against it → run-cortexa replays a session as evidence,
- *     then `cat`s the rest of the file), then `CortexaExploreTerminal`
- *     (`$ tree .`).
- *   - Rakshachakra (`isRakshachakraDoc`, Phase 2 of the Rakshachakra Grammar
- *     project): `RakshachakraDocFlow` — a linear chain (overview/problem →
- *     features → architecture → tradeoff → explore) built from the same
- *     shell/typography/reveal *primitives* Cortexa's own chain uses
- *     (`ProjectTerminalPanel`, `useInViewOnce`, `useFileRevealSequence`,
- *     `FeatureOutputTerminal`, `ProjectExploreTerminal`), reusing the
- *     technique without reusing Cortexa's own content (no decision log, no
- *     replay — Rakshachakra's canonical data has no equivalent of either,
- *     and inventing one would mean asserting facts the source material
- *     doesn't). See RakshachakraDocFlow's own comment for the full
- *     reasoning.
+ *   - Rakshachakra (`isRakshachakraDoc`): `RakshachakraDocFlow` — a linear
+ *     chain (problem.sh → signals.sh → session.sh, then explore) built from
+ *     the shared terminal-grammar primitives (`ProjectTerminalPanel`,
+ *     `useInViewOnce`, `useFileRevealSequence`, `FeatureOutputTerminal`,
+ *     `ProjectExploreTerminal`). It never reads `model.intro`, `sidebar`,
+ *     or the shared reveal `sequence`.
  *
- * Both terminal-grammar docs never read `model.intro`, `sidebar`, or the
- * shared reveal `sequence` — every other project doc is completely
- * unaffected, gated by `isCortexaDoc`/`isRakshachakraDoc` below. A doc
- * becomes a third terminal-grammar page the same way these two did: a real
- * branch here, not a config flag, since each one's actual content shape so
- * far has been different enough that a generic "terminal doc" abstraction
- * would be guessing at a shape only two data points have ever shown.
+ *   - Lattice (`isLatticeDoc`): `LatticeDocFlow` — the same chain shape
+ *     (problem.sh → schema.sh → request.sh, then explore), plus a login-page
+ *     snapshot in the hero's top-right corner.
+ *
+ * Every other project doc is unaffected and gets the
+ * generic hero/sidebar/section treatment. A doc becomes a terminal-grammar
+ * page the same way Rakshachakra did: a real branch here, not a config flag.
  */
 export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
   const model = useMemo(() => parseDocumentationDocument(file.content), [file.content]);
-  const isCortexaDoc = file.id === 'cortexa_readme';
   const isRakshachakraDoc = file.id === 'rakshachakra_readme';
-  const isTerminalGrammarDoc = isCortexaDoc || isRakshachakraDoc;
+  const isLatticeDoc = file.id === 'lattice_readme';
+  const isTerminalGrammarDoc = isRakshachakraDoc || isLatticeDoc;
 
   // The folder this doc lives in — link-card targets (documentation/linkCards.ts,
   // e.g. "Continue Exploring" cards) resolve relative to this, the same way a
@@ -101,13 +90,16 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
     </motion.div>
   );
 
-  const mainContent = isCortexaDoc ? (
-    <>
-      <CortexaExecutionFlow frontmatter={model.frontmatter} fileName={fileName} />
-      <CortexaExploreTerminal />
-    </>
-  ) : isRakshachakraDoc ? (
+  const liveDemoUrl = isLatticeDoc
+    ? model.sections
+        .find((section) => section.heading.toLowerCase() === 'continue exploring')
+        ?.bodyMarkdown.match(/\[Live Demo\]\((https?:\/\/[^)]+)\)/i)?.[1]
+    : undefined;
+
+  const mainContent = isRakshachakraDoc ? (
     <RakshachakraDocFlow model={model} basePath={basePath} />
+  ) : isLatticeDoc ? (
+    <LatticeDocFlow model={model} basePath={basePath} />
   ) : (
     <>
       {model.sections.map((section, index) => (
@@ -126,7 +118,14 @@ export function ProjectDocumentationViewer({ file }: { file: VirtualFile }) {
     <DocumentationLayout
       containerRef={sequence.containerRef as React.RefObject<HTMLDivElement>}
       hero={
-        isTerminalGrammarDoc ? (
+        isLatticeDoc ? (
+          <div className="relative">
+            <LatticeLoginSnapshot href={liveDemoUrl} />
+            <div className="md:pr-[250px] lg:pr-[330px]">
+              <ProjectIdentityLine title={model.title} frontmatter={model.frontmatter} fileName={fileName} />
+            </div>
+          </div>
+        ) : isTerminalGrammarDoc ? (
           <ProjectIdentityLine title={model.title} frontmatter={model.frontmatter} fileName={fileName} />
         ) : (
           <DocumentationHero title={model.title} frontmatter={model.frontmatter} fileName={fileName} />

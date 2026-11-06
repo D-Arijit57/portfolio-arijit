@@ -291,13 +291,14 @@ export function ArtifactConnectors({
         // Does a straight run right, at this y, cross one of them?
         const blocked = inTheWay.some(({ rect }) => fromY > rect.top && fromY < rect.bottom);
 
-        // The detour has to clear every panel it passes under, not just its own
-        // — a neighbour taller than the source would otherwise have the
-        // horizontal run drawn straight through its content.
-        const gutterBottom = inTheWay.reduce(
-          (lowest, { rect }) => Math.max(lowest, rect.bottom),
-          fromRect.bottom,
-        );
+        // The detour has to clear every panel *in its own row* — a neighbour
+        // taller than the source would otherwise have the horizontal run drawn
+        // through its content. Panels in other rows are deliberately ignored:
+        // counting them dropped the wire below the whole grid, straight down
+        // through whatever sat beneath the source.
+        const gutterBottom = inTheWay
+          .filter(({ rect }) => rect.top < fromRect.bottom && rect.bottom > fromRect.top)
+          .reduce((lowest, { rect }) => Math.max(lowest, rect.bottom), fromRect.bottom);
 
         const end = rel(endX, toY);
         const laneIndex = laneOwners.indexOf(edge.from);

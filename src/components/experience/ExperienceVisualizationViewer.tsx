@@ -31,7 +31,7 @@ export function ExperienceVisualizationViewer({ file }: { file: VirtualFile }) {
 
   switch (experience.visualization.type) {
     case 'pipeline':
-      return <ExperienceWorkspaceCanvas experience={experience} file={file} />;
+      return <ExperienceWorkspaceCanvas experience={experience} />;
     default:
       return null;
   }

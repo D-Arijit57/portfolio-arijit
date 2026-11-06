@@ -13,6 +13,22 @@ import type { WorkExperience } from '../experience/types';
  * `highlights` index it was read from; nothing in it asserts a fact those
  * four sentences don't already contain.
  *
+ * Synced to the November 2026 résumé: the outage is now stated as 8 hours
+ * on a customer-data API; a shared-middleware bullet (10 APIs, failures
+ * logged by request ID) is new, so the pipeline gained a `handle` stage and
+ * the highlight indices after it shifted; the assistant bullet now states a
+ * 20+ member team; and the résumé no longer says "serverless", so neither
+ * does anything here.
+ *
+ * Stage labels use the résumé's own vocabulary (module resolution, async
+ * refresh, schema validation, error handling) rather than generic pipeline
+ * verbs.
+ *
+ * Earlier, synced to the October 2026 résumé revision: the "5+ backend issues"
+ * bullet is gone, replaced by a schema-validation diagnosis (3 failing unit
+ * tests, a 16-test suite); the `serve` stage became `validate` and the only
+ * quantities that remain are 37 modules and the 3/16 test counts.
+ *
  * Rewritten against the 2026 résumé. The previous version described an
  * LLM document workflow with a RAG pipeline — key-field extraction, 200+
  * indexed documents, a 5 min → under 2 min lookup, 2 delivered features, a
@@ -20,7 +36,7 @@ import type { WorkExperience } from '../experience/types';
  * claims for this role, so none of them survive here: what it documents
  * instead is production debugging on a serverless Node.js/Express backend
  * plus a contribution to an AI assistant built with senior engineers. The
- * only quantities that remain are the two the résumé actually states.
+ * only quantities are the ones the résumé actually states.
  */
 export const workHistory: WorkExperience[] = [
   {
@@ -31,43 +47,48 @@ export const workHistory: WorkExperience[] = [
     location: 'Indore, MP',
     startDate: '2026-03',
     endDate: 'Present',
-    description: 'A serverless Node.js/Express backend supporting a client operations team.',
+    description: 'Node.js/Express REST APIs for customer data and product metadata, plus an AI assistant for the client-side operations team.',
     // Only what this role's own bullets evidence. The résumé's wider skills
-    // list (RAG, vector DBs, Hugging Face, AWS…) belongs to skills.graph, not
+    // list (AWS, Docker, PostgreSQL…) belongs to skills.graph, not
     // here: none of it is attributed to American Chase by any bullet, and the
     // assistant bullet names no stack at all.
     tech: ['Node.js', 'Express.js', 'REST APIs'],
 
     highlights: [
       {
-        text: "Fixed a serverless deploy failure caused by extensionless relative imports that local tooling resolved but Node's native ESM loader rejected. Added .js extensions across 37 backend modules and verified by reproducing the production runtime locally.",
+        text: "Restored a customer-data API, down for 8 hours, by fixing imports in 37 modules that Node's ESM loader rejected.",
         metric: '37 modules',
       },
       {
-        text: 'Traced intermittent missing data in production to a provider refresh started at module scope but never awaited, letting the serverless invocation return before hydration finished. Made the refresh a shared promise that data routes await.',
+        text: 'Ensured product responses consistently returned complete metadata by making routes await a shared refresh promise.',
       },
       {
-        text: 'Resolved 5+ backend issues in a Node.js/Express application by debugging APIs and improving application logging for easier troubleshooting.',
-        metric: '5+ issues',
+        text: 'Traced a schema-validation defect from 3 failing tests to a reversed set-difference; verified the fix with 16 tests.',
+        metric: '3 failing → 16 tests',
       },
       {
-        text: 'Worked on an AI assistant for the client side operations team with senior engineers, contributing to implementation and testing across the feature.',
+        text: 'Implemented shared middleware to unify error handling across 10 APIs and log failures by request ID.',
+        metric: '10 APIs',
+      },
+      {
+        text: 'Collaborated with senior engineers in a 20+ member team on an AI assistant for the client-side operations team.',
+        metric: '20+ member team',
       },
     ],
 
     visualization: {
       type: 'pipeline',
       // What moves through the system. A request, not a document — the
-      // résumé's two production fixes are both about what happens between an
-      // invocation arriving and a route answering it.
+      // résumé's production fixes are all about what happens between a
+      // request arriving and a route answering it.
       title: 'a request, end to end',
       derivedFrom: 'reconstructed from americanchase.yaml · not live instrumentation',
 
       stages: [
         {
           id: 'request',
-          label: 'request',
-          description: 'a request reaches the serverless backend',
+          label: 'routing',
+          description: 'a request reaches an Express route',
           // No `claim`: nothing was changed here. The stage exists so the
           // pipeline reads as a real system rather than as a list of fixes
           // with connectors drawn between them — and the model has to be able
@@ -76,61 +97,76 @@ export const workHistory: WorkExperience[] = [
         },
         {
           id: 'hydrate',
-          label: 'hydrate',
-          description: 'provider data is loaded before routes read it',
-          claim: 'hydration awaited, not raced',
+          label: 'async refresh',
+          description: 'product metadata is refreshed before routes respond',
+          claim: 'complete metadata, every response',
           contribution:
-            'Traced intermittent missing data to a provider refresh started at module scope but never awaited, and made it a shared promise that data routes await.',
+            'Ensured product responses consistently returned complete metadata by making routes await a shared refresh promise.',
           technologies: ['Node.js'],
           // A described state change with no number attached — the résumé
           // quantifies neither the failure rate before nor after, so nothing
           // here can be drawn as proportional geometry.
-          before: { summary: 'an invocation could return before hydration finished' },
-          after: { summary: 'data routes await a shared refresh promise' },
+          before: { summary: 'responses could come back without complete metadata' },
+          after: { summary: 'routes await a shared refresh promise' },
           sourceHighlights: [1],
         },
         {
-          id: 'serve',
-          label: 'serve',
-          description: 'API routes answer the request',
-          claim: 'failures traceable from the logs',
+          id: 'validate',
+          label: 'schema validation',
+          description: 'request payloads are checked against a schema',
+          claim: 'error fields reported correctly',
           contribution:
-            'Resolved backend issues in a Node.js/Express application by debugging APIs and improving application logging.',
-          technologies: ['Node.js', 'Express.js', 'REST APIs'],
+            'Traced a schema-validation defect from 3 failing tests to a reversed set-difference; verified the fix with 16 tests.',
+          technologies: ['Node.js'],
+          before: { summary: '3 tests failed on a schema-validation defect' },
+          after: { summary: 'set difference corrected; fix verified with 16 tests' },
           metrics: [
-            {
-              id: 'issues',
-              label: 'backend issues resolved',
-              // A count, and a lower-bounded one. No `comparison`, so it can
-              // never be drawn as a ratio.
-              value: '5+',
-            },
+            // Counts, not a comparable pair: no `comparison`, so never drawn as a ratio.
+            { id: 'failing-tests', label: 'failing tests traced', value: '3' },
+            { id: 'suite', label: 'tests verifying the fix', value: '16' },
           ],
           sourceHighlights: [2],
+        },
+        {
+          id: 'handle',
+          label: 'error handling',
+          description: 'failures are caught and reported',
+          claim: 'one error path, logged by request ID',
+          contribution:
+            'Implemented shared middleware to unify error handling across 10 APIs and log failures by request ID.',
+          technologies: ['Node.js', 'Express.js'],
+          before: { summary: 'error handling was handled per API' },
+          after: { summary: 'shared middleware handles errors and logs failures by request ID' },
+          metrics: [{ id: 'apis', label: 'APIs sharing one error path', value: '10' }],
+          sourceHighlights: [3],
         },
       ],
 
       spanning: [
         {
           id: 'deploy',
-          label: 'deploy',
+          label: 'module resolution',
           contribution:
-            "Fixed a serverless deploy failure caused by extensionless relative imports that Node's native ESM loader rejected, adding .js extensions across the backend and verifying against the production runtime locally.",
+            "Restored a customer-data API, down for 8 hours, by fixing imports in 37 modules that Node's ESM loader rejected.",
           technologies: ['Node.js'],
-          metrics: [{ id: 'modules', label: 'backend modules corrected', value: '37' }],
+          metrics: [
+            { id: 'modules', label: 'modules with imports fixed', value: '37' },
+            // "8 hours" rather than "8": workspace.ts turns any bare whole
+            // number from 1 to 12 into that many placeholder entries in the
+            // contributions/ terminal, and a duration isn't a list of things.
+            { id: 'downtime', label: 'API down fixed', value: '8 hours' },
+          ],
           sourceHighlights: [0],
         },
         {
           id: 'assistant',
-          label: 'assistant',
+          label: 'ai assistant',
           contribution:
-            'Worked on an AI assistant for the client side operations team with senior engineers, contributing to implementation and testing across the feature.',
-          // Deliberately no `technologies` and no `metrics`: the résumé names
-          // no stack for the assistant and quantifies nothing about it. This
-          // is the one place the old version reached hardest — "2 AI-assisted
-          // workflow features … through production rollout" — and the current
-          // résumé supports neither the count nor the ownership.
-          sourceHighlights: [3],
+            'Collaborated with senior engineers in a 20+ member team on an AI assistant for the client-side operations team.',
+          // Deliberately no `technologies`: the résumé names no stack for the
+          // assistant. Its only quantity is the team size.
+          metrics: [{ id: 'team', label: 'engineers on the team', value: '20+' }],
+          sourceHighlights: [4],
         },
       ],
     },

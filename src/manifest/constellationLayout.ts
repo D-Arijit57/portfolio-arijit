@@ -55,7 +55,7 @@ export interface ConstellationLayoutResult {
  * math and the star renderer keep their existing shape, and so a future design
  * can re-differentiate by tier without threading a new type through both.
  */
-const NODE_RADIUS = 42;
+const NODE_RADIUS = 54;
 
 export const TIER_RADIUS: Record<ConstellationTier, number> = {
   primary: NODE_RADIUS,

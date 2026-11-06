@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../../../store/useStore';
 import { buildExperienceWorkspace, WORK_HISTORY_FILE_ID } from '../../../experience/workspace';
 import type { WorkExperience } from '../../../experience/types';
-import type { VirtualFile } from '../../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { ArtifactPanel } from './ArtifactPanel';
 import { SystemPipeline } from './SystemPipeline';
@@ -10,9 +9,7 @@ import { ArtifactConnectors, type ConnectorEdge } from '../../shared/ArtifactCon
 import { buildStageAccents } from './stageAccents';
 import { CONTENT_DIM, DIM, SURFACE } from '../pipeline/tokens';
 
-/** Gutter between two terminals, and between the two artifact rows — one
- * value, taken from the reference's own rhythm (~5.5% of the canvas). */
-const COL_GAP = 28;
+/** Gutter between the two artifact rows, taken from the reference's own rhythm. */
 const ROW_GAP = 16;
 
 // Connectors are enabled at the `wide` tier only — below it the pipeline has
@@ -41,28 +38,23 @@ type Tier = 'wide' | 'medium' | 'narrow';
  * metric or a technology — which is what makes the page a view of
  * `workHistory.ts` rather than a second copy of it.
  *
- * Layout is a real CSS grid with `auto` rows and `align-items: start`,
- * deliberately not `1fr` rows: a short artifact must never stretch to match a
- * tall one, because the resulting dead space inside a panel is exactly the
- * "meaningless whitespace" this composition is judged on. architecture.ts is
- * the tallest artifact and takes the left column across two rows; metrics.log
- * and shipped/ stack beside it at their natural heights; the source artifact
- * spans the full width but ships collapsed, so ~28 lines of YAML cannot
- * dominate the canvas until someone asks for it.
+ * Layout is one two-by-two CSS grid with a shared column template and `auto`
+ * rows, items stretched: the two terminals in a row are always the same height
+ * and both rows share one vertical gutter, so the frames line up on every
+ * edge. (An earlier version top-aligned each item to its natural height and
+ * gave the rows different column splits; the ragged edges read as misaligned.)
+ * The source artifact shows a short YAML head and a link to open the file.
  */
 export function ExperienceWorkspaceCanvas({
   experience,
-  file,
 }: {
   experience: WorkExperience;
-  file: VirtualFile;
 }) {
   const openFile = useStore((state) => state.openFile);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const relativeRef = useRef<HTMLDivElement>(null);
   const [tier, setTier] = useState<Tier>('wide');
-  const [sourceExpanded, setSourceExpanded] = useState(false);
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
 
@@ -128,12 +120,7 @@ export function ExperienceWorkspaceCanvas({
     return (
       <ArtifactPanel
         artifact={artifact}
-        file={file}
         accents={accents}
-        expanded={artifact.id === 'source' ? sourceExpanded : undefined}
-        onToggleExpanded={
-          artifact.id === 'source' ? () => setSourceExpanded((value) => !value) : undefined
-        }
         onOpenFile={artifact.id === 'source' ? handleOpenSource : undefined}
         onActiveChange={(active) => setActiveArtifactId(active ? artifact.id : null)}
         dimmed={activeArtifactId !== null && activeArtifactId !== artifact.id}
@@ -153,16 +140,26 @@ export function ExperienceWorkspaceCanvas({
   // "describes" versus "measures".
   const edges: ConnectorEdge[] = useMemo(
     () =>
-      workspace.relationships.map((relationship) => ({
-        id: relationship.id,
-        from: relationship.from,
-        to: relationship.to,
-        color: accents.get(relationship.to) ?? CONTENT_DIM,
-        restingVisible: relationship.restingVisible,
-        // The source file underwrites every stage, so its edges are ambient
-        // context rather than one of the page's specific claims.
-        ambient: relationship.kind === 'evidences',
-      })),
+      workspace.relationships
+        // Two measurements of the same stage (e.g. failing tests / tests
+        // verifying the fix) would draw two wires on top of each other between
+        // the same two anchors. One wire per artifact → stage pair is enough;
+        // hover emphasis is computed from `workspace.relationships`, so no
+        // relationship is lost.
+        .filter(
+          (relationship, index, all) =>
+            all.findIndex((other) => other.from === relationship.from && other.to === relationship.to) === index,
+        )
+        .map((relationship) => ({
+          id: relationship.id,
+          from: relationship.from,
+          to: relationship.to,
+          color: accents.get(relationship.to) ?? CONTENT_DIM,
+          restingVisible: relationship.restingVisible,
+          // The source file underwrites every stage, so its edges are ambient
+          // context rather than one of the page's specific claims.
+          ambient: relationship.kind === 'evidences',
+        })),
     [workspace.relationships, accents],
   );
 
@@ -191,6 +188,22 @@ export function ExperienceWorkspaceCanvas({
     return ids;
   }, [workspace.relationships, activeArtifactId, activeStageId]);
 
+  // The pipeline — the system flow. `h-full` plus the rail's own `flex-1`
+  // segments lets four stages span the bottom row's full height rather than
+  // clustering at the top of a short box.
+  const pipelineNode = (
+    <div className="h-full min-w-0">
+      <SystemPipeline
+        stages={workspace.stages}
+        accents={accents}
+        activeStageId={activeStageId}
+        onStageActiveChange={setActiveStageId}
+        anchorRef={(node) => registerAnchor('pipeline', node)}
+        stageAnchorRef={registerAnchor}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={scrollRef}
@@ -207,18 +220,22 @@ export function ExperienceWorkspaceCanvas({
 
         {/* `relative` so the connector overlay shares this element's
             coordinate space — the same container-relative measurement every
-            other connector in this app does. */}
+            other connector in this app does.
+
+            At the `wide` tier: a two-by-two of terminals beside the pipeline
+            column. Each row is as tall as its content (terminals in a row
+            match each other; the lower row is deliberately shorter than the
+            upper one, so its few lines aren't spread thin); each carries only
+            the points that aren't already said by the pipeline or the source
+            (see ArtifactPanel). Below it the pipeline reflows beneath. The
+            column gap is also the channel the connector lanes run through, so
+            it is wider than a plain gutter. */}
         <div
           ref={relativeRef}
-          className="relative grid items-start"
+          className="relative grid items-stretch"
           style={{
             gridTemplateColumns: tier === 'wide' ? 'minmax(0, 1fr) minmax(300px, 340px)' : '1fr',
             rowGap: 24,
-            // The channel between the artifact canvas and the pipeline —
-            // measured off the reference's own proportions (roughly 2.5× the
-            // gutter between two terminals) rather than picked. Six connectors
-            // run their lanes through this gap; at the artifact gutter's width
-            // they collapse into near-vertical squiggles against both borders.
             columnGap: tier === 'wide' ? 64 : 24,
           }}
         >
@@ -233,56 +250,20 @@ export function ExperienceWorkspaceCanvas({
             enabled={tier === 'wide'}
           />
 
-          {/* The artifact canvas — a two-by-two composition.
-​
-              Proportions and gutters are measured off the reference rather
-              than picked: row one splits ~1.5:1 (the diagram needs the width,
-              the log does not), row two splits ~1:1, and both gutters plus the
-              row gap sit at ~5.5% of the canvas. The two rows carry different
-              splits on purpose — a single shared column template would force
-              shipped/ to inherit architecture.ts's width and leave the source
-              artifact stranded in a narrow strip.
-​
-              Rows are `auto` and items align to `start`: a short artifact is
-              never stretched to match a tall neighbour. */}
-          <div className="flex min-w-0 flex-col" style={{ gap: ROW_GAP }}>
-            <div
-              className="grid items-start"
-              style={{
-                gridTemplateColumns: tier === 'narrow' ? '1fr' : 'minmax(0, 1.5fr) minmax(0, 1fr)',
-                gap: COL_GAP,
-              }}
-            >
-              {panelFor(architecture)}
-              {panelFor(metrics)}
-            </div>
-
-            <div
-              className="grid items-start"
-              style={{
-                gridTemplateColumns: tier === 'narrow' ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)',
-                gap: COL_GAP,
-              }}
-            >
-              {panelFor(shipped)}
-              {panelFor(source)}
-            </div>
+          <div
+            className="grid min-w-0"
+            style={{
+              gridTemplateColumns: tier === 'narrow' ? '1fr' : 'minmax(0, 1fr) minmax(0, 1fr)',
+              gap: `${ROW_GAP}px 28px`,
+            }}
+          >
+            {panelFor(architecture)}
+            {panelFor(metrics)}
+            {panelFor(shipped)}
+            {panelFor(source)}
           </div>
 
-          {/* The pipeline — the system flow, given the whole right column.
-              `h-full` here plus the rail's own `flex-1` segments is what lets
-              four stages span the artifacts' full height rather than
-              clustering at the top of a short box. */}
-          <div className="h-full min-w-0">
-            <SystemPipeline
-              stages={workspace.stages}
-              accents={accents}
-              activeStageId={activeStageId}
-              onStageActiveChange={setActiveStageId}
-              anchorRef={(node) => registerAnchor('pipeline', node)}
-              stageAnchorRef={registerAnchor}
-            />
-          </div>
+          {pipelineNode}
         </div>
 
         <footer>
